@@ -1,3 +1,5 @@
+//C:\canchascapacitor2025\Canchas2025Backend\app-partidos\routes\usuario.js
+
 const express = require('express');
 const router = express.Router();
 const Usuario = require('../models/usuario');
