@@ -1,6 +1,6 @@
 //C:\canchascapacitor2025\Canchas2025Backend\app-partidos\config\database.js
 const { Sequelize } = require('sequelize');
-
+require('dotenv').config();
 const sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USER,

@@ -13,7 +13,7 @@ router.get('/test', (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  console.log(req.body);
+ 
   try {
     const nuevoUsuario = await Usuario.create(req.body);
     res.status(201).json(nuevoUsuario);
