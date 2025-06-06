@@ -21,6 +21,11 @@ const Usuario = sequelize.define('Usuario', {
     allowNull: false,
     unique: false
   },
+    localidad: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: false
+  },
   puntuacion: {
     type: DataTypes.INTEGER,
     allowNull: false,

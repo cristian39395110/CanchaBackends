@@ -1,5 +1,3 @@
-// ✅ Nuevo enfoque con FCM para notificaciones push en lugar de Web Push API
-
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
@@ -7,19 +5,19 @@ const admin = require('firebase-admin');
 
 const { UsuarioPartido, Suscripcion, Usuario, UsuarioDeporte, Partido, Deporte } = require('../models/model');
 
-// Inicializa Firebase Admin SDK solo una vez
+// 🔐 Inicializar Firebase Admin SDK una sola vez
 try {
   const serviceAccount = require('../firebase-admin-sdk.json');
-
   if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
   }
 } catch (error) {
-  console.error('❌ No se pudo inicializar Firebase Admin SDK:', error);
+  console.error('❌ Error al inicializar Firebase Admin SDK:', error);
 }
 
+// 📤 Función reutilizable para enviar notificaciones FCM
 async function enviarNotificacionesFCM(tokens, payload) {
   const message = {
     notification: {
@@ -34,12 +32,13 @@ async function enviarNotificacionesFCM(tokens, payload) {
 
   try {
     const response = await admin.messaging().sendMulticast(message);
-    console.log(`✅ Notificaciones enviadas: ${response.successCount} exitosas, ${response.failureCount} fallidas`);
+    console.log(`✅ Notificaciones FCM: ${response.successCount} enviadas, ${response.failureCount} fallidas`);
   } catch (err) {
-    console.error('❌ Error enviando notificaciones FCM:', err);
+    console.error('❌ Error enviando notificaciones:', err);
   }
 }
 
+// 🏟️ Crear partido y notificar
 router.post('/', async (req, res) => {
   const {
     deporteId,
@@ -54,11 +53,12 @@ router.post('/', async (req, res) => {
     longitud
   } = req.body;
 
-  if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId) {
-    return res.status(400).json({ error: 'Faltan datos para crear el partido' });
+  if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
 
   try {
+    // 1. Crear el partido
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
@@ -72,9 +72,11 @@ router.post('/', async (req, res) => {
       longitud: longitud || null
     });
 
+    // 2. Obtener nombre del deporte
     const deporte = await Deporte.findByPk(deporteId);
 
-    const inscritos = await UsuarioDeporte.findAll({
+    // 3. Buscar usuarios que se inscribieron a ese deporte y localidad
+    const inscriptos = await UsuarioDeporte.findAll({
       where: { deporteId, localidad },
       include: [{ model: Usuario, attributes: ['id'] }],
     });
@@ -82,25 +84,32 @@ router.post('/', async (req, res) => {
     const notificaciones = [];
     const usuariosIds = [];
 
-    for (const inscripto of inscritos) {
+    for (const inscripto of inscriptos) {
       const usuarioId = inscripto.Usuario.id;
       if (usuarioId !== organizadorId) {
-        notificaciones.push({ UsuarioId: usuarioId, PartidoId: partido.id, estado: 'pendiente' });
+        notificaciones.push({
+          UsuarioId: usuarioId,
+          PartidoId: partido.id,
+          estado: 'pendiente',
+        });
         usuariosIds.push(usuarioId);
       }
     }
 
+    // 4. Crear relación UsuarioPartido
     await UsuarioPartido.bulkCreate(notificaciones);
 
+    // 5. Obtener FCM tokens de usuarios suscriptos
     const suscripciones = await Suscripcion.findAll({
       where: { usuarioId: { [Op.in]: usuariosIds } },
     });
 
     const fcmTokens = suscripciones.map(sub => sub.fcmToken).filter(Boolean);
 
+    // 6. Preparar y enviar la notificación
     const payload = {
-      title: 'Nuevo partido disponible',
-      body: `Se ha creado un partido de ${deporte?.nombre || 'este deporte'} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}. ¿Querés unirte?`,
+      title: '🎯 ¡Nuevo partido disponible!',
+      body: `Partido de ${deporte?.nombre || 'deporte'} en ${lugar} el ${fecha} a las ${hora}.`,
       url: '/invitaciones'
     };
 
@@ -108,11 +117,15 @@ router.post('/', async (req, res) => {
       await enviarNotificacionesFCM(fcmTokens, payload);
     }
 
-    res.json({ mensaje: 'Partido creado y notificaciones FCM enviadas', partido });
+    // 7. Respuesta final
+    res.status(201).json({
+      mensaje: '✅ Partido creado y notificaciones FCM enviadas',
+      partido
+    });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error creando partido:', error);
+    res.status(500).json({ error: 'Error al crear el partido o enviar notificaciones.' });
   }
 });
 
