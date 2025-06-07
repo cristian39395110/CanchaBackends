@@ -7,8 +7,12 @@ const Suscripcion = require('./Suscripcion');
 const UsuarioDeporte = require('./usuarioDeporte');
 const UsuarioPartido = require('./usuarioPartido');
 const HistorialPuntuacion = require('./historialPuntuacion'); // Importa el modelo
+const Mensaje = require('./Mensaje');
 
 // ...
+
+Mensaje.belongsTo(Usuario, { as: 'emisor', foreignKey: 'emisorId' });
+Mensaje.belongsTo(Usuario, { as: 'receptor', foreignKey: 'receptorId' });
 
 // Asociaciones
 Usuario.hasMany(HistorialPuntuacion, { foreignKey: 'usuarioId' });
@@ -36,11 +40,15 @@ UsuarioDeporte.belongsTo(Deporte, { foreignKey: 'deporteId' });
 Usuario.hasMany(UsuarioDeporte, { foreignKey: 'usuarioId' });
 Deporte.hasMany(UsuarioDeporte, { foreignKey: 'deporteId' });
 
+
+
+
 module.exports = {
   Usuario,
   Deporte,
   Partido,
   Suscripcion,
   UsuarioDeporte,
-  UsuarioPartido
+  UsuarioPartido,
+  Mensaje
 };

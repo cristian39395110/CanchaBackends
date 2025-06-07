@@ -20,9 +20,15 @@ require('./models/deporte');
 require('./models/partido');
 require('./models/usuarioDeporte');
 require('./models/usuarioPartido');
+require('./models/Mensaje');
+
+
+
 
 // Rutas (las puedes crear después)
 const usuarioDeporteRoutes = require('./routes/usuarioDeporte');
+const mensajesRouter = require('./routes/mensajes');
+
 const partidoRoutes = require('./routes/partido');
 const usuarioRoutes = require('./routes/usuario');
 const deporteRoutes = require('./routes/deporte');
@@ -30,6 +36,7 @@ const suscripcionRoutes = require('./routes/suscripcion');
 const notificacionesRouter = require('./routes/notificaciones');
 const solicitudesRouter = require('./routes/solicitudes');
 
+app.use('/api/mensajes', mensajesRouter);
 app.use('/api/usuariodeporte', usuarioDeporteRoutes);
 app.use('/api/solicitudes', solicitudesRouter);
 app.use('/api/notificaciones', notificacionesRouter);

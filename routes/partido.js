@@ -1,3 +1,6 @@
+//C:\canchascapacitor2025\Canchas2025Backend\app-partidos\routes\partido.js
+// aca cuando ujno pide jugadores y tendria quee enviar las notificacion a los dispoitivos andoird 
+
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
