@@ -22,24 +22,74 @@ try {
 
 // 📤 Función reutilizable para enviar notificaciones FCM
 async function enviarNotificacionesFCM(tokens, payload) {
-  const message = {
-    notification: {
-      title: payload.title,
-      body: payload.body,
-    },
-    data: {
-      url: payload.url || '/invitaciones',
-    },
-    tokens,
-  };
-
   try {
-    const response = await admin.messaging().sendMulticast(message);
-    console.log(`✅ Notificaciones FCM: ${response.successCount} enviadas, ${response.failureCount} fallidas`);
+    for (const token of tokens) {
+      const message = {
+        token,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+        },
+        android: {
+          notification: {
+            channelId: 'default',
+            sound: 'default'
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default'
+            }
+          }
+        },
+        data: {
+          url: payload.url || '/invitaciones',
+        }
+      };
+
+      const response = await admin.messaging().send(message);
+      console.log(`✅ Notificación enviada a ${token}`, response);
+    }
   } catch (err) {
-    console.error('❌ Error enviando notificaciones:', err);
+    console.error('❌ Error enviando notificaciones FCM:', err);
   }
 }
+
+
+router.post('/test-fcm', async (req, res) => {
+  const { token, title, body } = req.body;
+
+  try {
+    const response = await admin.messaging().send({
+      token,
+      notification: {
+        title: title || '⚽ ¡Notificación de prueba!',
+        body: body || 'Esto llegó desde tu backend directo a FCM 💥'
+      },
+      android: {
+        notification: {
+          channelId: 'default',
+          sound: 'default'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
+    });
+
+    console.log('✅ Notificación enviada:', response);
+    res.json({ message: 'Notificación enviada con éxito', response });
+  } catch (error) {
+    console.error('❌ Error enviando notificación:', error);
+    res.status(500).json({ error: 'No se pudo enviar la notificación', details: error });
+  }
+});
+
 
 // 🏟️ Crear partido y notificar
 router.post('/', async (req, res) => {
