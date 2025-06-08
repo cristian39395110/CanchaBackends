@@ -1,6 +1,5 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-
 const Mensaje = sequelize.define('Mensaje', {
   id: {
     type: DataTypes.INTEGER,
@@ -24,6 +23,10 @@ const Mensaje = sequelize.define('Mensaje', {
     allowNull: false,
     defaultValue: DataTypes.NOW,
   },
+  leido: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  }
 });
-
 module.exports = Mensaje;

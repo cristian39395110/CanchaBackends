@@ -8,6 +8,35 @@ app.use(cors({
   origin: '*'
 }));
 
+const http = require('http');
+const socketIo = require('socket.io');
+const app = require('./app'); // tu express app
+
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: '*', // ajustá según tu frontend
+    methods: ['GET', 'POST']
+  }
+});
+
+// Mantenelo disponible en otros módulos
+app.set('io', io);
+
+// Escuchá eventos personalizados
+io.on('connection', (socket) => {
+  console.log('🟢 Usuario conectado');
+
+  socket.on('disconnect', () => {
+    console.log('🔴 Usuario desconectado');
+  });
+});
+
+server.listen(3000, () => {
+  console.log('✅ Servidor con Socket.io corriendo en puerto 3000');
+});
+
+
 
 require('dotenv').config();
 app.use(express.json());
