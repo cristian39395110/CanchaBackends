@@ -1,29 +1,28 @@
 // app.js
+require('dotenv').config();
 const express = require('express');
 const app = express();
-const sequelize = require('./config/database');
 const cors = require('cors');
-const { Usuario, Deporte, Partido, Suscripcion, UsuarioDeporte, UsuarioPartido } = require('./models');
-app.use(cors({
-  origin: '*'
-}));
-
-const http = require('http');
-const socketIo = require('socket.io');
-const app = require('./app'); // tu express app
-
+const http = require('http'); // 👉 Primero importás http
 const server = http.createServer(app);
+const socketIo = require('socket.io');
+const sequelize = require('./config/database');
+const { Usuario, Deporte, Partido, Suscripcion, UsuarioDeporte, UsuarioPartido } = require('./models');
+
+app.use(cors({ origin: '*' }));
+app.use(express.json());
+app.use('/uploads', express.static('uploads'));
+
+// Configuración de Socket.IO
 const io = socketIo(server, {
   cors: {
-    origin: '*', // ajustá según tu frontend
+    origin: '*',
     methods: ['GET', 'POST']
   }
 });
 
-// Mantenelo disponible en otros módulos
 app.set('io', io);
 
-// Escuchá eventos personalizados
 io.on('connection', (socket) => {
   console.log('🟢 Usuario conectado');
 
@@ -32,18 +31,7 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(3000, () => {
-  console.log('✅ Servidor con Socket.io corriendo en puerto 3000');
-});
-
-
-
-require('dotenv').config();
-app.use(express.json());
-app.use('/uploads', express.static('uploads'));
-
-
-// Importar modelos para que se carguen relaciones
+// Importar modelos para cargar relaciones
 require('./models/usuario');
 require('./models/deporte');
 require('./models/partido');
@@ -51,13 +39,9 @@ require('./models/usuarioDeporte');
 require('./models/usuarioPartido');
 require('./models/Mensaje');
 
-
-
-
-// Rutas (las puedes crear después)
+// Rutas
 const usuarioDeporteRoutes = require('./routes/usuarioDeporte');
 const mensajesRouter = require('./routes/mensajes');
-
 const partidoRoutes = require('./routes/partido');
 const usuarioRoutes = require('./routes/usuario');
 const deporteRoutes = require('./routes/deporte');
@@ -74,11 +58,10 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/deportes', deporteRoutes);
 app.use('/api/suscripcion', suscripcionRoutes);
 
-
+// Iniciar servidor y sincronizar base de datos
 sequelize.sync({ alter: true }).then(() => {
   console.log('Base de datos sincronizada');
- app.listen(3000, '0.0.0.0', () => {
-  console.log('Servidor corriendo en puerto 3000');
-});
-
+  server.listen(3000, '0.0.0.0', () => {
+    console.log('✅ Servidor con Socket.io corriendo en puerto 3000');
+  });
 });

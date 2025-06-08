@@ -98,6 +98,7 @@ router.put('/marcar-leido/:usuarioId/:otroId', async (req, res) => {
 // Enviar mensaje
 router.post('/enviar', async (req, res) => {
   const { emisorId, receptorId, mensaje } = req.body;
+  console.log("uyuyuyuy")
   if (!emisorId || !receptorId || !mensaje) {
     return res.status(400).json({ error: 'Faltan datos requeridos' });
   }
