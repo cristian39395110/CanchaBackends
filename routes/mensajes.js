@@ -43,8 +43,10 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 
 // Obtener lista de chats
 router.get('/chats/:usuarioId', async (req, res) => {
-  const { usuarioId } = req.params;
+  const usuarioId = Number(req.params.usuarioId);
+
   try {
+    // Buscar todos los mensajes donde esté involucrado
     const mensajes = await Mensaje.findAll({
       where: {
         [Op.or]: [
@@ -52,24 +54,43 @@ router.get('/chats/:usuarioId', async (req, res) => {
           { receptorId: usuarioId }
         ]
       },
-      attributes: ['emisorId', 'receptorId']
+      order: [['fecha', 'DESC']]
     });
 
-    const ids = new Set();
-    mensajes.forEach(m => {
-      if (Number(m.emisorId) !== Number(usuarioId)) ids.add(m.emisorId);
-      if (Number(m.receptorId) !== Number(usuarioId)) ids.add(m.receptorId);
-    });
+    // Sacar todos los IDs de los otros usuarios con los que habló
+    const idsOtrosUsuarios = [
+      ...new Set(
+        mensajes.map(m =>
+          m.emisorId === usuarioId ? m.receptorId : m.emisorId
+        )
+      )
+    ];
 
-    const usuarios = await Usuario.findAll({
-      where: { id: { [Op.in]: Array.from(ids) } },
-      attributes: ['id', 'nombre']
-    });
+    // Para cada usuario, buscar si hay al menos un mensaje no leído hacia el usuario actual
+    const resultado = await Promise.all(
+      idsOtrosUsuarios.map(async (otroId) => {
+        const usuario = await Usuario.findByPk(otroId);
 
-    res.json(usuarios);
-  } catch (err) {
-    console.error('❌ Error en /chats:', err);
-    res.status(500).json({ error: 'Error interno' });
+        const tieneNoLeidos = await Mensaje.findOne({
+          where: {
+            emisorId: otroId,
+            receptorId: usuarioId,
+            leido: false
+          }
+        });
+
+        return {
+          id: usuario.id,
+          nombre: usuario.nombre,
+          tieneNoLeidos: !!tieneNoLeidos
+        };
+      })
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error('❌ Error al cargar chats:', error);
+    res.status(500).json({ message: 'Error al obtener los chats' });
   }
 });
 
@@ -98,12 +119,13 @@ router.put('/marcar-leido/:usuarioId/:otroId', async (req, res) => {
 // Enviar mensaje
 router.post('/enviar', async (req, res) => {
   const { emisorId, receptorId, mensaje } = req.body;
-  console.log("uyuyuyuy")
+
   if (!emisorId || !receptorId || !mensaje) {
     return res.status(400).json({ error: 'Faltan datos requeridos' });
   }
 
   try {
+    // Guardar el mensaje en la BD
     const nuevoMensaje = await Mensaje.create({
       emisorId,
       receptorId,
@@ -111,8 +133,9 @@ router.post('/enviar', async (req, res) => {
       leido: false
     });
 
-    // Enviar FCM
+    // Enviar notificación push si hay token FCM
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: receptorId } });
+
     if (suscripcion?.fcmToken) {
       await admin.messaging().send({
         token: suscripcion.fcmToken,
@@ -120,13 +143,24 @@ router.post('/enviar', async (req, res) => {
           title: '📩 Nuevo mensaje',
           body: mensaje.length > 40 ? mensaje.slice(0, 40) + '...' : mensaje
         },
-        data: { url: '/chat' }
+        data: {
+          url: '/chat',
+          tipo: 'mensaje',
+          emisorId: String(emisorId)
+        }
       });
     }
 
-    // Emitir evento de WebSocket
+    // Emitir mensaje vía WebSocket SOLO al receptor
     const io = req.app.get('io');
-    if (io) io.emit(`mensajeNuevo-${receptorId}`, nuevoMensaje);
+    if (io) {
+      console.log(receptorId);
+      console.log(emisorId);
+      console.log(nuevoMensaje);
+      io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
+      io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
+
+    }
 
     res.status(201).json(nuevoMensaje);
   } catch (error) {

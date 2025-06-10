@@ -1,19 +1,18 @@
-// app.js
 require('dotenv').config();
 const express = require('express');
 const app = express();
 const cors = require('cors');
-const http = require('http'); // 👉 Primero importás http
+const http = require('http');
 const server = http.createServer(app);
 const socketIo = require('socket.io');
 const sequelize = require('./config/database');
-const { Usuario, Deporte, Partido, Suscripcion, UsuarioDeporte, UsuarioPartido } = require('./models');
 
+// Middlewares
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// Configuración de Socket.IO
+// Configuración de Socket.IO (✅ Primero creamos io)
 const io = socketIo(server, {
   cors: {
     origin: '*',
@@ -21,13 +20,20 @@ const io = socketIo(server, {
   }
 });
 
+// ✅ Luego lo seteamos en la app
 app.set('io', io);
 
+// 👂 Socket.IO escuchando
 io.on('connection', (socket) => {
-  console.log('🟢 Usuario conectado');
+  console.log('✅ Nuevo cliente conectado');
+
+  socket.on('join', (usuarioId) => {
+    socket.join(`usuario-${usuarioId}`);
+    console.log(`📡 Usuario ${usuarioId} unido a su canal privado`);
+  });
 
   socket.on('disconnect', () => {
-    console.log('🔴 Usuario desconectado');
+    console.log('❌ Cliente desconectado');
   });
 });
 
@@ -58,7 +64,7 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/deportes', deporteRoutes);
 app.use('/api/suscripcion', suscripcionRoutes);
 
-// Iniciar servidor y sincronizar base de datos
+// Iniciar servidor
 sequelize.sync({ alter: true }).then(() => {
   console.log('Base de datos sincronizada');
   server.listen(3000, '0.0.0.0', () => {

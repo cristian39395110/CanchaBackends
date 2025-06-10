@@ -5,7 +5,7 @@ const { UsuarioDeporte } = require('../models/model');
 
 // Crear relación usuario-deporte
 router.post('/', async (req, res) => {
-  const { usuarioId, deporteId,localidad } = req.body;
+  const { usuarioId, deporteId } = req.body;
   console.log(req.body);
 
   if (!usuarioId || !deporteId) {
@@ -15,15 +15,18 @@ router.post('/', async (req, res) => {
   try {
     // Validar si ya existe la relación (opcional)
     const existente = await UsuarioDeporte.findOne({
-  where: { usuarioId, deporteId, localidad }
+  where: { usuarioId, deporteId }
 });
 
+const user = await Usuario.findOne({
+    where: { id: usuarioId }
+});
 
     if (existente) {
       return res.status(400).json({ error: 'Ya estás inscrito en este deporte' });
     }
-
-    const nuevoVinculo = await UsuarioDeporte.create({ usuarioId, deporteId,localidad });
+    
+    const nuevoVinculo = await UsuarioDeporte.create({ usuarioId, deporteId,localidad:user.localidad });
     res.status(201).json(nuevoVinculo);
   } catch (error) {
     console.error(error);
