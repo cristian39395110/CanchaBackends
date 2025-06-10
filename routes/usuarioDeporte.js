@@ -1,7 +1,7 @@
 // routes/usuarioDeporte.js
 const express = require('express');
 const router = express.Router();
-const { UsuarioDeporte } = require('../models/model');
+const { UsuarioDeporte ,Usuario} = require('../models/model');
 
 // Crear relación usuario-deporte
 router.post('/', async (req, res) => {
