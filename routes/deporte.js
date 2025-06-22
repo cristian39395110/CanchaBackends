@@ -35,7 +35,7 @@ router.post('/', upload.single('imagen'), async (req, res) => {
 
 // Obtener todos los deportes
 router.get('/', async (req, res) => {
-  console.log("cala")
+
   try {
     const deportes = await Deporte.findAll();
     res.json(deportes);

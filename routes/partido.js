@@ -1,12 +1,21 @@
-//C:\canchascapacitor2025\Canchas2025Backend\app-partidos\routes\partido.js
-// aca cuando ujno pide jugadores y tendria quee enviar las notificacion a los dispoitivos andoird 
-
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const admin = require('firebase-admin');
 
-const { UsuarioPartido, Suscripcion, Usuario, UsuarioDeporte, Partido, Deporte } = require('../models/model');
+// en el endpoint (./) puse  latitud y lkongitud harckodeado;
+// en   isPremium (./isPremium)  lo mismo
+
+const {
+  UsuarioPartido,
+  Suscripcion,
+  Usuario,
+  UsuarioDeporte,
+  Partido,
+  Deporte
+} = require('../models/model');
+
+const Mensaje = require('../models/Mensaje'); // Asegurate de tener este modelo
 
 // 🔐 Inicializar Firebase Admin SDK una sola vez
 try {
@@ -20,7 +29,7 @@ try {
   console.error('❌ Error al inicializar Firebase Admin SDK:', error);
 }
 
-// 📤 Función reutilizable para enviar notificaciones FCM
+// 📤 Función para enviar notificaciones FCM
 async function enviarNotificacionesFCM(tokens, payload) {
   try {
     for (const token of tokens) {
@@ -31,17 +40,10 @@ async function enviarNotificacionesFCM(tokens, payload) {
           body: payload.body,
         },
         android: {
-          notification: {
-            channelId: 'default',
-            sound: 'default'
-          }
+          notification: { channelId: 'default', sound: 'default' },
         },
         apns: {
-          payload: {
-            aps: {
-              sound: 'default'
-            }
-          }
+          payload: { aps: { sound: 'default' } },
         },
         data: {
           url: payload.url || '/invitaciones',
@@ -56,42 +58,181 @@ async function enviarNotificacionesFCM(tokens, payload) {
   }
 }
 
+// 🔁 Envío escalonado
+const MAX_POR_TANDA = 6;
+const ESPERA_MS = 2 * 60 * 1000;
 
-router.post('/test-fcm', async (req, res) => {
-  const { token, title, body } = req.body;
+async function enviarEscalonado(partido, deporteNombre, organizadorId) {
+  let enviados = new Set();
+  const { latitud, longitud } = partido;
+  const distanciaKm = 13;
 
-  try {
-    const response = await admin.messaging().send({
-      token,
-      notification: {
-        title: title || '⚽ ¡Notificación de prueba!',
-        body: body || 'Esto llegó desde tu backend directo a FCM 💥'
+  const candidatosCercanos = await UsuarioDeporte.sequelize.query(
+    `
+    SELECT ud.usuarioId
+    FROM UsuarioDeportes ud
+    JOIN Usuarios u ON ud.usuarioId = u.id
+    WHERE ud.deporteId = :deporteId
+      AND ud.usuarioId != :organizadorId
+      AND u.latitud IS NOT NULL AND u.longitud IS NOT NULL
+      AND (
+        6371 * acos(
+          cos(radians(:lat)) * cos(radians(u.latitud)) *
+          cos(radians(u.longitud) - radians(:lon)) +
+          sin(radians(:lat)) * sin(radians(u.latitud))
+        )
+      ) < :distanciaKm
+    `,
+    {
+      replacements: {
+        deporteId: partido.deporteId,
+        lat: latitud,
+        lon: longitud,
+        organizadorId,
+        distanciaKm
       },
-      android: {
-        notification: {
-          channelId: 'default',
-          sound: 'default'
-        }
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default'
-          }
-        }
-      }
+      type: UsuarioDeporte.sequelize.QueryTypes.SELECT
+    }
+  );
+
+  let candidatos = candidatosCercanos.map(row => row.usuarioId).filter(id => id !== organizadorId);
+
+  async function enviarTanda() {
+    const aceptados = await UsuarioPartido.count({
+      where: { PartidoId: partido.id, estado: 'aceptado' }
     });
 
-    console.log('✅ Notificación enviada:', response);
-    res.json({ message: 'Notificación enviada con éxito', response });
-  } catch (error) {
-    console.error('❌ Error enviando notificación:', error);
-    res.status(500).json({ error: 'No se pudo enviar la notificación', details: error });
+    const faltan = partido.cantidadJugadores - aceptados;
+    if (faltan <= 0 || candidatos.length === 0) return;
+
+    const siguiente = candidatos.filter(id => !enviados.has(id)).slice(0, MAX_POR_TANDA);
+    if (siguiente.length === 0) return;
+
+    const relaciones = siguiente.map(usuarioId => ({
+      UsuarioId: usuarioId,
+      PartidoId: partido.id,
+      estado: 'pendiente'
+    }));
+    await UsuarioPartido.bulkCreate(relaciones);
+
+    const suscripciones = await Suscripcion.findAll({
+      where: { usuarioId: { [Op.in]: siguiente } }
+    });
+
+    const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
+
+    const payload = {
+      title: '🎯 ¡Nuevo partido disponible!',
+      body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
+      url: '/invitaciones'
+    };
+
+    if (fcmTokens.length > 0) {
+      await enviarNotificacionesFCM(fcmTokens, payload);
+    }
+/*
+    for (const usuarioId of siguiente) {
+      const contenido = `Fuiste invitado al partido de ${partido.fecha} a las ${partido.hora} en ${partido.lugar} acordate de aceptar la invitacion para confirmar la asistencia y`;
+      await Mensaje.create({
+        emisorId: organizadorId,
+        receptorId: usuarioId,
+        contenido,
+        leido: false,
+        fecha: new Date()
+      });
+
+      if (global.io) {
+        global.io.to(`usuario-${usuarioId}`).emit('mensaje:nuevo', {
+          contenido,
+          emisorId: organizadorId,
+          receptorId: usuarioId,
+          partidoId: partido.id,
+          tipo: 'invitacion'
+        });
+      }
+    }
+*/
+    siguiente.forEach(id => enviados.add(id));
+
+    if (faltan - siguiente.length > 0 && enviados.size < candidatos.length) {
+      setTimeout(enviarTanda, ESPERA_MS);
+    }
+  }
+
+  enviarTanda(); // Ejecutamos la tanda
+}
+
+// 🚫 Rechazar jugador
+router.post('/rechazar-jugador', async (req, res) => {
+  const { usuarioId, partidoId } = req.body;
+
+  try {
+    await UsuarioPartido.update(
+      { estado: 'rechazado' },
+      { where: { UsuarioId: usuarioId, PartidoId: partidoId } }
+    );
+    res.json({ mensaje: 'Jugador rechazado correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al rechazar jugador' });
   }
 });
 
+// ✅ Confirmar jugador
+router.post('/confirmar-jugador', async (req, res) => {
+  const { usuarioId, partidoId, organizadorId } = req.body;
 
-// 🏟️ Crear partido y notificar
+  try {
+    const partido = await Partido.findByPk(partidoId);
+    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+
+    if (partido.organizadorId != organizadorId) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+
+    await UsuarioPartido.update(
+      { estado: 'confirmado' },
+      { where: { UsuarioId: usuarioId, PartidoId: partidoId } }
+    );
+
+    const contenido = `Fuiste aceptado para el partido de ${partido.fecha} a las ${partido.hora} en ${partido.lugar}`;
+    await Mensaje.create({
+      emisorId: organizadorId,
+      receptorId: usuarioId,
+      contenido,
+      leido: false,
+      fecha: new Date()
+    });
+
+    const suscripcion = await Suscripcion.findOne({ where: { usuarioId } });
+    const token = suscripcion?.fcmToken;
+
+    if (token) {
+      const mensaje = {
+        token,
+        notification: {
+          title: '✅ Has sido aceptado',
+          body: contenido
+        },
+        data: {
+          url: '/mensajes'
+        },
+        android: { notification: { sound: 'default' } },
+        apns: { payload: { aps: { sound: 'default' } } }
+      };
+
+      await admin.messaging().send(mensaje);
+    }
+
+    res.json({ mensaje: 'Jugador confirmado, mensaje enviado y FCM enviada' });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al confirmar jugador' });
+  }
+});
+
+// 🚀 Crear partido NO PREMIUM
 router.post('/', async (req, res) => {
   const {
     deporteId,
@@ -101,17 +242,18 @@ router.post('/', async (req, res) => {
     hora,
     organizadorId,
     localidad,
-    nombre,
-    latitud,
-    longitud
+    nombre
+    
   } = req.body;
+ 
+  const latitud=-33.2857344;
+  const longitud=-66.3552000;
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
 
   try {
-    // 1. Crear el partido
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
@@ -125,61 +267,115 @@ router.post('/', async (req, res) => {
       longitud: longitud || null
     });
 
-    // 2. Obtener nombre del deporte
     const deporte = await Deporte.findByPk(deporteId);
+    enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
 
-    // 3. Buscar usuarios que se inscribieron a ese deporte y localidad
-    const inscriptos = await UsuarioDeporte.findAll({
-      where: { deporteId, localidad },
-      include: [{ model: Usuario, attributes: ['id'] }],
-    });
-
-    const notificaciones = [];
-    const usuariosIds = [];
-
-    for (const inscripto of inscriptos) {
-      const usuarioId = inscripto.Usuario.id;
-      if (usuarioId !== organizadorId) {
-        notificaciones.push({
-          UsuarioId: usuarioId,
-          PartidoId: partido.id,
-          estado: 'pendiente',
-        });
-        usuariosIds.push(usuarioId);
-      }
-    }
-
-    // 4. Crear relación UsuarioPartido
-    await UsuarioPartido.bulkCreate(notificaciones);
-
-    // 5. Obtener FCM tokens de usuarios suscriptos
-    const suscripciones = await Suscripcion.findAll({
-      where: { usuarioId: { [Op.in]: usuariosIds } },
-    });
-
-    const fcmTokens = suscripciones.map(sub => sub.fcmToken).filter(Boolean);
-
-    // 6. Preparar y enviar la notificación
-    const payload = {
-      title: '🎯 ¡Nuevo partido disponible!',
-      body: `Partido de ${deporte?.nombre || 'deporte'} en ${lugar} el ${fecha} a las ${hora}.`,
-      url: '/invitaciones'
-    };
-
-    if (fcmTokens.length > 0) {
-      await enviarNotificacionesFCM(fcmTokens, payload);
-    }
-
-    // 7. Respuesta final
     res.status(201).json({
-      mensaje: '✅ Partido creado y notificaciones FCM enviadas',
+      mensaje: '✅ Partido creado correctamente (No Premium)',
       partido
     });
 
   } catch (error) {
-    console.error('❌ Error creando partido:', error);
+    console.error('❌ Error creando partido no premium:', error);
     res.status(500).json({ error: 'Error al crear el partido o enviar notificaciones.' });
   }
 });
+
+// 👑 Crear partido PREMIUM
+router.post('/ispremium', async (req, res) => {
+  const {
+    deporteId,
+    cantidadJugadores,
+    lugar,
+    fecha,
+    hora,
+    organizadorId,
+    localidad,
+    nombre
+   
+  } = req.body;
+
+   
+  const latitud=-33.2857344;
+  const longitud=-66.3552000;
+
+  if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
+  }
+
+  try {
+    const partido = await Partido.create({
+      deporteId,
+      cantidadJugadores,
+      lugar,
+      fecha,
+      hora,
+      nombre,
+      organizadorId,
+      localidad: localidad || '',
+      latitud: latitud || null,
+      longitud: longitud || null
+    });
+
+    res.status(201).json({ mensaje: 'Partido creado para premium.', partido });
+
+  } catch (error) {
+    console.error('❌ Error al crear partido premium:', error);
+    res.status(500).json({ error: 'Error interno al crear el partido premium.' });
+  }
+});
+
+
+
+router.post('/reenviar-invitacion', async (req, res) => {
+  const { partidoId } = req.body;
+  console.log("helllloooooooooooooooooooooo")
+
+  try {
+    const partido = await Partido.findByPk(partidoId, {
+      include: [{ model: Deporte }, { model: Usuario, as: 'organizador' }]
+    });
+    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+
+    const interesados = await UsuarioDeporte.findAll({
+      where: {
+        deporteId: partido.deporteId,
+        usuarioId: { [Op.ne]: partido.organizadorId },
+      },
+      limit: 10
+    });
+
+    const usuariosFiltrados = await Promise.all(interesados.map(async (ud) => {
+      const usuario = await Usuario.findByPk(ud.usuarioId);
+      if (!usuario || usuario.localidad !== partido.localidad) return null;
+
+      const yaInvitado = await UsuarioPartido.findOne({ where: { usuarioId: usuario.id, partidoId } });
+      if (yaInvitado) return null;
+
+      const suscripcion = await Suscripcion.findOne({ where: { usuarioId: usuario.id } });
+      if (!suscripcion) return null;
+
+      return { usuario, token: suscripcion.fcmToken };
+    }));
+
+    const candidatos = usuariosFiltrados.filter(Boolean).slice(0, 3);
+
+    for (const candidato of candidatos) {
+      await UsuarioPartido.create({ usuarioId: candidato.usuario.id, partidoId, estado: 'pendiente' });
+      await enviarNotificacionFCM(candidato.token, {
+        title: '🏟️ Nueva invitación',
+        body: `Te invitaron a un partido de ${partido.deporte.nombre} en ${partido.lugar}. ¡Aceptá antes que otro!`,
+      });
+    }
+
+    res.json({ mensaje: 'Se enviaron invitaciones a 3 jugadores' });
+
+    // 💡 Opción avanzada: repetir este proceso cada 5 minutos si nadie acepta (usando setTimeout, cola o cron job)
+  } catch (err) {
+    console.error('❌ Error al reenviar invitación:', err);
+    res.status(500).json({ error: 'Error al reenviar invitación' });
+  }
+});
+
 
 module.exports = router;

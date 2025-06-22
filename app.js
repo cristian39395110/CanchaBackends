@@ -54,7 +54,15 @@ const deporteRoutes = require('./routes/deporte');
 const suscripcionRoutes = require('./routes/suscripcion');
 const notificacionesRouter = require('./routes/notificaciones');
 const solicitudesRouter = require('./routes/solicitudes');
+const premiumRouter = require('./routes/premium');
+const fcmRouter = require('./routes/fcm');
+const pendientesRouter = require('./routes/pendientes');
 
+const puntuacionRoutes = require('./routes/puntuacion');
+app.use('/api/puntuacion', puntuacionRoutes);
+
+
+app.use('/api/pendientes', pendientesRouter);
 app.use('/api/mensajes', mensajesRouter);
 app.use('/api/usuariodeporte', usuarioDeporteRoutes);
 app.use('/api/solicitudes', solicitudesRouter);
@@ -63,8 +71,11 @@ app.use('/api/partidos', partidoRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/deportes', deporteRoutes);
 app.use('/api/suscripcion', suscripcionRoutes);
+app.use('/api/premium', premiumRouter);
+app.use('/api/fcm', fcmRouter);
 
 // Iniciar servidor
+//sequelize.sync({ alter: true })
 sequelize.sync({ alter: true }).then(() => {
   console.log('Base de datos sincronizada');
   server.listen(3000, '0.0.0.0', () => {

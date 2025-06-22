@@ -1,20 +1,32 @@
-// models/historialPuntuacion.js
+// models/HistorialPuntuacion.js
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const Usuario = require('./usuario'); // Importamos Usuario para las relaciones
 
 const HistorialPuntuacion = sequelize.define('HistorialPuntuacion', {
-  tipo: {
-    type: DataTypes.ENUM('pulgar_arriba', 'pulgar_abajo', 'asistio', 'cancelacion', 'comportamiento'),
-    allowNull: false,
-  },
-  puntos: {
+  usuarioId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0,
   },
+  partidoId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  puntaje: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  comentario: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  puntuadoId: {
+  type: DataTypes.INTEGER,
+  allowNull: false
+},
+
 }, {
-  timestamps: true, // Para que tenga createdAt y updatedAt
+  timestamps: true,
+  tableName: 'historialpuntuacions'
 });
 
 module.exports = HistorialPuntuacion;

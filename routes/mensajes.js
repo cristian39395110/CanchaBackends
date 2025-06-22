@@ -1,6 +1,8 @@
+//mensajes.js
+
 const express = require('express');
 const router = express.Router();
-const { Usuario, UsuarioPartido, Mensaje, Suscripcion } = require('../models/model');
+const { Usuario, UsuarioPartido, Mensaje, Suscripcion,Partido,Deporte } = require('../models/model');
 const { Op } = require('sequelize');
 const admin = require('firebase-admin');
 
@@ -207,5 +209,79 @@ router.get('/usuarios', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
+
+//  este endpoint es el final cuando tengo el usuario confirmado  , y se le envia un mensaje 
+router.post('/confirmacion', async (req, res) => {
+  const { emisorId, receptorId, partidoId } = req.body;
+
+  try {
+    // 1. Cambiar estado a 'confirmado'
+    await UsuarioPartido.update(
+      { estado: 'confirmado' },
+      { where: { usuarioId: receptorId, partidoId } }
+    );
+
+    // 2. Obtener partido con relaciones existentes
+    const partido = await Partido.findByPk(partidoId, {
+      include: [
+        { model: Deporte, foreignKey: 'deporteId' },
+        { model: Usuario, as: 'organizador', foreignKey: 'organizadorId' }
+      ]
+    });
+
+    if (!partido) {
+      return res.status(404).json({ error: 'Partido no encontrado' });
+    }
+
+    const deporteNombre = partido.deporte?.nombre || 'deporte';
+    const lugar = partido.lugar || 'lugar no especificado';
+    const fecha = partido.fecha;
+    const hora = partido.hora;
+    const nombreOrganizador = partido.organizador?.nombre || 'el organizador';
+
+    // 3. Armar mensaje personalizado
+    const mensajeTexto = `✅ ¡Fuiste confirmado para jugar ${deporteNombre} en ${lugar} el día ${fecha} a las ${hora} hs! Organizado por ${nombreOrganizador}.`;
+
+    // 4. Guardar mensaje en la base de datos
+    const nuevoMensaje = await Mensaje.create({
+      emisorId,
+      receptorId,
+      contenido: mensajeTexto,
+      leido: false
+    });
+
+    // 5. Buscar token FCM del receptor
+    const suscripcion = await Suscripcion.findOne({ where: { usuarioId: receptorId } });
+
+    if (suscripcion?.fcmToken) {
+      await admin.messaging().send({
+        token: suscripcion.fcmToken,
+        notification: {
+          title: '🎉 Fuiste confirmado en un partido',
+          body: mensajeTexto
+        },
+        data: {
+          tipo: 'mensaje',
+          emisorId: emisorId.toString(),
+          partidoId: partidoId.toString()
+        }
+      });
+    }
+
+    // 6. Emitir el mensaje por WebSocket (chat en tiempo real)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
+      io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
+    }
+
+    res.status(200).json({ mensaje: 'Jugador confirmado, mensaje enviado y notificado' });
+  } catch (error) {
+    console.error('❌ Error al confirmar jugador:', error);
+    res.status(500).json({ error: 'Error interno al confirmar jugador' });
+  }
+});
+
 
 module.exports = router;

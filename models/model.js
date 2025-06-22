@@ -40,6 +40,13 @@ UsuarioDeporte.belongsTo(Deporte, { foreignKey: 'deporteId' });
 Usuario.hasMany(UsuarioDeporte, { foreignKey: 'usuarioId' });
 Deporte.hasMany(UsuarioDeporte, { foreignKey: 'deporteId' });
 
+UsuarioPartido.belongsTo(Usuario, { foreignKey: 'UsuarioId' });
+Usuario.hasMany(UsuarioPartido, { foreignKey: 'UsuarioId' });
+
+UsuarioPartido.belongsTo(Partido, { foreignKey: 'PartidoId' });
+Partido.hasMany(UsuarioPartido, { foreignKey: 'PartidoId' });
+
+
 
 
 
@@ -50,5 +57,6 @@ module.exports = {
   Suscripcion,
   UsuarioDeporte,
   UsuarioPartido,
-  Mensaje
+  Mensaje,
+  HistorialPuntuacion
 };
