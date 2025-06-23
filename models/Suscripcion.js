@@ -1,9 +1,8 @@
-// models/suscripcion.js
-const sequelize = require('../config/database');
-const { DataTypes } = require('sequelize');
+  // models/suscripcion.js
+  const sequelize = require('../config/database');
+  const { DataTypes } = require('sequelize');
 
-const { Usuario, Deporte, Partido, UsuarioDeporte, UsuarioPartido } = require('../models');
-
+  const { Usuario, Deporte, Partido, UsuarioDeporte, UsuarioPartido } = require('../models');
 
 const Suscripcion = sequelize.define('Suscripcion', {
   usuarioId: {
@@ -15,13 +14,9 @@ const Suscripcion = sequelize.define('Suscripcion', {
     allowNull: false
   }
 }, {
+  tableName: 'Suscripcions', // 👈 obligatorio para que no busque otro nombre
   timestamps: false
 });
-/*
-// Definir la relación
-Suscripcion.belongsTo(Usuario, { foreignKey: 'usuarioId' });
-Usuario.hasMany(Suscripcion, { foreignKey: 'usuarioId' });
 
 
-*/
 module.exports = Suscripcion;
