@@ -1,38 +1,46 @@
-//models/model.js
-
 const Usuario = require('./usuario');
 const Deporte = require('./deporte');
 const Partido = require('./partido');
 const Suscripcion = require('./Suscripcion');
 const UsuarioDeporte = require('./usuarioDeporte');
 const UsuarioPartido = require('./usuarioPartido');
-const HistorialPuntuacion = require('./historialPuntuacion'); // Importa el modelo
+const HistorialPuntuacion = require('./historialPuntuacion');
 const Mensaje = require('./Mensaje');
 
-// ...
-
+// 📩 Mensajes
 Mensaje.belongsTo(Usuario, { as: 'emisor', foreignKey: 'emisorId' });
 Mensaje.belongsTo(Usuario, { as: 'receptor', foreignKey: 'receptorId' });
 
-// Asociaciones
-Usuario.hasMany(HistorialPuntuacion, { foreignKey: 'usuarioId' });
-HistorialPuntuacion.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+// 🎯 Asociación HistorialPuntuacion
+Usuario.hasMany(HistorialPuntuacion, { foreignKey: { name: 'usuarioId' } });
+HistorialPuntuacion.belongsTo(Usuario, { foreignKey: { name: 'usuarioId' } });
 
-// Asociaciones
+Partido.hasMany(HistorialPuntuacion, { foreignKey: { name: 'partidoId' } });
+HistorialPuntuacion.belongsTo(Partido, { foreignKey: { name: 'partidoId' } });
+
+Usuario.hasMany(HistorialPuntuacion, {
+  foreignKey: { name: 'puntuadoId' },
+  as: 'puntuado'
+});
+HistorialPuntuacion.belongsTo(Usuario, {
+  foreignKey: { name: 'puntuadoId' },
+  as: 'puntuado'
+});
+
+// 🏅 Partido y Deporte
 Deporte.hasMany(Partido, { foreignKey: 'deporteId' });
 Partido.belongsTo(Deporte, { foreignKey: 'deporteId' });
 
 Usuario.hasMany(Partido, { as: 'partidosOrganizados', foreignKey: 'organizadorId' });
 Partido.belongsTo(Usuario, { as: 'organizador', foreignKey: 'organizadorId' });
 
+// 🔔 Suscripciones
 Usuario.hasMany(Suscripcion, { foreignKey: 'usuarioId' });
 Suscripcion.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 
+// ⚽ Usuario y Deporte (preferencias)
 Usuario.belongsToMany(Deporte, { through: UsuarioDeporte, foreignKey: 'usuarioId' });
 Deporte.belongsToMany(Usuario, { through: UsuarioDeporte, foreignKey: 'deporteId' });
-
-Usuario.belongsToMany(Partido, { through: UsuarioPartido });
-Partido.belongsToMany(Usuario, { through: UsuarioPartido });
 
 UsuarioDeporte.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 UsuarioDeporte.belongsTo(Deporte, { foreignKey: 'deporteId' });
@@ -40,15 +48,15 @@ UsuarioDeporte.belongsTo(Deporte, { foreignKey: 'deporteId' });
 Usuario.hasMany(UsuarioDeporte, { foreignKey: 'usuarioId' });
 Deporte.hasMany(UsuarioDeporte, { foreignKey: 'deporteId' });
 
+// 🎮 Usuario y Partido (jugadores)
+Usuario.belongsToMany(Partido, { through: UsuarioPartido });
+Partido.belongsToMany(Usuario, { through: UsuarioPartido });
+
 UsuarioPartido.belongsTo(Usuario, { foreignKey: 'UsuarioId' });
 Usuario.hasMany(UsuarioPartido, { foreignKey: 'UsuarioId' });
 
 UsuarioPartido.belongsTo(Partido, { foreignKey: 'PartidoId' });
 Partido.hasMany(UsuarioPartido, { foreignKey: 'PartidoId' });
-
-
-
-
 
 module.exports = {
   Usuario,
