@@ -63,7 +63,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       tokenVerificacion
     });
 
-    const link = `https://tusitio.com/api/usuarios/verificar/${tokenVerificacion}`;
+    const link = `https://canchabackends-1.onrender.com/api/usuarios/verificar/${tokenVerificacion}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
