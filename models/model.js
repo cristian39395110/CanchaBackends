@@ -11,19 +11,27 @@ const Mensaje = require('./Mensaje');
 Mensaje.belongsTo(Usuario, { as: 'emisor', foreignKey: 'emisorId' });
 Mensaje.belongsTo(Usuario, { as: 'receptor', foreignKey: 'receptorId' });
 
-// 🎯 Asociación HistorialPuntuacion
-Usuario.hasMany(HistorialPuntuacion, { foreignKey: { name: 'usuarioId' } });
-HistorialPuntuacion.belongsTo(Usuario, { foreignKey: { name: 'usuarioId' } });
+// 🎯 Asociación HistorialPuntuacion (con nombres únicos para evitar conflictos)
+Usuario.hasMany(HistorialPuntuacion, {
+  foreignKey: { name: 'usuarioId', allowNull: false }
+});
+HistorialPuntuacion.belongsTo(Usuario, {
+  foreignKey: { name: 'usuarioId', allowNull: false }
+});
 
-Partido.hasMany(HistorialPuntuacion, { foreignKey: { name: 'partidoId' } });
-HistorialPuntuacion.belongsTo(Partido, { foreignKey: { name: 'partidoId' } });
+Partido.hasMany(HistorialPuntuacion, {
+  foreignKey: { name: 'partidoId', allowNull: false }
+});
+HistorialPuntuacion.belongsTo(Partido, {
+  foreignKey: { name: 'partidoId', allowNull: false }
+});
 
 Usuario.hasMany(HistorialPuntuacion, {
-  foreignKey: { name: 'puntuadoId' },
+  foreignKey: { name: 'puntuadoId', allowNull: false },
   as: 'puntuado'
 });
 HistorialPuntuacion.belongsTo(Usuario, {
-  foreignKey: { name: 'puntuadoId' },
+  foreignKey: { name: 'puntuadoId', allowNull: false },
   as: 'puntuado'
 });
 
