@@ -2,13 +2,23 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Partido, Usuario, UsuarioPartido, Deporte ,HistorialPuntuacion,Mensaje} = require('../models/model');
+const { Partido, Usuario, UsuarioPartido, Deporte ,HistorialPuntuacion,Mensaje,Suscripcion} = require('../models/model');
+const admin = require('firebase-admin');
 
+try {
+  const serviceAccount = require('../firebase-admin-sdk.json');
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  }
+} catch (error) {
+  console.error('❌ Error al inicializar Firebase Admin SDK:', error);
+}
 // ✅ Obtener partidos organizados por el usuario donde hay jugadores que aceptaron o están pendientes
 router.get('/aceptadas/:organizadorId', async (req, res) => {
   const { organizadorId } = req.params;
-  console.log(organizadorId)
-    console.log("organizadorId")
+ 
 
   try {
     // 1. Buscar los partidos organizados por el usuario
@@ -59,8 +69,7 @@ router.get('/aceptadas/:organizadorId', async (req, res) => {
 });
 router.get('/invitaciones-auto/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
- console.log("usuarioId----------------------------------")
-  console.log(usuarioId)
+
   try {
     // Buscar partidos creados por el usuario donde haya jugadores asignados automáticamente
     const partidos = await Partido.findAll({
@@ -145,7 +154,7 @@ router.post('/aceptar', async (req, res) => {
 // ✅ Rechazar una invitación (opcional: podrías eliminarla o marcar como "rechazado")
 router.post('/rechazar', async (req, res) => {
   const { usuarioId, jugadorId, partidoId } = req.body; // 👈 ahora incluye jugadorId
-  console.log("--------------------------------");
+ 
 
   try {
     const partido = await Partido.findByPk(partidoId, {

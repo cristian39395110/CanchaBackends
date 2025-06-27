@@ -156,9 +156,7 @@ router.post('/enviar', async (req, res) => {
     // Emitir mensaje vía WebSocket SOLO al receptor
     const io = req.app.get('io');
     if (io) {
-      console.log(receptorId);
-      console.log(emisorId);
-      console.log(nuevoMensaje);
+
       io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
       io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
 

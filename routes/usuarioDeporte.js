@@ -6,7 +6,7 @@ const { UsuarioDeporte ,Usuario} = require('../models/model');
 // Crear relación usuario-deporte
 router.post('/', async (req, res) => {
   const { usuarioId, deporteId, nivel } = req.body; // 👈 nivel agregado
-  console.log(req.body);
+
 
   if (!usuarioId || !deporteId || !nivel) {
     return res.status(400).json({ error: 'usuarioId, deporteId y nivel son requeridos' });

@@ -6,6 +6,7 @@ const http = require('http');
 const server = http.createServer(app);
 const socketIo = require('socket.io');
 const sequelize = require('./config/database');
+const verificarBloqueo = require('./middlewares/verificarBloqueo');
 
 // Middlewares
 app.use(cors({ origin: '*' }));
@@ -57,21 +58,25 @@ const solicitudesRouter = require('./routes/solicitudes');
 const premiumRouter = require('./routes/premium');
 const fcmRouter = require('./routes/fcm');
 const pendientesRouter = require('./routes/pendientes');
+const publicacionRouter = require('./routes/publicacion');
+const amistadRouter = require('./routes/amistad');
+const amigoRouter = require('./routes/amigos');
 
 const puntuacionRoutes = require('./routes/puntuacion');
 app.use('/api/puntuacion', puntuacionRoutes);
-
-
-app.use('/api/pendientes', pendientesRouter);
-app.use('/api/mensajes', mensajesRouter);
-app.use('/api/usuariodeporte', usuarioDeporteRoutes);
-app.use('/api/solicitudes', solicitudesRouter);
-app.use('/api/notificaciones', notificacionesRouter);
-app.use('/api/partidos', partidoRoutes);
-app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/amigos',verificarBloqueo, amigoRouter);
+app.use('/api/amistad', amistadRouter);
+app.use('/api/publicaciones', verificarBloqueo,publicacionRouter);
+app.use('/api/pendientes', verificarBloqueo,pendientesRouter);
+app.use('/api/mensajes', verificarBloqueo,mensajesRouter);
+app.use('/api/usuariodeporte',verificarBloqueo, usuarioDeporteRoutes);
+app.use('/api/solicitudes',verificarBloqueo, solicitudesRouter);
+app.use('/api/notificaciones',verificarBloqueo, notificacionesRouter);
+app.use('/api/partidos', verificarBloqueo,partidoRoutes);
+app.use('/api/usuarios',usuarioRoutes);
 app.use('/api/deportes', deporteRoutes);
 app.use('/api/suscripcion', suscripcionRoutes);
-app.use('/api/premium', premiumRouter);
+app.use('/api/premium', verificarBloqueo,premiumRouter);
 app.use('/api/fcm', fcmRouter);
 
 // Iniciar servidor

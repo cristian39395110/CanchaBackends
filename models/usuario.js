@@ -54,7 +54,16 @@ tokenVerificacion: {
   longitud: { 
     type: DataTypes.DECIMAL(10, 7),
      allowNull: true 
-    } // opcional para mapa
+    },
+    partidosJugados: {
+  type: DataTypes.INTEGER,
+  defaultValue: 0,
+},
+
+      perfilPublico: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  } // opcional para mapa
 });
 
 module.exports = Usuario;

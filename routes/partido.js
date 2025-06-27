@@ -329,48 +329,89 @@ router.post('/ispremium', async (req, res) => {
 
 router.post('/reenviar-invitacion', async (req, res) => {
   const { partidoId } = req.body;
-  console.log("helllloooooooooooooooooooooo")
 
   try {
     const partido = await Partido.findByPk(partidoId, {
       include: [{ model: Deporte }, { model: Usuario, as: 'organizador' }]
     });
+    
     if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+    
+    
+    const organizadorId=partido.organizador.id
 
-    const interesados = await UsuarioDeporte.findAll({
-      where: {
-        deporteId: partido.deporteId,
-        usuarioId: { [Op.ne]: partido.organizadorId },
-      },
-      limit: 10
-    });
+    const distanciaMaxKm = 15;
 
-    const usuariosFiltrados = await Promise.all(interesados.map(async (ud) => {
-      const usuario = await Usuario.findByPk(ud.usuarioId);
-      if (!usuario || usuario.localidad !== partido.localidad) return null;
+    const candidatosCercanos = await UsuarioDeporte.sequelize.query(
+      `
+      SELECT ud.usuarioId
+      FROM UsuarioDeportes ud
+      JOIN Usuarios u ON ud.usuarioId = u.id
+      WHERE ud.deporteId = :deporteId
+        AND ud.usuarioId != :organizadorId
+        AND ud.usuarioId NOT IN (
+          SELECT UsuarioId FROM UsuarioPartidos WHERE PartidoId = :partidoId
+        )
+        AND u.latitud IS NOT NULL AND u.longitud IS NOT NULL
+        AND (
+          6371 * acos(
+            cos(radians(:lat)) * cos(radians(u.latitud)) *
+            cos(radians(u.longitud) - radians(:lon)) +
+            sin(radians(:lat)) * sin(radians(u.latitud))
+          )
+        ) < :distancia
+      `,
+      {
+        replacements: {
+          deporteId: partido.deporteId,
+          organizadorId: partido.organizadorId,
+          partidoId: partido.id,
+          lat: partido.latitud,
+          lon: partido.longitud,
+          distancia: distanciaMaxKm
+        },
+        type: UsuarioDeporte.sequelize.QueryTypes.SELECT
+      }
+    );
 
-      const yaInvitado = await UsuarioPartido.findOne({ where: { usuarioId: usuario.id, partidoId } });
-      if (yaInvitado) return null;
+    const candidatos = candidatosCercanos.map(row => row.usuarioId);
 
-      const suscripcion = await Suscripcion.findOne({ where: { usuarioId: usuario.id } });
-      if (!suscripcion) return null;
+    // Filtramos bien los usuarios válidos
+    const usuariosFiltrados = await Promise.all(
+      candidatos.map(async (usuarioId) => {
+        // ✅ Reforzamos que no sea el organizador
+        if (usuarioId === partido.organizadorId) return null;
 
-      return { usuario, token: suscripcion.fcmToken };
-    }));
+        const suscripcion = await Suscripcion.findOne({ where: { usuarioId } });
+        if (!suscripcion) return null;
 
-    const candidatos = usuariosFiltrados.filter(Boolean).slice(0, 3);
+        const usuario = await Usuario.findByPk(usuarioId);
+        return usuario ? { usuario, token: suscripcion.fcmToken } : null;
+      })
+    );
 
-    for (const candidato of candidatos) {
-      await UsuarioPartido.create({ usuarioId: candidato.usuario.id, partidoId, estado: 'pendiente' });
-      await enviarNotificacionFCM(candidato.token, {
+    const seleccionados = usuariosFiltrados.filter(Boolean).slice(0, 3);
+
+   
+
+    for (const candidato of seleccionados) {
+      if (!candidato?.usuario?.id) continue;
+
+      await UsuarioPartido.create({
+        UsuarioId: candidato.usuario.id,
+        PartidoId: partidoId,
+        estado: 'pendiente'
+      });
+
+      await enviarNotificacionesFCM(candidato.token, {
         title: '🏟️ Nueva invitación',
-        body: `Te invitaron a un partido de ${partido.deporte.nombre} en ${partido.lugar}. ¡Aceptá antes que otro!`,
+        body: `Te invitaron a un partido de ${partido.Deporte.nombre} en ${partido.lugar}. ¡Aceptá antes que otro!`,
+        url: '/invitaciones'
       });
     }
 
-    res.json({ mensaje: 'Se enviaron invitaciones a 3 jugadores' });
+    res.json({ mensaje: `Se enviaron ${seleccionados.length} invitaciones basadas en distancia` });
 
-    // 💡 Opción avanzada: repetir este proceso cada 5 minutos si nadie acepta (usando setTimeout, cola o cron job)
   } catch (err) {
     console.error('❌ Error al reenviar invitación:', err);
     res.status(500).json({ error: 'Error al reenviar invitación' });

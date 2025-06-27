@@ -22,7 +22,7 @@ const upload = multer({ storage });
 // Crear deporte con imagen
 router.post('/', upload.single('imagen'), async (req, res) => {
   try {
-    console.log("calabaza")
+
     const { nombre } = req.body;
     const imagen = req.file ? req.file.filename : null;
 

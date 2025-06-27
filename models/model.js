@@ -8,6 +8,44 @@ const UsuarioDeporte = require('./usuarioDeporte');
 const UsuarioPartido = require('./usuarioPartido');
 const HistorialPuntuacion = require('./historialPuntuacion'); // Importa el modelo
 const Mensaje = require('./Mensaje');
+const Publicacion = require('./publicacion');
+const Amistad = require('./amistad');
+const Comentario = require('./Comentario');
+const Like = require('./Like');
+const Bloqueo = require('./Bloqueo');
+
+
+
+Usuario.hasMany(Bloqueo, { foreignKey: 'usuarioId' });
+
+
+UsuarioDeporte.belongsTo(Deporte, { foreignKey: 'deporteId', as: 'deporte' });
+Amistad.belongsTo(Usuario, { as: 'emisor', foreignKey: 'usuarioId' });
+
+Amistad.belongsTo(Usuario, { as: 'Usuario', foreignKey: 'usuarioId' });
+Amistad.belongsTo(Usuario, { as: 'Amigo', foreignKey: 'amigoId' });
+Usuario.hasMany(Amistad, { as: 'SolicitudesEnviadas', foreignKey: 'usuarioId' });
+Usuario.hasMany(Amistad, { as: 'SolicitudesRecibidas', foreignKey: 'amigoId' });
+
+
+// Relaciones
+Publicacion.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+Publicacion.hasMany(Comentario, { foreignKey: 'publicacionId' });
+Publicacion.hasMany(Like, { foreignKey: 'publicacionId' });
+
+Comentario.belongsTo(Publicacion, { foreignKey: 'publicacionId' });
+Comentario.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+
+Like.belongsTo(Publicacion, { foreignKey: 'publicacionId' });
+Like.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+
+Usuario.belongsToMany(Usuario, {
+  as: 'Amigos',
+  through: Amistad,
+  foreignKey: 'usuarioId',
+  otherKey: 'amigoId'
+});
+
 
 // ...
 
@@ -58,5 +96,10 @@ module.exports = {
   UsuarioDeporte,
   UsuarioPartido,
   Mensaje,
-  HistorialPuntuacion
+  HistorialPuntuacion,
+  Publicacion,
+  Comentario,
+  Like,
+  Amistad,
+  Bloqueo
 };
