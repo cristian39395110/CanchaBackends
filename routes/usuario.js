@@ -7,77 +7,84 @@ const Amistad = require('../models/amistad');
 const Bloqueo = require('../models/Bloqueo');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
 require('dotenv').config();
 
 const SECRET_KEY = process.env.JWT_SECRET;
 
-// Configuración de multer para guardar archivos
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = 'uploads/';
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, uniqueName);
-  }
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Configuración de Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
-  }
+  },
 });
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-// Crear un usuario (registro con verificación)
+// Crear un usuario (registro con verificación y Cloudinary usando streamifier)
 router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   try {
-    const {
-      nombre,
-      telefono,
-      email,
-      password,
-      localidad,
-      latitud,
-      longitud
-    } = req.body;
+    const { nombre, telefono, email, password, localidad, latitud, longitud } = req.body;
 
+    const existente = await Usuario.findOne({ where: { email } });
+    if (existente) {
+      return res.status(400).json({ error: 'Ya existe un usuario con ese email.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
+
+    //aca borrar para encriptar contraseña 
+
+    hashedPassword=password;
+
+    
+
+    let fotoUrl = null;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({ folder: 'usuarios' }, (error, result) => {
+          if (result) resolve(result);
+          else reject(error);
+        });
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+      fotoUrl = result.secure_url;
+    }
 
     const nuevoUsuario = await Usuario.create({
       nombre,
       telefono,
       email,
-      password,
+      password: hashedPassword,
       localidad,
       latitud,
       longitud,
-      fotoPerfil: req.file ? req.file.filename : null,
+      fotoPerfil: fotoUrl,
       verificado: false,
-      tokenVerificacion
+      tokenVerificacion,
     });
 
     const link = `https://canchabackends-1.onrender.com/api/usuarios/verificar/${tokenVerificacion}`;
@@ -86,7 +93,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Verifica tu cuenta',
-      html: `<h2>Bienvenido/a ${nombre}</h2><p>Haz clic en el siguiente enlace para verificar tu cuenta:</p><a href="${link}">${link}</a>`
+      html: `<h2>Bienvenido/a ${nombre}</h2><p>Haz clic en el siguiente enlace para verificar tu cuenta:</p><a href="${link}">${link}</a>`,
     });
 
     res.status(201).json({ mensaje: 'Usuario creado. Revisa tu correo para confirmar la cuenta.' });
@@ -94,7 +101,6 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 
 router.get('/buscar', async (req, res) => {
@@ -188,10 +194,15 @@ router.post('/login', async (req, res) => {
 
   try {
     const usuario = await Usuario.findOne({ where: { email } });
-   
-
-    if (!usuario || usuario.password !== password) {
+/*
+    if (!usuario || !(await bcrypt.compare(password, usuario.password))) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
+      */
+
+    if(password!=usuario.password)
+    {
+       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
     if (!usuario.verificado) {
@@ -205,7 +216,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
-
 // Obtener todos los usuarios
 router.get('/', async (req, res) => {
   try {

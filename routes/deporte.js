@@ -1,41 +1,61 @@
-
-//Canchas2025Backend\app-partidos\routes\deporte.js
+//deporte.js
 const express = require('express');
 const router = express.Router();
 const Deporte = require('../models/deporte');
 const multer = require('multer');
 const path = require('path');
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
 
-// Configurar almacenamiento de imágenes
+// 📦 Config Cloudinary
+cloudinary.config({
+  cloud_name: 'TU_CLOUD_NAME',
+  api_key: 'TU_API_KEY',
+  api_secret: 'TU_API_SECRET',
+});
+
+// 📸 Config Multer (almacena temporalmente)
 const storage = multer.diskStorage({
-  
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Carpeta para guardar imágenes (debes crearla)
+    cb(null, 'uploads/'); // carpeta local temporal
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // nombre único
+    cb(null, Date.now() + path.extname(file.originalname));
   },
 });
 
 const upload = multer({ storage });
 
-// Crear deporte con imagen
+// 📤 Crear deporte y subir imagen a Cloudinary
 router.post('/', upload.single('imagen'), async (req, res) => {
   try {
-
     const { nombre } = req.body;
-    const imagen = req.file ? req.file.filename : null;
+    const imagenLocal = req.file?.path;
 
-    const deporte = await Deporte.create({ nombre, imagen });
-    res.status(201).json(deporte);
+    if (!imagenLocal) return res.status(400).json({ error: 'Imagen faltante' });
+
+    const subida = await cloudinary.uploader.upload(imagenLocal, {
+      folder: 'deportes',
+    });
+
+    // 💾 Crear registro en la base
+    const nuevo = await Deporte.create({
+      nombre,
+      imagen: subida.secure_url,
+    });
+
+    // 🧹 Borrar imagen local
+    fs.unlinkSync(imagenLocal);
+
+    res.status(201).json(nuevo);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error al subir imagen o crear deporte:', error);
+    res.status(500).json({ error: 'Error interno' });
   }
 });
 
-// Obtener todos los deportes
+// 🧾 Obtener todos los deportes
 router.get('/', async (req, res) => {
-
   try {
     const deportes = await Deporte.findAll();
     res.json(deportes);

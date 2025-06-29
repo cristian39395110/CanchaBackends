@@ -8,19 +8,27 @@ const { Op } = require('sequelize');
 const { Publicacion, Usuario, Amistad, Comentario, Like } = require('../models/model');
 
 // 🖼️ Configuración de multer para subir imágenes
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../uploads/publicaciones');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + file.originalname;
-    cb(null, unique);
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+// Configurar Cloudinary con tus datos del .env
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Storage para publicaciones (carpeta Cloudinary: publicaciones)
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'publicaciones',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'mp4'],
   },
 });
 
 const upload = multer({ storage });
+
 
 // ✅ GET publicaciones de un usuario (perfil)
 router.get('/:usuarioId', async (req, res) => {
@@ -94,14 +102,8 @@ router.get('/amigos/:usuarioId', async (req, res) => {
     });
 
     // Agregar URL completa a la imagen
-    publicaciones = publicaciones.map(publi => {
-      const obj = publi.toJSON();
-      if (obj.foto && !obj.foto.startsWith('http')) {
-        obj.foto = `${req.protocol}://${req.get('host')}/uploads/publicaciones/${obj.foto}`;
-      }
-      return obj;
-    });
-   console.log(publicaciones)
+   
+ 
     res.json(publicaciones);
   } catch (error) {
     console.error('❌ Error en /amigos/:usuarioId', error);
@@ -117,16 +119,16 @@ router.post('/', upload.single('foto'), async (req, res) => {
     const nueva = await Publicacion.create({
       usuarioId,
       contenido,
-      foto: req.file ? req.file.filename : null,
+      foto: req.file ? req.file.path : null, // ✅ URL pública de Cloudinary
       esPublica: true
     });
 
     res.status(201).json({
       ...nueva.toJSON(),
-      foto: req.file ? `${req.protocol}://${req.get('host')}/uploads/publicaciones/${req.file.filename}` : null
+      foto: req.file ? req.file.path : null // ✅ Devuelve la URL de la imagen
     });
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error al crear publicación:', err);
     res.status(500).json({ error: 'Error al crear publicación' });
   }
 });
