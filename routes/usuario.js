@@ -44,6 +44,7 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 }
 
 // Crear un usuario (registro con verificación y Cloudinary usando streamifier)
+// routes/usuarios.js
 router.post('/', async (req, res) => {
   try {
     const {
@@ -54,7 +55,7 @@ router.post('/', async (req, res) => {
       localidad,
       latitud,
       longitud,
-      fotoPerfil, // ✅ ya viene con la URL desde Cloudinary
+      fotoPerfil, // viene como URL desde el frontend
     } = req.body;
 
     const existente = await Usuario.findOne({ where: { email } });
@@ -73,12 +74,12 @@ router.post('/', async (req, res) => {
       localidad,
       latitud,
       longitud,
-      fotoPerfil, // ✅ se guarda directo
+      fotoPerfil, // se guarda tal cual viene
       verificado: false,
       tokenVerificacion,
     });
 
-    const link = `https://canchabackends-1.onrender.com/api/usuarios/verificar/${tokenVerificacion}`;
+    const link = `${process.env.FRONTEND_URL || 'https://canchabackends-1.onrender.com'}/api/usuarios/verificar/${tokenVerificacion}`;
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -93,6 +94,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 
 router.get('/buscar', async (req, res) => {
