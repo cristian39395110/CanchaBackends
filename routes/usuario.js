@@ -53,20 +53,31 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 
 // PATCH para cambiar foto de perfil
 
-router.patch('/:id/foto', async (req, res) => {
+router.patch('/:id/foto', upload.single('foto'), async (req, res) => {
   try {
-    const { fotoPerfil } = req.body;
     const usuario = await Usuario.findByPk(req.params.id);
-
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    usuario.fotoPerfil = fotoPerfil;
+    if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: 'usuarios' },
+        (error, result) => {
+          if (result) resolve(result);
+          else reject(error);
+        }
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(stream);
+    });
+
+    usuario.fotoPerfil = result.secure_url;
     await usuario.save();
 
-    res.json({ mensaje: 'Foto actualizada correctamente', fotoPerfil });
-  } catch (err) {
-    console.error('❌ Error al actualizar foto:', err);
-    res.status(500).json({ error: 'Error interno' });
+    res.json({ mensaje: '✅ Foto actualizada', fotoPerfil: result.secure_url });
+  } catch (error) {
+    console.error('❌ Error al subir foto:', error);
+    res.status(500).json({ error: 'Error al subir imagen' });
   }
 });
 
@@ -88,29 +99,7 @@ router.delete('/:id/foto', async (req, res) => {
 });
 
 
-router.patch('/:usuarioId/foto', upload.single('foto'), async (req, res) => {
-  const { usuarioId } = req.params;
 
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
-
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream({ folder: 'usuarios' }, (error, result) => {
-        if (result) resolve(result);
-        else reject(error);
-      });
-      streamifier.createReadStream(req.file.buffer).pipe(stream);
-    });
-
-    const url = result.secure_url;
-
-    await Usuario.update({ fotoPerfil: url }, { where: { id: usuarioId } });
-    res.json({ fotoPerfil: url });
-  } catch (err) {
-    console.error('❌ Error al actualizar foto:', err);
-    res.status(500).json({ error: 'Error interno al subir imagen' });
-  }
-});
 
 // DELETE para eliminar foto de perfil
 router.delete('/:usuarioId/foto', async (req, res) => {
@@ -126,7 +115,7 @@ router.delete('/:usuarioId/foto', async (req, res) => {
 
 
 
-router.post('/', async (req, res) => {
+router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   try {
     const {
       nombre,
@@ -136,7 +125,6 @@ router.post('/', async (req, res) => {
       localidad,
       latitud,
       longitud,
-      fotoPerfil, // viene como URL desde el frontend
     } = req.body;
 
     const existente = await Usuario.findOne({ where: { email } });
@@ -147,6 +135,22 @@ router.post('/', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
 
+    // Subir imagen si viene
+    let urlImagen = null;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'usuarios' },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+      urlImagen = result.secure_url;
+    }
+
     const nuevoUsuario = await Usuario.create({
       nombre,
       telefono,
@@ -155,7 +159,7 @@ router.post('/', async (req, res) => {
       localidad,
       latitud,
       longitud,
-      fotoPerfil, // se guarda tal cual viene
+      fotoPerfil: urlImagen,
       verificado: false,
       tokenVerificacion,
     });
