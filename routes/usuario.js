@@ -44,9 +44,18 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 }
 
 // Crear un usuario (registro con verificación y Cloudinary usando streamifier)
-router.post('/',async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const { nombre, telefono, email, password, localidad, latitud, longitud,fotoPerfil } = req.body;
+    const {
+      nombre,
+      telefono,
+      email,
+      password,
+      localidad,
+      latitud,
+      longitud,
+      fotoPerfil, // ✅ ya viene con la URL desde Cloudinary
+    } = req.body;
 
     const existente = await Usuario.findOne({ where: { email } });
     if (existente) {
@@ -56,23 +65,6 @@ router.post('/',async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
 
-    //aca borrar para encriptar contraseña 
-
-
-    
-
-    let fotoUrl = null;
-    if (req.file) {
-      const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream({ folder: 'usuarios' }, (error, result) => {
-          if (result) resolve(result);
-          else reject(error);
-        });
-        streamifier.createReadStream(req.file.buffer).pipe(stream);
-      });
-      fotoUrl = result.secure_url;
-    }
-
     const nuevoUsuario = await Usuario.create({
       nombre,
       telefono,
@@ -81,7 +73,7 @@ router.post('/',async (req, res) => {
       localidad,
       latitud,
       longitud,
-      fotoPerfil,
+      fotoPerfil, // ✅ se guarda directo
       verificado: false,
       tokenVerificacion,
     });
@@ -97,6 +89,7 @@ router.post('/',async (req, res) => {
 
     res.status(201).json({ mensaje: 'Usuario creado. Revisa tu correo para confirmar la cuenta.' });
   } catch (error) {
+    console.error('❌ Error al crear usuario:', error);
     res.status(500).json({ error: error.message });
   }
 });
