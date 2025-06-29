@@ -14,8 +14,8 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 require('dotenv').config();
-const multer = require('multer');
-const streamifier = require('streamifier');
+
+
 const upload = multer({ storage: multer.memoryStorage() });
 const storage = multer.memoryStorage();
 
