@@ -44,7 +44,7 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 }
 
 // Crear un usuario (registro con verificación y Cloudinary usando streamifier)
-router.post('/', upload.single('fotoPerfil'), async (req, res) => {
+router.post('/',async (req, res) => {
   try {
     const { nombre, telefono, email, password, localidad, latitud, longitud } = req.body;
 
@@ -81,7 +81,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       localidad,
       latitud,
       longitud,
-      fotoPerfil: fotoUrl,
+      fotoPerfil,
       verificado: false,
       tokenVerificacion,
     });
