@@ -58,7 +58,6 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
 
     //aca borrar para encriptar contraseña 
 
-    hashedPassword=password;
 
     
 
@@ -194,16 +193,13 @@ router.post('/login', async (req, res) => {
 
   try {
     const usuario = await Usuario.findOne({ where: { email } });
-/*
+
     if (!usuario || !(await bcrypt.compare(password, usuario.password))) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
-      */
+      
 
-    if(password!=usuario.password)
-    {
-       return res.status(401).json({ message: 'Credenciales inválidas' });
-    }
+    
 
     if (!usuario.verificado) {
       return res.status(403).json({ message: 'Debes verificar tu correo electrónico antes de iniciar sesión.' });
