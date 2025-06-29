@@ -14,6 +14,11 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 require('dotenv').config();
+const multer = require('multer');
+const streamifier = require('streamifier');
+const upload = multer({ storage: multer.memoryStorage() });
+const storage = multer.memoryStorage();
+
 
 const SECRET_KEY = process.env.JWT_SECRET;
 
@@ -23,8 +28,8 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+
+
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -45,6 +50,82 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 
 // Crear un usuario (registro con verificación y Cloudinary usando streamifier)
 // routes/usuarios.js
+
+// PATCH para cambiar foto de perfil
+
+router.patch('/:id/foto', async (req, res) => {
+  try {
+    const { fotoPerfil } = req.body;
+    const usuario = await Usuario.findByPk(req.params.id);
+
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    usuario.fotoPerfil = fotoPerfil;
+    await usuario.save();
+
+    res.json({ mensaje: 'Foto actualizada correctamente', fotoPerfil });
+  } catch (err) {
+    console.error('❌ Error al actualizar foto:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// ❌ Eliminar foto de perfil
+router.delete('/:id/foto', async (req, res) => {
+  try {
+    const usuario = await Usuario.findByPk(req.params.id);
+
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    usuario.fotoPerfil = null;
+    await usuario.save();
+
+    res.json({ mensaje: 'Foto eliminada correctamente' });
+  } catch (err) {
+    console.error('❌ Error al eliminar foto:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+
+router.patch('/:usuarioId/foto', upload.single('foto'), async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream({ folder: 'usuarios' }, (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      });
+      streamifier.createReadStream(req.file.buffer).pipe(stream);
+    });
+
+    const url = result.secure_url;
+
+    await Usuario.update({ fotoPerfil: url }, { where: { id: usuarioId } });
+    res.json({ fotoPerfil: url });
+  } catch (err) {
+    console.error('❌ Error al actualizar foto:', err);
+    res.status(500).json({ error: 'Error interno al subir imagen' });
+  }
+});
+
+// DELETE para eliminar foto de perfil
+router.delete('/:usuarioId/foto', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    await Usuario.update({ fotoPerfil: null }, { where: { id: usuarioId } });
+    res.json({ fotoPerfil: null });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar foto' });
+  }
+});
+
+
+
 router.post('/', async (req, res) => {
   try {
     const {
