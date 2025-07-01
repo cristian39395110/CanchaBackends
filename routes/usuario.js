@@ -14,10 +14,10 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 require('dotenv').config();
-
-
 const upload = multer({ storage: multer.memoryStorage() });
 const storage = multer.memoryStorage();
+
+
 
 
 const SECRET_KEY = process.env.JWT_SECRET;
@@ -38,6 +38,40 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
+function generarPasswordAleatoria(length = 8) {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let pass = '';
+  for (let i = 0; i < length; i++) {
+    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pass;
+}
+router.post('/recuperar', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Falta el email.' });
+
+  try {
+    const usuario = await Usuario.findOne({ where: { email } });
+    if (!usuario) return res.status(404).json({ error: 'No se encontró un usuario con ese correo.' });
+
+    const nuevaPassword = generarPasswordAleatoria();
+    const hash = await bcrypt.hash(nuevaPassword, 10);
+    await Usuario.update({ password: hash }, { where: { email } });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Recuperación de contraseña',
+      text: `Hola ${usuario.nombre || ''},\n\nTu nueva contraseña temporal es: ${nuevaPassword}\n\nTe recomendamos cambiarla al ingresar.`,
+    });
+
+    res.json({ mensaje: 'Se envió una nueva contraseña a tu correo electrónico.' });
+  } catch (error) {
+    console.error('❌ Error en recuperación:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+  }
+});
+
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -78,6 +112,31 @@ router.patch('/:id/foto', upload.single('foto'), async (req, res) => {
   } catch (error) {
     console.error('❌ Error al subir foto:', error);
     res.status(500).json({ error: 'Error al subir imagen' });
+  }
+});
+
+router.post('/:id/cambiar-password', async (req, res) => {
+  const { id } = req.params;
+  const { actual, nueva } = req.body;
+
+  if (!actual || !nueva) {
+    return res.status(400).json({ error: 'Faltan datos: actual y nueva contraseña.' });
+  }
+
+  try {
+    const usuario = await Usuario.findByPk(id);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
+
+    const coincide = await bcrypt.compare(actual, usuario.password);
+    if (!coincide) return res.status(401).json({ error: 'La contraseña actual es incorrecta.' });
+
+    const nuevaHash = await bcrypt.hash(nueva, 10);
+    await usuario.update({ password: nuevaHash });
+
+    res.json({ mensaje: 'Contraseña actualizada correctamente.' });
+  } catch (error) {
+    console.error('❌ Error al cambiar contraseña:', error);
+    res.status(500).json({ error: 'Error interno del servidor.' });
   }
 });
 
@@ -364,6 +423,9 @@ router.get('/:usuarioId/bloqueo/:bloqueadoId', async (req, res) => {
   const existe = await Bloqueo.findOne({ where: { usuarioId, bloqueadoId } });
   res.json({ bloqueado: !!existe });
 });
+
+
+
 
 
 module.exports = router;
