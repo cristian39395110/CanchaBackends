@@ -61,7 +61,6 @@ async function enviarNotificacionesFCM(tokens, payload) {
 // 🔁 Envío escalonado
 const MAX_POR_TANDA = 6;
 const ESPERA_MS = 2 * 60 * 1000;
-
 async function enviarEscalonado(partido, deporteNombre, organizadorId) {
   let enviados = new Set();
   const { latitud, longitud } = partido;
@@ -103,10 +102,10 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
     });
 
     const faltan = partido.cantidadJugadores - aceptados;
-    if (faltan <= 0 || candidatos.length === 0) return;
+    if (faltan <= 0 || candidatos.length === 0) return false;
 
     const siguiente = candidatos.filter(id => !enviados.has(id)).slice(0, MAX_POR_TANDA);
-    if (siguiente.length === 0) return;
+    if (siguiente.length === 0) return false;
 
     const relaciones = siguiente.map(usuarioId => ({
       UsuarioId: usuarioId,
@@ -130,38 +129,19 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
     if (fcmTokens.length > 0) {
       await enviarNotificacionesFCM(fcmTokens, payload);
     }
-/*
-    for (const usuarioId of siguiente) {
-      const contenido = `Fuiste invitado al partido de ${partido.fecha} a las ${partido.hora} en ${partido.lugar} acordate de aceptar la invitacion para confirmar la asistencia y`;
-      await Mensaje.create({
-        emisorId: organizadorId,
-        receptorId: usuarioId,
-        contenido,
-        leido: false,
-        fecha: new Date()
-      });
 
-      if (global.io) {
-        global.io.to(`usuario-${usuarioId}`).emit('mensaje:nuevo', {
-          contenido,
-          emisorId: organizadorId,
-          receptorId: usuarioId,
-          partidoId: partido.id,
-          tipo: 'invitacion'
-        });
-      }
-    }
-*/
     siguiente.forEach(id => enviados.add(id));
 
-    if (faltan - siguiente.length > 0 && enviados.size < candidatos.length) {
-      setTimeout(enviarTanda, ESPERA_MS);
-    }
+    return true;
   }
 
-  enviarTanda(); // Ejecutamos la tanda
+  // ⏳ Bucle hasta llenar cupo o agotar candidatos
+  while (true) {
+    const huboEnvio = await enviarTanda();
+    if (!huboEnvio) break;
+    await new Promise(resolve => setTimeout(resolve, ESPERA_MS));
+  }
 }
-
 // 🚫 Rechazar jugador
 router.post('/rechazar-jugador', async (req, res) => {
   const { usuarioId, partidoId } = req.body;
