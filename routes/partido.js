@@ -62,7 +62,7 @@ async function enviarNotificacionesFCM(tokens, payload) {
 const MAX_POR_TANDA = 6;
 const ESPERA_MS = 2 * 60 * 1000;
 async function enviarEscalonado(partido, deporteNombre, organizadorId) {
-  let enviados = new Set();
+ 
   const { latitud, longitud } = partido;
   const distanciaKm = 13;
 
@@ -136,11 +136,18 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
   }
 
   // ⏳ Bucle hasta llenar cupo o agotar candidatos
-  while (true) {
-    const huboEnvio = await enviarTanda();
-    if (!huboEnvio) break;
-    await new Promise(resolve => setTimeout(resolve, ESPERA_MS));
-  }
+ let enviados = new Set();
+let intentos = 0;
+
+while (true) {
+  const huboEnvio = await enviarTanda();
+  intentos++;
+
+  if (!huboEnvio || enviados.size >= candidatos.length || intentos >= 10) break;
+
+  await new Promise(resolve => setTimeout(resolve, ESPERA_MS));
+}
+
 }
 // 🚫 Rechazar jugador
 router.post('/rechazar-jugador', async (req, res) => {
