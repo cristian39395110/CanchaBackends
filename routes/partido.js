@@ -95,6 +95,7 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
   );
 
   let candidatos = candidatosCercanos.map(row => row.usuarioId).filter(id => id !== organizadorId);
+console.log('👀 Candidatos cercanos encontrados:', candidatos);
 
   async function enviarTanda() {
     const aceptados = await UsuarioPartido.count({
@@ -256,7 +257,13 @@ router.post('/', async (req, res) => {
     });
 
     const deporte = await Deporte.findByPk(deporteId);
-    enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
+ try {
+  await enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
+  console.log('📩 Envío escalonado ejecutado correctamente');
+} catch (err) {
+  console.error('❌ Error durante el envío escalonado:', err);
+}
+
 
     res.status(201).json({
       mensaje: '✅ Partido creado correctamente (No Premium)',
