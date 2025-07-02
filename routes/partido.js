@@ -222,12 +222,13 @@ router.post('/', async (req, res) => {
     hora,
     organizadorId,
     localidad,
-    nombre
+    nombre,
+    latitud,
+    longitud
     
   } = req.body;
  
-  const latitud=-33.2857344;
-  const longitud=-66.3552000;
+
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
@@ -271,13 +272,14 @@ router.post('/ispremium', async (req, res) => {
     hora,
     organizadorId,
     localidad,
-    nombre
+    nombre,
+    latitud,
+    longitud
    
   } = req.body;
 
    
-  const latitud=-33.2857344;
-  const longitud=-66.3552000;
+ 
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
