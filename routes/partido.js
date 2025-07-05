@@ -58,97 +58,129 @@ async function enviarNotificacionesFCM(tokens, payload) {
   }
 }
 
-// 🔁 Envío escalonado
 const MAX_POR_TANDA = 6;
 const ESPERA_MS = 2 * 60 * 1000;
+
 async function enviarEscalonado(partido, deporteNombre, organizadorId) {
- 
   const { latitud, longitud } = partido;
   const distanciaKm = 13;
 
-  const candidatosCercanos = await UsuarioDeporte.sequelize.query(
-    `
-    SELECT ud.usuarioId
-    FROM UsuarioDeportes ud
-    JOIN Usuarios u ON ud.usuarioId = u.id
-    WHERE ud.deporteId = :deporteId
-      AND ud.usuarioId != :organizadorId
-      AND u.latitud IS NOT NULL AND u.longitud IS NOT NULL
-      AND (
-        6371 * acos(
-          cos(radians(:lat)) * cos(radians(u.latitud)) *
-          cos(radians(u.longitud) - radians(:lon)) +
-          sin(radians(:lat)) * sin(radians(u.latitud))
-        )
-      ) < :distanciaKm
-    `,
-    {
-      replacements: {
-        deporteId: partido.deporteId,
-        lat: latitud,
-        lon: longitud,
-        organizadorId,
-        distanciaKm
-      },
-      type: UsuarioDeporte.sequelize.QueryTypes.SELECT
-    }
-  );
+  try {
+    // 🔍 Buscar candidatos cercanos
+    const candidatosCercanos = await UsuarioDeporte.sequelize.query(
+      `
+      SELECT ud.usuarioId
+      FROM UsuarioDeportes ud
+      JOIN Usuarios u ON ud.usuarioId = u.id
+      WHERE ud.deporteId = :deporteId
+        AND ud.usuarioId != :organizadorId
+        AND u.latitud IS NOT NULL AND u.longitud IS NOT NULL
+        AND (
+          6371 * acos(
+            cos(radians(:lat)) * cos(radians(u.latitud)) *
+            cos(radians(u.longitud) - radians(:lon)) +
+            sin(radians(:lat)) * sin(radians(u.latitud))
+          )
+        ) < :distanciaKm
+      `,
+      {
+        replacements: {
+          deporteId: partido.deporteId,
+          lat: latitud,
+          lon: longitud,
+          organizadorId,
+          distanciaKm
+        },
+        type: UsuarioDeporte.sequelize.QueryTypes.SELECT
+      }
+    );
 
-  let candidatos = candidatosCercanos.map(row => row.usuarioId).filter(id => id !== organizadorId);
-console.log('👀 Candidatos cercanos encontrados:', candidatos);
+    // 🧠 Extraer IDs únicos
+    let candidatos = candidatosCercanos.map(row => row.usuarioId);
 
-  async function enviarTanda() {
-    const aceptados = await UsuarioPartido.count({
-      where: { PartidoId: partido.id, estado: 'aceptado' }
+    console.log('👀 Candidatos cercanos encontrados:', candidatos);
+
+    // 🔐 Buscar a quién ya se le envió invitación
+    const yaContactados = await UsuarioPartido.findAll({
+      where: {
+        PartidoId: partido.id
+      }
     });
 
-    const faltan = partido.cantidadJugadores - aceptados;
-    if (faltan <= 0 || candidatos.length === 0) return false;
+    const yaContactadosIds = yaContactados.map(r => r.UsuarioId);
 
-    const siguiente = candidatos.filter(id => !enviados.has(id)).slice(0, MAX_POR_TANDA);
-    if (siguiente.length === 0) return false;
+    // ❌ Filtrar para evitar repetir invitaciones
+    candidatos = candidatos.filter(id => !yaContactadosIds.includes(id));
 
-    const relaciones = siguiente.map(usuarioId => ({
-      UsuarioId: usuarioId,
-      PartidoId: partido.id,
-      estado: 'pendiente'
-    }));
-    await UsuarioPartido.bulkCreate(relaciones);
+    console.log('📤 Candidatos válidos después del filtro:', candidatos);
 
-    const suscripciones = await Suscripcion.findAll({
-      where: { usuarioId: { [Op.in]: siguiente } }
-    });
+    // 🧪 Variables internas de control (aisladas por ejecución)
+    let enviados = new Set();
+    let intentos = 0;
 
-    const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
+    async function enviarTanda() {
+      // ¿Cuántos ya aceptaron?
+      const aceptados = await UsuarioPartido.count({
+        where: { PartidoId: partido.id, estado: 'aceptado' }
+      });
 
-    const payload = {
-      title: '🎯 ¡Nuevo partido disponible!',
-      body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
-      url: '/invitaciones'
-    };
+      const faltan = partido.cantidadJugadores - aceptados;
+      if (faltan <= 0 || candidatos.length === 0) return false;
 
-    if (fcmTokens.length > 0) {
-      await enviarNotificacionesFCM(fcmTokens, payload);
+      // Seleccionamos la próxima tanda de usuarios a invitar
+      const siguiente = candidatos
+        .filter(id => !enviados.has(id))
+        .slice(0, MAX_POR_TANDA);
+
+      if (siguiente.length === 0) return false;
+
+      // 📝 Guardar relaciones en UsuarioPartido
+      const relaciones = siguiente.map(usuarioId => ({
+        UsuarioId: usuarioId,
+        PartidoId: partido.id,
+        estado: 'pendiente'
+      }));
+
+      await UsuarioPartido.bulkCreate(relaciones);
+
+      // 🔑 Obtener tokens FCM
+      const suscripciones = await Suscripcion.findAll({
+        where: { usuarioId: { [Op.in]: siguiente } }
+      });
+
+      const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
+
+      // 📤 Armar payload de notificación
+      const payload = {
+        title: '🎯 ¡Nuevo partido disponible!',
+        body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
+        url: '/invitaciones'
+      };
+
+      if (fcmTokens.length > 0) {
+        await enviarNotificacionesFCM(fcmTokens, payload);
+      }
+
+      siguiente.forEach(id => enviados.add(id));
+      return true;
     }
 
-    siguiente.forEach(id => enviados.add(id));
+    // 🔁 Envío escalonado hasta llenar cupos o quedarse sin candidatos
+    while (true) {
+      const huboEnvio = await enviarTanda();
+      intentos++;
 
-    return true;
+      if (!huboEnvio || enviados.size >= candidatos.length || intentos >= 10) break;
+
+      console.log(`⏳ Esperando ${ESPERA_MS / 1000} segundos para siguiente tanda...`);
+      await new Promise(resolve => setTimeout(resolve, ESPERA_MS));
+    }
+
+    console.log(`✅ Proceso escalonado terminado. Total invitados: ${enviados.size}`);
+    
+  } catch (error) {
+    console.error('❌ Error en enviarEscalonado:', error);
   }
-
-  // ⏳ Bucle hasta llenar cupo o agotar candidatos
- let enviados = new Set();
-let intentos = 0;
-
-while (true) {
-  const huboEnvio = await enviarTanda();
-  intentos++;
-
-  if (!huboEnvio || enviados.size >= candidatos.length || intentos >= 10) break;
-
-  await new Promise(resolve => setTimeout(resolve, ESPERA_MS));
-}
-
 }
 // 🚫 Rechazar jugador
 router.post('/rechazar-jugador', async (req, res) => {
