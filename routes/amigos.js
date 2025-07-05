@@ -33,6 +33,28 @@ router.get('/lista/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno al obtener amigos' });
   }
 });
+// GET /api/amigos/sonAmigos/:id1/:id2
+router.get('/sonAmigos/:id1/:id2', async (req, res) => {
+  const { id1, id2 } = req.params;
+
+  try {
+    const sonAmigos = await Amistad.findOne({
+      where: {
+        [Op.or]: [
+          { usuarioId: id1, amigoId: id2 },
+          { usuarioId: id2, amigoId: id1 },
+        ],
+        estado: 'aceptado',
+      },
+    });
+
+    res.json({ sonAmigos: !!sonAmigos });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al verificar amistad' });
+  }
+});
+
 
 // POST /api/amigos/solicitud
 router.post('/solicitud', async (req, res) => {
