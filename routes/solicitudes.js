@@ -142,6 +142,7 @@ router.get('/:usuarioId', async (req, res) => {
           deporte: partido.Deporte?.nombre || 'Desconocido',
           organizador: partido.organizador?.nombre || 'Desconocido',
           latitud: partido.latitud,
+          localidad: partido.localidad,
           longitud: partido.longitud,
           estado: up.estado
         };
