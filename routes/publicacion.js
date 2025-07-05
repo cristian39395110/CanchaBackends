@@ -72,21 +72,19 @@ router.get('/amigos/:usuarioId', async (req, res) => {
       }
     });
 
-    const amigosIds = amistades.map(a => (
+    const amigosIds = amistades.map(a =>
       a.usuarioId == usuarioId ? a.amigoId : a.usuarioId
-    ));
+    );
+
     const idsParaBuscar = [...amigosIds, Number(usuarioId)];
 
-    let publicaciones = await Publicacion.findAll({
+    const publicaciones = await Publicacion.findAll({
       where: {
-  usuarioId: {
-    [Op.in]: idsParaBuscar
-  }
-},
-
+        usuarioId: { [Op.in]: idsParaBuscar }
+      },
       include: [
         {
-          model: Usuario,
+          model: Usuario, // ✅ sin alias
           attributes: ['id', 'nombre', 'fotoPerfil']
         },
         {
@@ -101,9 +99,6 @@ router.get('/amigos/:usuarioId', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // Agregar URL completa a la imagen
-   
- 
     res.json(publicaciones);
   } catch (error) {
     console.error('❌ Error en /amigos/:usuarioId', error);
