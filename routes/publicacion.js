@@ -150,12 +150,19 @@ router.post('/:publicacionId/like', async (req, res) => {
     });
 
     if (existente) {
+      // Si ya existe el like, lo eliminamos (quitar like)
       await existente.destroy();
-      return res.json({ liked: false });
+    } else {
+      // Si no existe, lo creamos (dar like)
+      await Like.create({ publicacionId, usuarioId });
     }
 
-    await Like.create({ publicacionId, usuarioId });
-    res.json({ liked: true });
+    // Devolver la publicación actualizada con los nuevos likes
+    const publicacionActualizada = await Publicacion.findByPk(publicacionId, {
+      include: [{ model: Like }]
+    });
+
+    res.json(publicacionActualizada);
   } catch (error) {
     console.error('❌ Error al dar/quitar like:', error);
     res.status(500).json({ error: 'Error al procesar el like' });
