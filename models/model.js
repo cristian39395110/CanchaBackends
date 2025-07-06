@@ -13,7 +13,11 @@ const Amistad = require('./amistad');
 const Comentario = require('./Comentario');
 const Like = require('./Like');
 const Bloqueo = require('./Bloqueo');
+const Cancha = require('./cancha');
 
+
+Partido.belongsTo(Cancha, { foreignKey: 'canchaId' });
+Cancha.hasMany(Partido, { foreignKey: 'canchaId' });
 
 
 Usuario.hasMany(Bloqueo, { foreignKey: 'usuarioId' });
@@ -101,5 +105,6 @@ module.exports = {
   Comentario,
   Like,
   Amistad,
-  Bloqueo
+  Bloqueo,
+  Cancha 
 };

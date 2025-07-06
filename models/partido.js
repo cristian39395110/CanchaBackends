@@ -5,19 +5,33 @@ const Partido = sequelize.define('Partido', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   fecha: { type: DataTypes.DATEONLY, allowNull: false },
   hora: { type: DataTypes.TIME, allowNull: false },
-  lugar: { type: DataTypes.STRING, allowNull: false }, // dirección o nombre lugar
-   nombre: { type: DataTypes.STRING, allowNull: false },
-   rechazoDisponible: {
-  type: DataTypes.BOOLEAN,
-  defaultValue: true
-},
-
-  localidad: { type: DataTypes.STRING, allowNull: false }, // ciudad o localidad ej: "San Luis, Buenos Aires"
-  latitud: { type: DataTypes.DECIMAL(10, 7), allowNull: true },  // opcional para mapa
-  longitud: { type: DataTypes.DECIMAL(10, 7), allowNull: true }, // opcional para mapa
+  lugar: { type: DataTypes.STRING, allowNull: false },
+  nombre: { type: DataTypes.STRING, allowNull: false },
+  rechazoDisponible: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  localidad: { type: DataTypes.STRING, allowNull: false },
+  latitud: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
+  longitud: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
   cantidadJugadores: { type: DataTypes.INTEGER, allowNull: false },
-  deporteId: { type: DataTypes.INTEGER, allowNull: true },  // FK a deporte (opcional según tu modelo)
-  organizadorId: { type: DataTypes.INTEGER, allowNull: true }, // FK a usuario organizador
+  deporteId: { type: DataTypes.INTEGER, allowNull: true },
+  organizadorId: { type: DataTypes.INTEGER, allowNull: true },
+
+  // 🆕 Campos nuevos para integrar cancha
+  canchaId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Canchas',
+      key: 'id'
+    }
+  },
+  canchaNombreManual: {
+    type: DataTypes.STRING,
+    allowNull: true
+  }
+
 }, {
   timestamps: true
 });

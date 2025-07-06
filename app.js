@@ -48,6 +48,7 @@ require('./models/usuarioDeporte');
 require('./models/usuarioPartido');
 require('./models/Mensaje');
 
+
 // Rutas
 const usuarioDeporteRoutes = require('./routes/usuarioDeporte');
 const mensajesRouter = require('./routes/mensajes');
@@ -63,8 +64,10 @@ const pendientesRouter = require('./routes/pendientes');
 const publicacionRouter = require('./routes/publicacion');
 const amistadRouter = require('./routes/amistad');
 const amigoRouter = require('./routes/amigos');
-
+const canchasRoutes = require('./routes/canchas');
 const puntuacionRoutes = require('./routes/puntuacion');
+
+app.use('/api/canchas', canchasRoutes);
 app.use('/api/puntuacion', puntuacionRoutes);
 app.use('/api/amigos',verificarBloqueo, amigoRouter);
 app.use('/api/amistad', amistadRouter);
