@@ -9,10 +9,11 @@ const fs = require('fs');
 
 // 📦 Config Cloudinary
 cloudinary.config({
-  cloud_name: 'TU_CLOUD_NAME',
-  api_key: 'TU_API_KEY',
-  api_secret: 'TU_API_SECRET',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
 
 // 📸 Config Multer (almacena temporalmente)
 const storage = multer.diskStorage({

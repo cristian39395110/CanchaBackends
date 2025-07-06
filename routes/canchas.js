@@ -7,10 +7,11 @@ const streamifier = require('streamifier');
 
 // Configurar Cloudinary
 cloudinary.config({
-  cloud_name: 'TU_CLOUD_NAME',
-  api_key: 'TU_API_KEY',
-  api_secret: 'TU_API_SECRET',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
 
 // Middleware para subir imágenes
 const storage = multer.memoryStorage();
@@ -34,7 +35,6 @@ router.post('/', upload.single('foto'), async (req, res) => {
   try {
     let fotoUrl = null;
 
-    // Subir imagen si se incluye
     if (req.file) {
       const stream = cloudinary.uploader.upload_stream(
         { folder: 'canchas' },
@@ -46,7 +46,6 @@ router.post('/', upload.single('foto'), async (req, res) => {
 
           fotoUrl = result.secure_url;
 
-          // Crear cancha
           Cancha.create({
             nombre,
             direccion,
@@ -67,7 +66,6 @@ router.post('/', upload.single('foto'), async (req, res) => {
 
       streamifier.createReadStream(req.file.buffer).pipe(stream);
     } else {
-      // Crear sin imagen
       const nuevaCancha = await Cancha.create({
         nombre,
         direccion,
