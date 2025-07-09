@@ -57,8 +57,12 @@ Mensaje.belongsTo(Usuario, { as: 'emisor', foreignKey: 'emisorId' });
 Mensaje.belongsTo(Usuario, { as: 'receptor', foreignKey: 'receptorId' });
 
 // Asociaciones
-Usuario.hasMany(HistorialPuntuacion, { foreignKey: 'usuarioId' });
-HistorialPuntuacion.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+// HistorialPuntuacion - Relaciones claras
+Usuario.hasMany(HistorialPuntuacion, { foreignKey: 'usuarioId', as: 'CalificacionesRealizadas' });
+Usuario.hasMany(HistorialPuntuacion, { foreignKey: 'puntuadoId', as: 'CalificacionesRecibidas' });
+
+HistorialPuntuacion.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'Calificador' });
+HistorialPuntuacion.belongsTo(Usuario, { foreignKey: 'puntuadoId', as: 'Calificado' });
 
 // Asociaciones
 Deporte.hasMany(Partido, { foreignKey: 'deporteId' });
