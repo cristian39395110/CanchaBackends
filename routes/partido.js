@@ -63,6 +63,8 @@ const ESPERA_MS = 2 * 60 * 1000;
 async function enviarEscalonado(partido, deporteNombre, organizadorId) {
   const { latitud, longitud, sexo, rangoEdad } = partido;
   const distanciaKm = 13;
+console.log('✅ Entró a enviarEscalonado - partido ID:', partido.id);
+console.log('📍 Coordenadas recibidas:', partido.latitud, partido.longitud);
 
   try {
     // 🔍 Buscar candidatos cercanos
@@ -95,6 +97,9 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
     );
 
     let candidatos = candidatosCercanos.map(row => row.usuarioId);
+
+    console.log('🔍 Usuarios cercanos:', candidatosCercanos);
+
 
     // ❌ Filtrar suspendidos
     const suspendidos = await Usuario.findAll({
