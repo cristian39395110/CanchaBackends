@@ -447,7 +447,7 @@ router.post('/reenviar-invitacion', async (req, res) => {
 });
 
 // routes/partidos.js (o el archivo donde definas las rutas de partidos)
-router.put('/partidos/:partidoId/actualizar-cantidad', async (req, res) => {
+router.put('/:partidoId/actualizar-cantidad', async (req, res) => {
   const { partidoId } = req.params;
   const { cantidadJugadores } = req.body;
 
