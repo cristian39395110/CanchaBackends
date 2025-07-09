@@ -325,6 +325,9 @@ router.post('/', async (req, res) => {
     ubicacionManual
   } = req.body;
 
+  console.log('📅 Fecha recibida del frontend:', fecha);
+console.log('🕒 Fecha transformada a Date:', new Date(fecha));
+
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
