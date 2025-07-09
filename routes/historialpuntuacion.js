@@ -17,18 +17,16 @@ require('dotenv').config();
 const upload = multer({ storage: multer.memoryStorage() });
 const storage = multer.memoryStorage();
 
-
-
-
+// ✅ GET reseñas recibidas por un usuario
 router.get('/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
-   console.log("usuarioId------------")
-  console.log(usuarioId)
+ 
 
   try {
     const reseñas = await HistorialPuntuacion.findAll({
       where: { puntuadoId: usuarioId },
-      include: [{ model: Usuario, as: 'Calificador', attributes: ['nombre'] }]
+      include: [{ model: Usuario, as: 'Calificador', attributes: ['nombre', 'fotoPerfil'] }], // ✅ Agregamos fotoPerfil
+      order: [['createdAt', 'DESC']]
     });
 
     res.json(reseñas);
@@ -37,7 +35,5 @@ router.get('/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
-
-
 
 module.exports = router;
