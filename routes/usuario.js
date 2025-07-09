@@ -176,15 +176,18 @@ router.delete('/:usuarioId/foto', async (req, res) => {
 
 router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   try {
-    const {
-      nombre,
-      telefono,
-      email,
-      password,
-      localidad,
-      latitud,
-      longitud,
-    } = req.body;
+   const {
+  nombre,
+  telefono,
+  email,
+  password,
+  localidad,
+  latitud,
+  longitud,
+  sexo,
+  edad,
+} = req.body;
+
 
     const existente = await Usuario.findOne({ where: { email } });
     if (existente) {
@@ -211,17 +214,20 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
     }
 
     const nuevoUsuario = await Usuario.create({
-      nombre,
-      telefono,
-      email,
-      password: hashedPassword,
-      localidad,
-      latitud,
-      longitud,
-      fotoPerfil: urlImagen,
-      verificado: false,
-      tokenVerificacion,
-    });
+  nombre,
+  telefono,
+  email,
+  password: hashedPassword,
+  localidad,
+  latitud,
+  longitud,
+  sexo,
+  edad,
+  fotoPerfil: urlImagen,
+  verificado: false,
+  tokenVerificacion,
+});
+
 
     const link = `${process.env.FRONTEND_URL || 'https://canchabackends-1.onrender.com'}/api/usuarios/verificar/${tokenVerificacion}`;
 
@@ -369,7 +375,8 @@ router.get('/:id', async (req, res) => {
 
   try {
     const usuario = await Usuario.findByPk(id, {
-      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'perfilPublico', 'partidosJugados'],
+      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'perfilPublico', 'partidosJugados','sexo',
+  'edad'],
       include: [{
         model: UsuarioDeporte,
         include: [{ model: Deporte }],
@@ -390,6 +397,8 @@ router.get('/:id', async (req, res) => {
       localidad: usuario.localidad,
       perfilPublico: usuario.perfilPublico,
       partidosJugados: usuario.partidosJugados || 0,
+       sexo: usuario.sexo,
+  edad: usuario.edad,
       deportes,
     });
   } catch (error) {

@@ -57,12 +57,11 @@ async function enviarNotificacionesFCM(tokens, payload) {
     console.error('❌ Error enviando notificaciones FCM:', err);
   }
 }
-
 const MAX_POR_TANDA = 6;
 const ESPERA_MS = 2 * 60 * 1000;
 
 async function enviarEscalonado(partido, deporteNombre, organizadorId) {
-  const { latitud, longitud } = partido;
+  const { latitud, longitud, sexo, rangoEdad } = partido;
   const distanciaKm = 13;
 
   try {
@@ -95,41 +94,71 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
       }
     );
 
-    // 🧠 Extraer IDs únicos
     let candidatos = candidatosCercanos.map(row => row.usuarioId);
-    // ❌ Filtrar usuarios suspendidos
-const suspendidos = await Usuario.findAll({
-  where: {
-    id: { [Op.in]: candidatos },
-    suspensionHasta: { [Op.gt]: new Date() }
-  }
-});
-const suspendidosIds = suspendidos.map(u => u.id);
-candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
 
-
-    console.log('👀 Candidatos cercanos encontrados:', candidatos);
-
-    // 🔐 Buscar a quién ya se le envió invitación
-    const yaContactados = await UsuarioPartido.findAll({
+    // ❌ Filtrar suspendidos
+    const suspendidos = await Usuario.findAll({
       where: {
-        PartidoId: partido.id
+        id: { [Op.in]: candidatos },
+        suspensionHasta: { [Op.gt]: new Date() }
       }
     });
+    const suspendidosIds = suspendidos.map(u => u.id);
+    candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
 
+    // 🔎 Filtro por sexo
+    if (sexo && sexo !== 'todos') {
+      const usuariosFiltradosPorSexo = await Usuario.findAll({
+        where: {
+          id: { [Op.in]: candidatos },
+          sexo: sexo // 'masculino' o 'femenino'
+        }
+      });
+      const idsFiltradosSexo = usuariosFiltradosPorSexo.map(u => u.id);
+      candidatos = candidatos.filter(id => idsFiltradosSexo.includes(id));
+    }
+
+    // 🔎 Filtro por edad (usando campo edad)
+    if (rangoEdad) {
+      let edadMin = 0;
+      let edadMax = 120;
+
+      if (rangoEdad === 'adolescente') {
+        edadMin = 10;
+        edadMax = 20;
+      } else if (rangoEdad === 'joven') {
+        edadMin = 21;
+        edadMax = 40;
+      } else if (rangoEdad === 'veterano') {
+        edadMin = 41;
+        edadMax = 120;
+      }
+
+      const usuariosFiltradosPorEdad = await Usuario.findAll({
+        where: {
+          id: { [Op.in]: candidatos },
+          edad: {
+            [Op.gte]: edadMin,
+            [Op.lte]: edadMax
+          }
+        }
+      });
+
+      const idsFiltradosEdad = usuariosFiltradosPorEdad.map(u => u.id);
+      candidatos = candidatos.filter(id => idsFiltradosEdad.includes(id));
+    }
+
+    // 🔐 Evitar duplicados
+    const yaContactados = await UsuarioPartido.findAll({
+      where: { PartidoId: partido.id }
+    });
     const yaContactadosIds = yaContactados.map(r => r.UsuarioId);
-
-    // ❌ Filtrar para evitar repetir invitaciones
     candidatos = candidatos.filter(id => !yaContactadosIds.includes(id));
 
-    console.log('📤 Candidatos válidos después del filtro:', candidatos);
-
-    // 🧪 Variables internas de control (aisladas por ejecución)
     let enviados = new Set();
     let intentos = 0;
 
     async function enviarTanda() {
-      // ¿Cuántos ya aceptaron?
       const aceptados = await UsuarioPartido.count({
         where: { PartidoId: partido.id, estado: 'aceptado' }
       });
@@ -137,14 +166,12 @@ candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
       const faltan = partido.cantidadJugadores - aceptados;
       if (faltan <= 0 || candidatos.length === 0) return false;
 
-      // Seleccionamos la próxima tanda de usuarios a invitar
       const siguiente = candidatos
         .filter(id => !enviados.has(id))
         .slice(0, MAX_POR_TANDA);
 
       if (siguiente.length === 0) return false;
 
-      // 📝 Guardar relaciones en UsuarioPartido
       const relaciones = siguiente.map(usuarioId => ({
         UsuarioId: usuarioId,
         PartidoId: partido.id,
@@ -153,14 +180,12 @@ candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
 
       await UsuarioPartido.bulkCreate(relaciones);
 
-      // 🔑 Obtener tokens FCM
       const suscripciones = await Suscripcion.findAll({
         where: { usuarioId: { [Op.in]: siguiente } }
       });
 
       const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
 
-      // 📤 Armar payload de notificación
       const payload = {
         title: '🎯 ¡Nuevo partido disponible!',
         body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
@@ -175,7 +200,6 @@ candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
       return true;
     }
 
-    // 🔁 Envío escalonado hasta llenar cupos o quedarse sin candidatos
     while (true) {
       const huboEnvio = await enviarTanda();
       intentos++;
@@ -187,11 +211,32 @@ candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
     }
 
     console.log(`✅ Proceso escalonado terminado. Total invitados: ${enviados.size}`);
-    
   } catch (error) {
     console.error('❌ Error en enviarEscalonado:', error);
   }
 }
+
+router.get('/cantidad/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  try {
+    const cantidad = await Partido.count({
+      where: {
+        organizadorId: usuarioId,
+        createdAt: { [Op.gte]: hoy }
+      }
+    });
+
+    res.json({ cantidad });
+  } catch (error) {
+    console.error('❌ Error al contar partidos:', error);
+    res.status(500).json({ error: 'Error al contar los partidos del día' });
+  }
+});
+
 // 🚫 Rechazar jugador
 router.post('/rechazar-jugador', async (req, res) => {
   const { usuarioId, partidoId } = req.body;
@@ -264,8 +309,6 @@ router.post('/confirmar-jugador', async (req, res) => {
 
 // 🚀 Crear partido NO PREMIUM
 router.post('/', async (req, res) => {
-
-  
   const {
     deporteId,
     cantidadJugadores,
@@ -276,21 +319,43 @@ router.post('/', async (req, res) => {
     localidad,
     nombre,
     latitud,
-    longitud
-    
+    longitud,
+    sexo,
+    rangoEdad
   } = req.body;
- 
-    const organizador = await Usuario.findByPk(organizadorId);
-  if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
-    return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
-  }
-
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
 
   try {
+    const organizador = await Usuario.findByPk(organizadorId);
+
+    if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
+      return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
+    }
+
+    if (!organizador?.premium) {
+      if (cantidadJugadores > 6) {
+        return res.status(403).json({ error: 'Como usuario no premium, solo podés ingresar hasta 6 jugadores.' });
+      }
+
+      // Contar partidos del día
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+
+      const partidosHoy = await Partido.count({
+        where: {
+          organizadorId,
+          createdAt: { [Op.gte]: hoy }
+        }
+      });
+
+      if (partidosHoy >= 2) {
+        return res.status(403).json({ error: 'Solo podés crear 2 partidos por día siendo usuario no premium.' });
+      }
+    }
+
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
@@ -301,17 +366,19 @@ router.post('/', async (req, res) => {
       organizadorId,
       localidad: localidad || '',
       latitud: latitud || null,
-      longitud: longitud || null
+      longitud: longitud || null,
+      sexo,
+      rangoEdad
     });
 
     const deporte = await Deporte.findByPk(deporteId);
- try {
-  await enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
-  console.log('📩 Envío escalonado ejecutado correctamente');
-} catch (err) {
-  console.error('❌ Error durante el envío escalonado:', err);
-}
 
+    try {
+      await enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
+      console.log('📩 Envío escalonado ejecutado correctamente');
+    } catch (err) {
+      console.error('❌ Error durante el envío escalonado:', err);
+    }
 
     res.status(201).json({
       mensaje: '✅ Partido creado correctamente (No Premium)',
@@ -323,6 +390,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Error al crear el partido o enviar notificaciones.' });
   }
 });
+
 
 // 👑 Crear partido PREMIUM
 router.post('/ispremium', async (req, res) => {
@@ -336,7 +404,9 @@ router.post('/ispremium', async (req, res) => {
     localidad,
     nombre,
     latitud,
-    longitud
+    longitud,
+    sexo,
+  rangoEdad
    
   } = req.body;
 
@@ -361,7 +431,9 @@ router.post('/ispremium', async (req, res) => {
       organizadorId,
       localidad: localidad || '',
       latitud: latitud || null,
-      longitud: longitud || null
+      longitud: longitud || null,
+      sexo,
+  rangoEdad
     });
 
     res.status(201).json({ mensaje: 'Partido creado para premium.', partido });

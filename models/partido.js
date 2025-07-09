@@ -17,7 +17,14 @@ const Partido = sequelize.define('Partido', {
   cantidadJugadores: { type: DataTypes.INTEGER, allowNull: false },
   deporteId: { type: DataTypes.INTEGER, allowNull: true },
   organizadorId: { type: DataTypes.INTEGER, allowNull: true },
-
+  sexo: {
+  type: DataTypes.STRING,
+  defaultValue: 'todos'
+},
+rangoEdad: {
+  type: DataTypes.STRING,
+  defaultValue: ''
+},
   // 🆕 Campos nuevos para integrar cancha
   canchaId: {
     type: DataTypes.INTEGER,

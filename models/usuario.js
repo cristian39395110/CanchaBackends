@@ -63,7 +63,14 @@ suspensionHasta: {
   type: DataTypes.DATE,
   allowNull: true,
 },
-
+sexo: {
+  type: DataTypes.ENUM('masculino', 'femenino'),
+  allowNull: false
+},
+edad: {
+  type: DataTypes.INTEGER,
+  allowNull: false
+},
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,
