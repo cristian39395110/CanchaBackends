@@ -119,34 +119,36 @@ router.get('/:usuarioId', async (req, res) => {
     });
 
     const resultado = usuarioPartidos
-      .filter(up => {
-        const partido = up.Partido;
-        const mismoDeporte = deportesIds.includes(partido.deporteId);
-        const distancia = calcularDistanciaKm(
-          Number(usuario.latitud),
-          Number(usuario.longitud),
-          Number(partido.latitud),
-          Number(partido.longitud)
-        );
-        return mismoDeporte && distancia <= 15;
-      })
-      .map(up => {
-        const partido = up.Partido;
-        return {
-          id: partido.id,
-          fecha: partido.fecha,
-          hora: partido.hora,
-          lugar: partido.lugar,
-          nombreCancha: partido.nombre,
-          cantidadJugadores: partido.cantidadJugadores,
-          deporte: partido.Deporte?.nombre || 'Desconocido',
-          organizador: partido.organizador?.nombre || 'Desconocido',
-          latitud: partido.latitud,
-          localidad: partido.localidad,
-          longitud: partido.longitud,
-          estado: up.estado
-        };
-      });
+  .filter(up => {
+    const partido = up.Partido;
+    const mismoDeporte = deportesIds.includes(partido.deporteId);
+    const distancia = calcularDistanciaKm(
+      Number(usuario.latitud),
+      Number(usuario.longitud),
+      Number(partido.latitud),
+      Number(partido.longitud)
+    );
+    return mismoDeporte && distancia <= 15;
+  })
+  .map(up => {
+    const partido = up.Partido;
+    return {
+      id: partido.id,
+      fecha: partido.fecha,
+      hora: partido.hora,
+      lugar: partido.lugar,
+      nombreCancha: partido.nombre,
+      cantidadJugadores: partido.cantidadJugadores,
+      deporte: partido.Deporte?.nombre || 'Desconocido',
+      organizador: partido.organizador?.nombre || 'Desconocido',
+      latitud: partido.latitud,
+      longitud: partido.longitud,
+      localidad: partido.localidad,
+      sexo: partido.sexo || 'todos',
+      rangoEdad: partido.rangoEdad || 'sin restricción',
+      estado: up.estado
+    };
+  });
 
     res.json(resultado);
   } catch (error) {
