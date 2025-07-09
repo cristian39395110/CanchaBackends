@@ -55,6 +55,20 @@ router.get('/jugadores-confirmados/:partidoId', async (req, res) => {
 });
 
 // Guardar calificación (jugador califica al organizador o viceversa)
+async function verificarSuspension(puntuadoId) {
+  const puntuaciones = await HistorialPuntuacion.findAll({ where: { puntuadoId } });
+  const promedio = puntuaciones.reduce((acc, r) => acc + r.puntaje, 0) / puntuaciones.length;
+
+  if (promedio < 2.5) {
+    const usuario = await Usuario.findByPk(puntuadoId);
+    if (usuario) {
+      usuario.suspensionHasta = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // Suspensión por 2 días
+      await usuario.save();
+    }
+  }
+}
+
+// ✅ POST calificación con penalización automática si aplica
 router.post('/', async (req, res) => {
   const { usuarioId, partidoId, puntuadoId, puntaje, comentario } = req.body;
 
@@ -67,28 +81,28 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Ya calificaste en este partido.' });
     }
 
-   await HistorialPuntuacion.create({
-  usuarioId,
-  partidoId,
-  puntuadoId,
-  puntaje,
-  comentario
-});
+    await HistorialPuntuacion.create({
+      usuarioId,
+      partidoId,
+      puntuadoId,
+      puntaje,
+      comentario
+    });
 
-// ✅ Aumentar partidosJugados al usuario calificado
-await Usuario.increment('partidosJugados', {
-  by: 1,
-  where: { id: puntuadoId }
-});
+    await Usuario.increment('partidosJugados', {
+      by: 1,
+      where: { id: puntuadoId }
+    });
 
-// ✅ (Opcional) Aumentar también al que calificó (si no es él mismo)
-if (usuarioId !== puntuadoId) {
-  await Usuario.increment('partidosJugados', {
-    by: 1,
-    where: { id: usuarioId }
-  });
-}
+    if (usuarioId !== puntuadoId) {
+      await Usuario.increment('partidosJugados', {
+        by: 1,
+        where: { id: usuarioId }
+      });
+    }
 
+    // 🔒 Verificar si debe suspenderse
+    await verificarSuspension(puntuadoId);
 
     res.json({ mensaje: '✅ Calificación guardada correctamente.' });
   } catch (err) {
@@ -96,7 +110,6 @@ if (usuarioId !== puntuadoId) {
     res.status(500).json({ error: 'Error al guardar la calificación' });
   }
 });
-
 // Verificar si ya calificó
 router.get('/ya-calificado', async (req, res) => {
   const { usuarioId, partidoId, puntuadoId } = req.query;

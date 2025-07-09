@@ -35,5 +35,20 @@ router.get('/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+// ✅ GET usuario con suspensión (para frontend)
+router.get('/estado/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+  try {
+    const usuario = await Usuario.findByPk(usuarioId, {
+      attributes: ['id', 'suspensionHasta']
+    });
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(usuario);
+  } catch (err) {
+    console.error('❌ Error al obtener estado del usuario:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 
 module.exports = router;

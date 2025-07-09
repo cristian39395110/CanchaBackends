@@ -97,6 +97,16 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
 
     // 🧠 Extraer IDs únicos
     let candidatos = candidatosCercanos.map(row => row.usuarioId);
+    // ❌ Filtrar usuarios suspendidos
+const suspendidos = await Usuario.findAll({
+  where: {
+    id: { [Op.in]: candidatos },
+    suspensionHasta: { [Op.gt]: new Date() }
+  }
+});
+const suspendidosIds = suspendidos.map(u => u.id);
+candidatos = candidatos.filter(id => !suspendidosIds.includes(id));
+
 
     console.log('👀 Candidatos cercanos encontrados:', candidatos);
 
@@ -254,6 +264,8 @@ router.post('/confirmar-jugador', async (req, res) => {
 
 // 🚀 Crear partido NO PREMIUM
 router.post('/', async (req, res) => {
+
+  
   const {
     deporteId,
     cantidadJugadores,
@@ -268,6 +280,10 @@ router.post('/', async (req, res) => {
     
   } = req.body;
  
+    const organizador = await Usuario.findByPk(organizadorId);
+  if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
+    return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
+  }
 
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
@@ -325,7 +341,10 @@ router.post('/ispremium', async (req, res) => {
   } = req.body;
 
    
- 
+   const organizador = await Usuario.findByPk(organizadorId);
+  if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
+    return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
+  }
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
@@ -368,6 +387,11 @@ router.post('/reenviar-invitacion', async (req, res) => {
     
     const organizadorId=partido.organizador.id
 
+      const organizador = await Usuario.findByPk(organizadorId);
+  if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
+    return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
+  }
+
     const distanciaMaxKm = 15;
 
     const candidatosCercanos = await UsuarioDeporte.sequelize.query(
@@ -403,10 +427,21 @@ router.post('/reenviar-invitacion', async (req, res) => {
     );
 
     const candidatos = candidatosCercanos.map(row => row.usuarioId);
+    // ❌ Filtrar usuarios suspendidos
+const suspendidos = await Usuario.findAll({
+  where: {
+    id: { [Op.in]: candidatos },
+    suspensionHasta: { [Op.gt]: new Date() }
+  }
+});
+const suspendidosIds = suspendidos.map(u => u.id);
+const candidatosFiltrados = candidatos.filter(id => !suspendidosIds.includes(id));
+
 
     // Filtramos bien los usuarios válidos
-    const usuariosFiltrados = await Promise.all(
-      candidatos.map(async (usuarioId) => {
+   const usuariosFiltrados = await Promise.all(
+  candidatosFiltrados.map(async (usuarioId) => {
+
         // ✅ Reforzamos que no sea el organizador
         if (usuarioId === partido.organizadorId) return null;
 

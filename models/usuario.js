@@ -59,6 +59,11 @@ tokenVerificacion: {
   type: DataTypes.INTEGER,
   defaultValue: 0,
 },
+suspensionHasta: {
+  type: DataTypes.DATE,
+  allowNull: true,
+},
+
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,
