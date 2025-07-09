@@ -97,7 +97,7 @@ router.get('/jugadores-confirmados-con-calificacion/:partidoId/:organizadorId', 
   const { partidoId, organizadorId } = req.params;
 
   try {
-    // Traemos todos los jugadores confirmados
+    // Trae los jugadores confirmados con sus datos
     const jugadoresConfirmados = await UsuarioPartido.findAll({
       where: {
         PartidoId: partidoId,
@@ -106,22 +106,25 @@ router.get('/jugadores-confirmados-con-calificacion/:partidoId/:organizadorId', 
       include: [{ model: Usuario, attributes: ['id', 'nombre'] }]
     });
 
-    // Traemos a quién ya calificó el organizador
-    const calificados = await HistorialPuntuacion.findAll({
-      where: {
-        usuarioId: organizadorId,
-        partidoId
-      },
-      attributes: ['puntuadoId']
-    });
+    const resultado = await Promise.all(
+      jugadoresConfirmados.map(async (j) => {
+        const calificacion = await HistorialPuntuacion.findOne({
+          where: {
+            usuarioId: organizadorId,
+            partidoId,
+            puntuadoId: j.Usuario.id
+          }
+        });
 
-    const idsCalificados = calificados.map(c => c.puntuadoId);
-
-    const resultado = jugadoresConfirmados.map(j => ({
-      id: j.Usuario.id,
-      nombre: j.Usuario.nombre,
-      yaCalificado: idsCalificados.includes(j.Usuario.id)
-    }));
+        return {
+          id: j.Usuario.id,
+          nombre: j.Usuario.nombre,
+          yaCalificado: !!calificacion,
+          puntaje: calificacion?.puntaje ?? null,
+          comentario: calificacion?.comentario ?? ''
+        };
+      })
+    );
 
     res.json(resultado);
   } catch (err) {
