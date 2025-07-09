@@ -133,6 +133,7 @@ const formateado = solicitudes.map(s => ({
 
 // ✅ Aceptar solicitud
 // ✅ Aceptar solicitud
+// ✅ Aceptar solicitud y crear relación inversa
 router.post('/aceptar', async (req, res) => {
   const { usuarioId, amigoId } = req.body;
 
@@ -150,12 +151,31 @@ router.post('/aceptar', async (req, res) => {
     solicitud.estado = 'aceptado';
     await solicitud.save();
 
-    res.json({ mensaje: '✅ Amistad aceptada' });
+    // 👉 Verificamos si ya existe la relación inversa
+    const inversa = await Amistad.findOne({
+      where: {
+        usuarioId: amigoId,
+        amigoId: usuarioId
+      }
+    });
+
+    // Si no existe, la creamos
+    if (!inversa) {
+      await Amistad.create({
+        usuarioId: amigoId,
+        amigoId: usuarioId,
+        estado: 'aceptado'
+      });
+    }
+
+    res.json({ mensaje: '✅ Amistad aceptada correctamente' });
+
   } catch (error) {
     console.error('❌ Error al aceptar solicitud:', error);
     res.status(500).json({ error: 'Error al aceptar solicitud' });
   }
 });
+
 
 // ❌ Cancelar solicitud
 router.post('/cancelar', async (req, res) => {
