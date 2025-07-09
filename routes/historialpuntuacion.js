@@ -22,6 +22,8 @@ const storage = multer.memoryStorage();
 
 router.get('/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
+   console.log("usuarioId------------")
+  console.log(usuarioId)
 
   try {
     const reseñas = await HistorialPuntuacion.findAll({
