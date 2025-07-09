@@ -340,6 +340,8 @@ router.post('/', async (req, res) => {
 
   console.log('📅 Fecha recibida del frontend:', fecha);
 console.log('🕒 Fecha transformada a Date:', new Date(fecha));
+const fechaAjustada = new Date(fecha);
+fechaAjustada.setHours(fechaAjustada.getHours() + 3);
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
@@ -377,7 +379,7 @@ console.log('🕒 Fecha transformada a Date:', new Date(fecha));
       deporteId,
       cantidadJugadores,
       lugar,
-      fecha,
+      fecha: fechaAjustada,
       hora,
       nombre,
       organizadorId,
@@ -438,13 +440,14 @@ router.post('/ispremium', async (req, res) => {
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
-
+const fechaAjustada = new Date(fecha);
+fechaAjustada.setHours(fechaAjustada.getHours() + 3);
   try {
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
       lugar,
-      fecha,
+       fecha: fechaAjustada, 
       hora,
       nombre,
       organizadorId,
