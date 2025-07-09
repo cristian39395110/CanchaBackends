@@ -4,17 +4,19 @@ const { Op } = require('sequelize');
 const { Partido, UsuarioPartido, Usuario, HistorialPuntuacion } = require('../models/model');
 
 // Obtener partidos finalizados organizados por el usuario
+// ✅ Traer partidos organizados por el usuario que ya pasaron (con jugadores confirmados)
 router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
   const { organizadorId } = req.params;
 
   try {
+    // 🔍 Obtener solo la fecha de hoy en formato 'YYYY-MM-DD'
     const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0); // 🔥 Importante: solo comparamos fecha, no hora
+    const hoyStr = hoy.toISOString().split('T')[0];
 
     const partidos = await Partido.findAll({
       where: {
         organizadorId,
-        fecha: { [Op.lte]: hoy }
+        fecha: { [Op.lte]: hoyStr } // ✅ Comparar solo fechas, sin hora
       },
       include: [{
         model: UsuarioPartido,
@@ -30,6 +32,7 @@ router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 // Obtener jugadores confirmados de un partido
 router.get('/jugadores-confirmados/:partidoId', async (req, res) => {
