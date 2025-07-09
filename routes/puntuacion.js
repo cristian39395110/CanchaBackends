@@ -9,23 +9,22 @@ router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
   const { organizadorId } = req.params;
 
   try {
-    // 🔍 Obtener solo la fecha de hoy en formato 'YYYY-MM-DD'
-    const hoy = new Date();
-    const hoyStr = hoy.toISOString().split('T')[0];
+    // ✅ Tomamos solo la fecha en formato YYYY-MM-DD
+    const hoy = new Date().toISOString().slice(0, 10); // Ej: '2025-07-08'
 
     const partidos = await Partido.findAll({
       where: {
         organizadorId,
-        fecha: { [Op.lte]: hoyStr } // ✅ Comparar solo fechas, sin hora
+        fecha: { [Op.lte]: hoy } // Comparación solo por fecha, no por hora
       },
       include: [{
         model: UsuarioPartido,
         where: { estado: 'confirmado' },
-        required: true
+        required: true // Solo partidos con jugadores confirmados
       }],
       order: [['fecha', 'DESC']]
     });
-
+    console.log(partidos)
     res.json(partidos);
   } catch (err) {
     console.error('❌ Error obteniendo partidos finalizados con jugadores:', err);
