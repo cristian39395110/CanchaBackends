@@ -50,7 +50,7 @@ router.get('/aceptadas/:organizadorId', async (req, res) => {
         .filter(r => r.estado === 'pendiente')
         .map(r => r.Usuario);
 
-     resultado.push({
+   resultado.push({
   id: partido.id,
   lugar: partido.lugar,
   fecha: partido.fecha,
@@ -61,8 +61,15 @@ router.get('/aceptadas/:organizadorId', async (req, res) => {
   latitud: partido.latitud,
   longitud: partido.longitud,
   usuariosAceptaron,
-  usuariosPendientes
+  usuariosPendientes,
+
+  // 🆕 Agregar estos campos:
+  localidad: partido.localidad,
+  canchaNombreManual: partido.canchaNombreManual,
+  sexo: partido.sexo,
+  rangoEdad: partido.rangoEdad
 });
+
 
     }
 
