@@ -9,6 +9,7 @@ router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
 
   try {
     const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0); // 🔥 Importante: solo comparamos fecha, no hora
 
     const partidos = await Partido.findAll({
       where: {
@@ -18,7 +19,7 @@ router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
       include: [{
         model: UsuarioPartido,
         where: { estado: 'confirmado' },
-        required: true // ✅ Solo partidos con jugadores confirmados
+        required: true
       }],
       order: [['fecha', 'DESC']]
     });
@@ -29,6 +30,7 @@ router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 // Obtener jugadores confirmados de un partido
 router.get('/jugadores-confirmados/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
