@@ -321,7 +321,8 @@ router.post('/', async (req, res) => {
     latitud,
     longitud,
     sexo,
-    rangoEdad
+    rangoEdad,
+    ubicacionManual
   } = req.body;
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
@@ -368,7 +369,8 @@ router.post('/', async (req, res) => {
       latitud: latitud || null,
       longitud: longitud || null,
       sexo,
-      rangoEdad
+      rangoEdad,
+      ubicacionManual
     });
 
     const deporte = await Deporte.findByPk(deporteId);
@@ -406,7 +408,8 @@ router.post('/ispremium', async (req, res) => {
     latitud,
     longitud,
     sexo,
-  rangoEdad
+  rangoEdad,
+  ubicacionManual
    
   } = req.body;
 
@@ -433,7 +436,8 @@ router.post('/ispremium', async (req, res) => {
       latitud: latitud || null,
       longitud: longitud || null,
       sexo,
-  rangoEdad
+  rangoEdad,
+  ubicacionManual
     });
 
     res.status(201).json({ mensaje: 'Partido creado para premium.', partido });

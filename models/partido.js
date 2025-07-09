@@ -34,10 +34,15 @@ rangoEdad: {
       key: 'id'
     }
   },
+  ubicacionManual: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false,
+},
   canchaNombreManual: {
     type: DataTypes.STRING,
     allowNull: true
-  }
+  },
+  
 
 }, {
   timestamps: true
