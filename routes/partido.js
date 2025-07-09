@@ -446,5 +446,25 @@ router.post('/reenviar-invitacion', async (req, res) => {
   }
 });
 
+// routes/partidos.js (o el archivo donde definas las rutas de partidos)
+router.put('/partidos/:partidoId/actualizar-cantidad', async (req, res) => {
+  const { partidoId } = req.params;
+  const { cantidadJugadores } = req.body;
+
+  try {
+    const partido = await Partido.findByPk(partidoId);
+    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+
+    partido.cantidadJugadores = cantidadJugadores;
+    await partido.save();
+
+    res.json({ mensaje: 'Cantidad de jugadores actualizada correctamente' });
+  } catch (error) {
+    console.error('❌ Error al actualizar la cantidad:', error);
+    res.status(500).json({ error: 'Error del servidor al actualizar la cantidad' });
+  }
+});
+
+
 
 module.exports = router;
