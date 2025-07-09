@@ -67,13 +67,28 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Ya calificaste en este partido.' });
     }
 
-    await HistorialPuntuacion.create({
-      usuarioId,
-      partidoId,
-      puntuadoId,
-      puntaje,
-      comentario
-    });
+   await HistorialPuntuacion.create({
+  usuarioId,
+  partidoId,
+  puntuadoId,
+  puntaje,
+  comentario
+});
+
+// ✅ Aumentar partidosJugados al usuario calificado
+await Usuario.increment('partidosJugados', {
+  by: 1,
+  where: { id: puntuadoId }
+});
+
+// ✅ (Opcional) Aumentar también al que calificó (si no es él mismo)
+if (usuarioId !== puntuadoId) {
+  await Usuario.increment('partidosJugados', {
+    by: 1,
+    where: { id: usuarioId }
+  });
+}
+
 
     res.json({ mensaje: '✅ Calificación guardada correctamente.' });
   } catch (err) {
