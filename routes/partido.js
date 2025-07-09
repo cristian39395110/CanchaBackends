@@ -65,6 +65,7 @@ async function enviarEscalonado(partido, deporteNombre, organizadorId) {
   const distanciaKm = 13;
 console.log('✅ Entró a enviarEscalonado - partido ID:', partido.id);
 console.log('📍 Coordenadas recibidas:', partido.latitud, partido.longitud);
+console.log('📍 Rango edad:',rangoEdad );
 
   try {
     // 🔍 Buscar candidatos cercanos
@@ -122,36 +123,43 @@ console.log('📍 Coordenadas recibidas:', partido.latitud, partido.longitud);
       const idsFiltradosSexo = usuariosFiltradosPorSexo.map(u => u.id);
       candidatos = candidatos.filter(id => idsFiltradosSexo.includes(id));
     }
+// 🔎 Filtro por edad (usando campo edad)
+if (rangoEdad) {
+  let edadMin = 0;
+  let edadMax = 120;
 
-    // 🔎 Filtro por edad (usando campo edad)
-    if (rangoEdad) {
-      let edadMin = 0;
-      let edadMax = 120;
+  if (rangoEdad === 'adolescente') {
+    edadMin = 10;
+    edadMax = 20;
+  } else if (rangoEdad === 'joven') {
+    edadMin = 21;
+    edadMax = 40;
+  } else if (rangoEdad === 'veterano') {
+    edadMin = 41;
+    edadMax = 120;
+  }
 
-      if (rangoEdad === 'adolescente') {
-        edadMin = 10;
-        edadMax = 20;
-      } else if (rangoEdad === 'joven') {
-        edadMin = 21;
-        edadMax = 40;
-      } else if (rangoEdad === 'veterano') {
-        edadMin = 41;
-        edadMax = 120;
+  console.log('🎂 Filtro por edad activado');
+  console.log('🧮 Candidatos antes del filtro edad:', candidatos.length);
+  console.log('📊 Rango de edad aplicado:', edadMin, '-', edadMax);
+
+  const usuariosFiltradosPorEdad = await Usuario.findAll({
+    where: {
+      id: { [Op.in]: candidatos },
+      edad: {
+        [Op.ne]: null, // Solo los que tienen edad definida
+        [Op.gte]: edadMin,
+        [Op.lte]: edadMax
       }
-
-      const usuariosFiltradosPorEdad = await Usuario.findAll({
-        where: {
-          id: { [Op.in]: candidatos },
-          edad: {
-            [Op.gte]: edadMin,
-            [Op.lte]: edadMax
-          }
-        }
-      });
-
-      const idsFiltradosEdad = usuariosFiltradosPorEdad.map(u => u.id);
-      candidatos = candidatos.filter(id => idsFiltradosEdad.includes(id));
     }
+  });
+
+  const idsFiltradosEdad = usuariosFiltradosPorEdad.map(u => u.id);
+  console.log('✅ Usuarios que pasaron el filtro de edad:', idsFiltradosEdad.length);
+
+  candidatos = candidatos.filter(id => idsFiltradosEdad.includes(id));
+  console.log('👥 Candidatos después del filtro edad:', candidatos.length);
+}
 
     // 🔐 Evitar duplicados
     const yaContactados = await UsuarioPartido.findAll({
