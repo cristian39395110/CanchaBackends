@@ -66,6 +66,9 @@ const amistadRouter = require('./routes/amistad');
 const amigoRouter = require('./routes/amigos');
 const canchasRoutes = require('./routes/canchas');
 const puntuacionRoutes = require('./routes/puntuacion');
+const historialdeposicionesRoutes = require('./routes/historialpuntuacion');
+
+app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
 
 app.use('/api/canchas', canchasRoutes);
 app.use('/api/puntuacion', puntuacionRoutes);

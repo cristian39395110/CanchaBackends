@@ -24,7 +24,7 @@ router.get('/organizados-finalizados/:organizadorId', async (req, res) => {
       }],
       order: [['fecha', 'DESC']]
     });
-    console.log(partidos)
+
     res.json(partidos);
   } catch (err) {
     console.error('❌ Error obteniendo partidos finalizados con jugadores:', err);
