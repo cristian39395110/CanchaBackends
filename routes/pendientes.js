@@ -50,15 +50,20 @@ router.get('/aceptadas/:organizadorId', async (req, res) => {
         .filter(r => r.estado === 'pendiente')
         .map(r => r.Usuario);
 
-      resultado.push({
-        id: partido.id,
-        lugar: partido.lugar,
-        fecha: partido.fecha,
-        hora: partido.hora,
-        deporte: partido.Deporte,
-        usuariosAceptaron,
-        usuariosPendientes
-      });
+     resultado.push({
+  id: partido.id,
+  lugar: partido.lugar,
+  fecha: partido.fecha,
+  hora: partido.hora,
+  deporte: partido.Deporte,
+  cantidadJugadores: partido.cantidadJugadores,
+  organizadorId: partido.organizadorId,
+  latitud: partido.latitud,
+  longitud: partido.longitud,
+  usuariosAceptaron,
+  usuariosPendientes
+});
+
     }
 
     res.json(resultado);
