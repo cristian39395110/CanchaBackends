@@ -1,15 +1,21 @@
-// firebase.js
 const admin = require('firebase-admin');
-const serviceAccount = require('./firebase-admin-sdk.json');
 
 let app;
 
 if (!admin.apps.length) {
-  app = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+
+    app = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+
+    console.log('✅ Firebase Admin inicializado desde variable de entorno');
+  } catch (error) {
+    console.error('❌ Error al inicializar Firebase Admin SDK:', error);
+  }
 } else {
-  app = admin.app(); // Usa la instancia existente
+  app = admin.app();
 }
 
 module.exports = admin;

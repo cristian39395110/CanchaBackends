@@ -9,15 +9,18 @@ const Partido = require('../models/partido');
 const Deporte = require('../models/deporte');
 const UsuarioPartido=require('../models/usuarioPartido');
 // ✅ Inicializar Firebase Admin solo una vez
-try {
-  const serviceAccount = require('../firebase-admin-sdk.json');
-  if (!admin.apps.length) {
+if (!admin.apps.length) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
+
+    console.log('✅ Firebase Admin inicializado desde variable de entorno');
+  } catch (error) {
+    console.error('❌ Error al inicializar Firebase Admin desde variable:', error);
   }
-} catch (error) {
-  console.error('❌ Error al inicializar Firebase Admin SDK:', error);
 }
 
 // 📤 Función auxiliar para enviar notificaciones a varios tokens

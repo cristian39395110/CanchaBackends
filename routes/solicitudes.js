@@ -7,17 +7,19 @@ const admin = require('firebase-admin');
 const { Op } = require('sequelize');
 
 // ✅ Inicializar Firebase Admin solo una vez
-try {
-  const serviceAccount = require('../firebase-admin-sdk.json');
-  if (!admin.apps.length) {
+if (!admin.apps.length) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
-  }
-} catch (error) {
-  console.error('❌ Error al inicializar Firebase Admin SDK:', error);
-}
 
+    console.log('✅ Firebase Admin inicializado desde variable de entorno');
+  } catch (error) {
+    console.error('❌ Error al inicializar Firebase Admin desde variable:', error);
+  }
+}
 // 📤 Función auxiliar para enviar notificaciones a varios tokens
 async function enviarNotificacionesFCM(tokens, title, body, data = {}) {
   const results = [];
