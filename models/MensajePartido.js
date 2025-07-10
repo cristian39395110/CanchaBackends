@@ -27,4 +27,4 @@ const MensajePartido = sequelize.define('MensajePartido', {
   timestamps: true
 });
 
-export default MensajePartido;
+module.exports = MensajePartido;
