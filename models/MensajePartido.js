@@ -1,4 +1,3 @@
-// models/MensajePartido.ts
 import { DataTypes } from 'sequelize';
 const sequelize = require('../config/database');
 
@@ -14,11 +13,15 @@ const MensajePartido = sequelize.define('MensajePartido', {
   },
   usuarioId: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: true // ✅ Para mensajes del sistema (tipo "Juan se unió")
   },
   mensaje: {
     type: DataTypes.TEXT,
     allowNull: false
+  },
+  tipo: {
+    type: DataTypes.ENUM('texto', 'sistema', 'imagen'),
+    defaultValue: 'texto'
   }
 }, {
   timestamps: true

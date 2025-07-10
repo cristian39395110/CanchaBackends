@@ -56,4 +56,36 @@ router.post('/', async (req, res) => {
   }
 });
 
+// routes/mensajesPartido.js
+router.get('/chats-partidos/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    const partidos = await UsuarioPartido.findAll({
+      where: { UsuarioId: usuarioId, estado: 'confirmado' },
+      include: [
+        {
+          model: Partido,
+          include: [
+            { model: Deporte, attributes: ['nombre'] },
+            { model: Usuario, as: 'organizador', attributes: ['nombre'] },
+          ],
+        },
+      ],
+    });
+
+    const resultado = partidos.map((up) => ({
+      id: up.Partido.id,
+      nombre: `${up.Partido.Deporte.nombre} en ${up.Partido.lugar}`,
+      esGrupal: true,
+    }));
+
+    res.json(resultado);
+  } catch (error) {
+    console.error('❌ Error al obtener chats de partidos:', error);
+    res.status(500).json({ error: 'Error al obtener chats de partidos' });
+  }
+});
+
+
 module.exports = router;

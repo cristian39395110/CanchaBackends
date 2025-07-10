@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Partido, Usuario, Deporte, UsuarioPartido, UsuarioDeporte ,Mensaje,Suscripcion} = require('../models/model');
+const { Partido, Usuario, Deporte, UsuarioPartido, UsuarioDeporte ,Mensaje,Suscripcion,MensajePartido} = require('../models/model');
 const admin = require('firebase-admin');
 const { Op } = require('sequelize');
 
@@ -239,6 +239,7 @@ router.post('/cancelar', async (req, res) => {
 
 
 // POST /solicitudes/aceptar
+// routes/solicitudes.js
 router.post('/aceptar', async (req, res) => {
   const { usuarioId, partidoId } = req.body;
 
@@ -277,76 +278,52 @@ router.post('/aceptar', async (req, res) => {
 
     const io = req.app.get('io');
 
-    // Mensaje para el jugador
-    const mensajeParaJugador = `✅ ¡Fuiste confirmado para jugar ${partido.Deporte.nombre} en ${partido.lugar} el día ${partido.fecha} a las ${partido.hora} hs! Organizado por ${partido.organizador.nombre}.`;
+    // 💬 Crear mensaje grupal de sistema
+    const mensajeGrupal = await MensajePartido.create({
+  partidoId: partido.id,
+  usuarioId: jugador.id, // ✅ Queda registrado quién se unió
+  mensaje: `✅ ${jugador.nombre} se unió al partido.`
+});
 
-    const mensajeJugador = await Mensaje.create({
-      emisorId: partido.organizador.id,
-      receptorId: jugador.id,
-      contenido: mensajeParaJugador,
-      leido: false
+
+
+    // 🔔 Notificación FCM al grupo (opcional)
+    const suscripciones = await Suscripcion.findAll({
+      where: {
+        usuarioId: {
+          [Op.in]: Sequelize.literal(`(SELECT "UsuarioId" FROM "UsuarioPartidos" WHERE "PartidoId" = ${partidoId} AND estado = 'confirmado')`)
+        }
+      }
     });
 
-    // Mensaje para el organizador
-    const mensajeParaOrganizador = `👤 confirmo que asisto al partido de  ${partido.Deporte.nombre} el ${partido.fecha} a las ${partido.hora} hs en ${partido.lugar}.`;
-
-    const mensajeOrganizador = await Mensaje.create({
-      emisorId: jugador.id,
-      receptorId: partido.organizador.id,
-      contenido: mensajeParaOrganizador,
-      leido: false
-    });
-
-    // Enviar notificación FCM al jugador
-    const jugadorSuscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.id } });
-    if (jugadorSuscripcion?.fcmToken) {
-      await admin.messaging().send({
-        token: jugadorSuscripcion.fcmToken,
-        notification: {
-          title: '🎉 Fuiste confirmado en un partido',
-          body: mensajeParaJugador
-        },
-        data: {
-          tipo: 'mensaje',
-          emisorId: partido.organizador.id.toString(),
-          partidoId: partido.id.toString()
-        }
-      });
+    for (const sus of suscripciones) {
+      if (sus.fcmToken && sus.usuarioId !== jugador.id) {
+        await admin.messaging().send({
+          token: sus.fcmToken,
+          notification: {
+            title: '👥 Nuevo jugador confirmado',
+            body: `${jugador.nombre} se unió al partido de ${partido.Deporte.nombre} el ${partido.fecha} a las ${partido.hora} hs`
+          },
+          data: {
+            tipo: 'grupo',
+            partidoId: partido.id.toString()
+          }
+        });
+      }
     }
 
-    // Enviar notificación FCM al organizador
-    const organizadorSuscripcion = await Suscripcion.findOne({ where: { usuarioId: partido.organizador.id } });
-    if (organizadorSuscripcion?.fcmToken) {
-      await admin.messaging().send({
-        token: organizadorSuscripcion.fcmToken,
-        notification: {
-          title: '👤 Jugador confirmado',
-          body: mensajeParaOrganizador
-        },
-        data: {
-          tipo: 'mensaje',
-          emisorId: jugador.id.toString(),
-          partidoId: partido.id.toString()
-        }
-      });
-    }
-
-    // Emitir mensajes por socket
+    // 📡 Emitir mensaje al grupo por WebSocket
     if (io) {
-      io.to(`usuario-${jugador.id}`).emit('mensajeNuevo', mensajeJugador);
-      io.to(`usuario-${partido.organizador.id}`).emit('mensajeNuevo', mensajeOrganizador);
-      io.to(`usuario-${jugador.id}`).emit('actualizar-contadores');
-      io.to(`usuario-${partido.organizador.id}`).emit('actualizar-contadores');
+      io.to(`partido-${partido.id}`).emit('nuevo-mensaje-partido', mensajeGrupal);
     }
 
-    res.json({ mensaje: '✅ Invitación aceptada, mensajes y notificaciones enviados' });
+    res.json({ mensaje: '✅ Invitación aceptada y notificada al grupo' });
 
   } catch (error) {
     console.error('❌ Error al aceptar invitación:', error);
     res.status(500).json({ error: 'Error al aceptar la invitación' });
   }
 });
-
 
 // POST /solicitudes/rechazar/:id
 router.post('/rechazar', async (req, res) => {

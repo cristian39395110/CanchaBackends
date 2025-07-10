@@ -281,5 +281,40 @@ router.post('/confirmacion', async (req, res) => {
   }
 });
 
+router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    const partidos = await UsuarioPartido.findAll({
+      where: {
+        usuarioId: usuarioId,
+        estado: 'confirmado',
+      },
+      include: [
+        {
+          model: Partido,
+          include: [
+            { model: Deporte },
+            { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] },
+          ],
+        },
+      ],
+    });
+
+    const resultado = partidos.map((up) => {
+      const partido = up.Partido;
+      return {
+        id: partido.id,
+        nombre: `${partido.Deporte.nombre} - ${partido.fecha} ${partido.hora}`,
+        organizador: partido.organizador?.nombre || '',
+      };
+    });
+
+    res.json(resultado);
+  } catch (error) {
+    console.error('❌ Error al obtener partidos con chat:', error);
+    res.status(500).json({ error: 'Error al obtener partidos con chat' });
+  }
+});
 
 module.exports = router;
