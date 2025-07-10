@@ -21,6 +21,10 @@ const Usuario = sequelize.define('Usuario', {
     allowNull: false,
     unique: false
   },
+  esAdmin: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false
+},
     localidad: {
     type: DataTypes.STRING,
     allowNull: false,

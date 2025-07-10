@@ -350,7 +350,19 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ message: 'Debes verificar tu correo electrónico antes de iniciar sesión.' });
     }
 
-    const token = jwt.sign({ id: usuario.id, email: usuario.email, premium: usuario.premium }, SECRET_KEY, { expiresIn: '1h' });
+
+    
+const token = jwt.sign(
+  {
+    id: usuario.id,
+    email: usuario.email,
+    premium: usuario.premium,
+    esAdmin: usuario.esAdmin  // 👈 Agregado
+  },
+  SECRET_KEY,
+  { expiresIn: '1h' }
+);
+
 
     res.json({ message: 'Login exitoso', token, usuarioId: usuario.id, esPremium: usuario.premium });
   } catch (error) {
