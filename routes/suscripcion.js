@@ -9,7 +9,7 @@ const admin = require('../firebase'); // Inicialización con tu firebase-admin-s
 // ✅ Guardar o actualizar FCM token
 router.post('/', async (req, res) => {
   const { fcmToken, usuarioId } = req.body;
- console.log("111111111111111111111fcmToken")
+ console.log("fcmToken")
  console.log(fcmToken)
 
   if (!fcmToken || !usuarioId) {

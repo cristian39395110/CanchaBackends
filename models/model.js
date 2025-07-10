@@ -14,6 +14,16 @@ const Comentario = require('./Comentario');
 const Like = require('./Like');
 const Bloqueo = require('./Bloqueo');
 const Cancha = require('./cancha');
+const MensajePartido = require('./MensajePartido');
+
+
+
+
+MensajePartido.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+MensajePartido.belongsTo(Partido, { foreignKey: 'partidoId' });
+
+Usuario.hasMany(MensajePartido, { foreignKey: 'usuarioId' });
+Partido.hasMany(MensajePartido, { foreignKey: 'partidoId' });
 
 
 Partido.belongsTo(Cancha, { foreignKey: 'canchaId' });
@@ -110,5 +120,6 @@ module.exports = {
   Like,
   Amistad,
   Bloqueo,
-  Cancha 
+  Cancha ,
+  MensajePartido
 };
