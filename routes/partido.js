@@ -31,32 +31,46 @@ try {
 
 // 📤 Función para enviar notificaciones FCM
 async function enviarNotificacionesFCM(tokens, payload) {
-  try {
-    for (const token of tokens) {
-      const message = {
-        token,
+  for (const token of tokens) {
+    const message = {
+      token,
+      notification: {
+        title: payload.title,
+        body: payload.body
+      },
+      data: {
+        url: payload.url || '/invitaciones',
+        tipo: 'partido' // podés agregar más datos si querés
+      },
+      android: {
         notification: {
-          title: payload.title,
-          body: payload.body,
-        },
-        android: {
-          notification: { channelId: 'default', sound: 'default' },
-        },
-        apns: {
-          payload: { aps: { sound: 'default' } },
-        },
-        data: {
-          url: payload.url || '/invitaciones',
+          sound: 'default'
         }
-      };
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
+    };
 
+    try {
       const response = await admin.messaging().send(message);
       console.log(`✅ Notificación enviada a ${token}`, response);
+    } catch (error) {
+      console.error(`❌ Error al enviar FCM a ${token}:`, error.message);
+
+      if (
+        error.errorInfo?.code === 'messaging/registration-token-not-registered'
+      ) {
+        await Suscripcion.destroy({ where: { fcmToken: token } });
+      }
     }
-  } catch (err) {
-    console.error('❌ Error enviando notificaciones FCM:', err);
   }
 }
+
 const MAX_POR_TANDA = 6;
 const ESPERA_MS = 2 * 60 * 1000;
 
