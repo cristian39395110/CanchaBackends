@@ -145,6 +145,51 @@
   app.use('/api/premium', verificarBloqueo,premiumRouter);
   app.use('/api/fcm', fcmRouter);
 
+
+  // 📤 Ruta de test para enviar notificación FCM
+app.post('/api/test-fcm', async (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: 'Falta el token FCM' });
+  }
+
+  const admin = require('./firebase');
+
+  const message = {
+    token,
+    notification: {
+      title: '🚀 Notificación de prueba',
+      body: 'Este es un mensaje de test FCM desde el backend 😎'
+    },
+    data: {
+      tipo: 'test',
+      url: '/invitaciones'
+    },
+    android: {
+      notification: {
+        sound: 'default'
+      }
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: 'default'
+        }
+      }
+    }
+  };
+
+  try {
+    const response = await admin.messaging().send(message);
+    console.log('✅ Test FCM enviada correctamente:', response);
+    res.json({ mensaje: '✅ Notificación enviada', response });
+  } catch (error) {
+    console.error('❌ Error al enviar test FCM:', error.message);
+    res.status(500).json({ error: 'Error enviando notificación', detalle: error.message });
+  }
+});
+
   // Iniciar servidor
   //sequelize.sync({ alter: true })
   sequelize.sync({ alter: true }).then(() => {
