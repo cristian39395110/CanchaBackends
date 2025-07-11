@@ -197,13 +197,25 @@ if (rangoEdad) {
         where: { usuarioId: { [Op.in]: siguiente } }
       });
 
-      const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
+      console.log('📦 Usuarios en esta tanda:', siguiente);
+console.log('📬 Suscripciones encontradas:', suscripciones.length);
+
+const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
+
+console.log('🔑 Tokens FCM válidos:', fcmTokens);
+
 
       const payload = {
         title: '🎯 ¡Nuevo partido disponible!',
         body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
         url: '/invitaciones'
       };
+
+      if (fcmTokens.length === 0) {
+  console.log('🚫 No hay tokens FCM válidos para esta tanda.');
+} else {
+  console.log('📲 Enviando notificación FCM a:', fcmTokens);
+}
 
       if (fcmTokens.length > 0) {
         await enviarNotificacionesFCM(fcmTokens, payload);
@@ -426,13 +438,11 @@ router.post('/ispremium', async (req, res) => {
     latitud,
     longitud,
     sexo,
-  rangoEdad,
-  ubicacionManual
-   
+    rangoEdad,
+    ubicacionManual
   } = req.body;
 
-   
-   const organizador = await Usuario.findByPk(organizadorId);
+  const organizador = await Usuario.findByPk(organizadorId);
   if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
     return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
   }
@@ -440,14 +450,16 @@ router.post('/ispremium', async (req, res) => {
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
-const fechaAjustada = new Date(fecha);
-fechaAjustada.setHours(fechaAjustada.getHours() + 3);
+
+  const fechaAjustada = new Date(fecha);
+  fechaAjustada.setHours(fechaAjustada.getHours() + 3);
+
   try {
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
       lugar,
-       fecha: fechaAjustada, 
+      fecha: fechaAjustada,
       hora,
       nombre,
       organizadorId,
@@ -455,9 +467,18 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
       latitud: latitud || null,
       longitud: longitud || null,
       sexo,
-  rangoEdad,
-  ubicacionManual
+      rangoEdad,
+      ubicacionManual
     });
+
+    const deporte = await Deporte.findByPk(deporteId);
+
+    try {
+      await enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
+      console.log('📩 Envío escalonado ejecutado correctamente');
+    } catch (err) {
+      console.error('❌ Error durante el envío escalonado (premium):', err);
+    }
 
     res.status(201).json({ mensaje: 'Partido creado para premium.', partido });
 
@@ -465,9 +486,7 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
     console.error('❌ Error al crear partido premium:', error);
     res.status(500).json({ error: 'Error interno al crear el partido premium.' });
   }
-});
-
-
+}); // ✅ ESTA LÍNEA FALTABA (cierro el router.post)
 
 router.post('/reenviar-invitacion', async (req, res) => {
   const { partidoId } = req.body;
