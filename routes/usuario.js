@@ -16,6 +16,8 @@ const streamifier = require('streamifier');
 require('dotenv').config();
 const upload = multer({ storage: multer.memoryStorage() });
 const storage = multer.memoryStorage();
+const { autenticarToken } = require('../middlewares/auth'); // ajustá la ruta si está en otro archivo
+
 
 
 
@@ -380,6 +382,35 @@ router.get('/', async (req, res) => {
 });
 
 // Obtener un usuario por ID (con URL completa de la imagen)
+router.put('/:id', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+
+  // ❌ Si no es el dueño, rechazar
+  if (parseInt(id) !== parseInt(req.usuario.id)) {
+    return res.status(403).json({ error: 'No tienes permiso para modificar este perfil.' });
+  }
+
+  const { nombre, localidad, sexo, edad } = req.body;
+
+  try {
+    const usuario = await Usuario.findByPk(id);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    usuario.nombre = nombre;
+    usuario.localidad = localidad;
+    usuario.sexo = sexo;
+    usuario.edad = edad;
+
+    await usuario.save();
+
+    res.json({ mensaje: '✅ Usuario actualizado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al actualizar usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
 
 
 router.get('/:id', async (req, res) => {
@@ -446,6 +477,35 @@ router.get('/:usuarioId/bloqueo/:bloqueadoId', async (req, res) => {
 });
 
 
+router.put('/:id/password', autenticarToken, async (req, res) => {
+  const { id } = req.params;
+
+  if (parseInt(id) !== parseInt(req.usuario.id)) {
+    return res.status(403).json({ error: 'No tienes permiso para cambiar esta contraseña.' });
+  }
+
+  const { passwordActual, passwordNueva } = req.body;
+
+  if (!passwordActual || !passwordNueva) {
+    return res.status(400).json({ error: 'Faltan datos: contraseña actual y nueva.' });
+  }
+
+  try {
+    const usuario = await Usuario.findByPk(id);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
+
+    const coincide = await bcrypt.compare(passwordActual, usuario.password);
+    if (!coincide) return res.status(401).json({ error: 'La contraseña actual es incorrecta.' });
+
+    const nuevaHash = await bcrypt.hash(passwordNueva, 10);
+    await usuario.update({ password: nuevaHash });
+
+    res.json({ mensaje: '✅ Contraseña actualizada correctamente.' });
+  } catch (err) {
+    console.error('❌ Error al cambiar contraseña:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 
 

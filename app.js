@@ -9,6 +9,7 @@
   const socketIo = require('socket.io');
   const sequelize = require('./config/database');
   const verificarBloqueo = require('./middlewares/verificarBloqueo');
+  const { autenticarToken } = require('./middlewares/auth');
 
   // Middlewares
   app.use(cors({ origin: '*' }));
