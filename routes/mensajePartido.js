@@ -34,7 +34,7 @@ const io = req.app.get('io');
     });
 
     for (const jugador of jugadores) {
-      const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.usuarioId } });
+      const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.UsuarioId } });
 
       if (suscripcion && suscripcion.fcmToken) {
         const payload = {
