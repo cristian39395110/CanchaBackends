@@ -1,3 +1,4 @@
+//routes mensaje partido
 const express = require('express');
 const router = express.Router();
 const { MensajePartido, Usuario, Suscripcion } = require('../models');
@@ -29,7 +30,7 @@ router.get('/partido/:partidoId', async (req, res) => {
 });
 
 
-
+/*
 
 // 👉 Obtener mensajes de un partido
 router.get('/:partidoId', async (req, res) => {
@@ -45,7 +46,7 @@ router.get('/:partidoId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener mensajes' });
   }
 });
-
+*/
 // 👉 Guardar mensaje y enviar notificación si corresponde
 router.post('/', async (req, res) => {
   const { partidoId, usuarioId, mensaje } = req.body;
