@@ -7,7 +7,7 @@ const admin = require('../firebase');
 
 
 const { Op } = require('sequelize');
-const { io } = require('../socket');
+
 
 // ✅ POST: Enviar mensaje grupal de partido
 router.post('/partido/enviar', async (req, res) => {
@@ -19,7 +19,7 @@ router.post('/partido/enviar', async (req, res) => {
       mensaje,
       tipo: 'texto'
     });
-
+const io = req.app.get('io');
     // 🔄 Emitir por WebSocket a todos en la sala del partido
     io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', nuevoMensaje);
 
