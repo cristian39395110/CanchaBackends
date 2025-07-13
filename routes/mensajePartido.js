@@ -86,6 +86,21 @@ router.get('/chats-partidos/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener chats de partidos' });
   }
 });
+// ✅ Obtener mensajes grupales de un partido (nuevo endpoint seguro)
+router.get('/partido/:partidoId', async (req, res) => {
+  const { partidoId } = req.params;
+  try {
+    const mensajes = await MensajePartido.findAll({
+      where: { partidoId },
+      include: [{ model: Usuario, attributes: ['id', 'nombre', 'foto'] }],
+      order: [['createdAt', 'ASC']]
+    });
+    res.json(mensajes);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener mensajes' });
+  }
+});
+
 
 
 module.exports = router;
