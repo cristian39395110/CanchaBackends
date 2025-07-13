@@ -30,7 +30,7 @@ router.get('/partido/:partidoId', async (req, res) => {
 });
 
 
-/*
+
 
 // 👉 Obtener mensajes de un partido
 router.get('/:partidoId', async (req, res) => {
@@ -38,7 +38,7 @@ router.get('/:partidoId', async (req, res) => {
   try {
     const mensajes = await MensajePartido.findAll({
       where: { partidoId },
-      include: [{ model: Usuario, attributes: ['id', 'nombre', 'foto'] }],
+      include: [{ model: Usuario, attributes: ['id', 'nombre', 'fotoPerfil'] }],
       order: [['createdAt', 'ASC']]
     });
     res.json(mensajes);
@@ -46,7 +46,66 @@ router.get('/:partidoId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener mensajes' });
   }
 });
-*/
+
+router.post('/partido/enviar', async (req, res) => {
+  const { partidoId, usuarioId, mensaje } = req.body;
+
+  if (!partidoId || !usuarioId || !mensaje) {
+    return res.status(400).json({ error: 'Faltan datos requeridos' });
+  }
+
+  try {
+    // 1. Guardar el mensaje
+    const nuevoMensaje = await MensajePartido.create({ partidoId, usuarioId, mensaje });
+
+    // 2. Emitir mensaje por WebSocket
+    req.io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', nuevoMensaje);
+
+    // 3. Obtener usuarios confirmados en ese partido (excepto el que envía)
+    const usuarios = await UsuarioPartido.findAll({
+      where: {
+        partidoId,
+        estado: 'confirmado',
+        UsuarioId: { [Op.ne]: usuarioId }
+      },
+      include: [{ model: Usuario }]
+    });
+
+    // 4. Obtener tokens FCM
+    const tokens = usuarios
+      .map(u => u.Usuario?.fcmToken)
+      .filter(token => token);
+
+    // 5. Enviar notificaciones FCM
+    const payload = {
+      notification: {
+        title: 'Nuevo mensaje en el grupo',
+        body: mensaje,
+      },
+      data: {
+        tipo: 'mensajePartido',
+        partidoId: partidoId.toString(),
+      }
+    };
+
+    for (const token of tokens) {
+      try {
+        await admin.messaging().send({ ...payload, token });
+      } catch (error) {
+        if (error.code === 'messaging/registration-token-not-registered') {
+          console.log('🧹 Token FCM no válido, debería eliminarse:', token);
+          // Acá podrías eliminarlo si querés, como ya hiciste en otros endpoints
+        }
+      }
+    }
+
+    res.json(nuevoMensaje);
+  } catch (error) {
+    console.error('❌ Error al enviar mensaje de partido:', error);
+    res.status(500).json({ error: 'Error interno al enviar mensaje' });
+  }
+});
+
 // 👉 Guardar mensaje y enviar notificación si corresponde
 router.post('/', async (req, res) => {
   const { partidoId, usuarioId, mensaje } = req.body;
