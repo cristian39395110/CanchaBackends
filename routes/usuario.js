@@ -1,3 +1,4 @@
+//routes/usuario
 const express = require('express');
 const router = express.Router();
 const Usuario = require('../models/usuario');
@@ -89,13 +90,29 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 
 // PATCH para cambiar foto de perfil
 
-router.patch('/:id/foto', upload.single('foto'), async (req, res) => {
-  try {
-    const usuario = await Usuario.findByPk(req.params.id);
-    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+router.patch('/:id/foto', autenticarToken, upload.single('foto'), async (req, res) => {
+  const usuarioTokenId = parseInt(req.usuario.id); // ID del usuario autenticado
+  const idParametro = parseInt(req.params.id);     // ID del usuario a modificar
 
+  if (usuarioTokenId !== idParametro) {
+    return res.status(403).json({ error: 'No tienes permiso para modificar esta foto de perfil.' });
+  }
+
+  try {
+    const usuario = await Usuario.findByPk(idParametro);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
 
+    // 🧹 Eliminar imagen anterior si existía
+    if (usuario.cloudinaryId) {
+      try {
+        await cloudinary.uploader.destroy(usuario.cloudinaryId);
+      } catch (error) {
+        console.warn('⚠️ Error al eliminar imagen anterior en Cloudinary:', error.message);
+      }
+    }
+
+    // 📤 Subir nueva imagen
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         { folder: 'usuarios' },
@@ -107,10 +124,13 @@ router.patch('/:id/foto', upload.single('foto'), async (req, res) => {
       streamifier.createReadStream(req.file.buffer).pipe(stream);
     });
 
+    // 💾 Guardar nueva imagen y public_id
     usuario.fotoPerfil = result.secure_url;
+    usuario.cloudinaryId = result.public_id;
     await usuario.save();
 
     res.json({ mensaje: '✅ Foto actualizada', fotoPerfil: result.secure_url });
+
   } catch (error) {
     console.error('❌ Error al subir foto:', error);
     res.status(500).json({ error: 'Error al subir imagen' });
@@ -143,37 +163,37 @@ router.post('/:id/cambiar-password', async (req, res) => {
 });
 
 // ❌ Eliminar foto de perfil
-router.delete('/:id/foto', async (req, res) => {
-  try {
-    const usuario = await Usuario.findByPk(req.params.id);
 
+
+// ✅ Endpoint único y protegido
+router.delete('/:id/foto', autenticarToken, async (req, res) => {
+  const usuarioTokenId = parseInt(req.usuario.id); // ID autenticado
+  const idParametro = parseInt(req.params.id);     // ID del usuario a modificar
+
+  // Solo el dueño puede eliminar su foto
+  if (usuarioTokenId !== idParametro) {
+    return res.status(403).json({ error: 'No tienes permiso para eliminar esta foto de perfil.' });
+  }
+
+  try {
+    const usuario = await Usuario.findByPk(idParametro);
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    usuario.fotoPerfil = null;
-    await usuario.save();
+   if (usuario.cloudinaryId) {
+  await cloudinary.uploader.destroy(usuario.cloudinaryId);
+}
 
-    res.json({ mensaje: 'Foto eliminada correctamente' });
+usuario.fotoPerfil = null;
+usuario.cloudinaryId = null;
+await usuario.save();
+
+
+    res.json({ mensaje: '✅ Foto eliminada correctamente', fotoPerfil: null });
   } catch (err) {
     console.error('❌ Error al eliminar foto:', err);
     res.status(500).json({ error: 'Error interno' });
   }
 });
-
-
-
-
-// DELETE para eliminar foto de perfil
-router.delete('/:usuarioId/foto', async (req, res) => {
-  const { usuarioId } = req.params;
-
-  try {
-    await Usuario.update({ fotoPerfil: null }, { where: { id: usuarioId } });
-    res.json({ fotoPerfil: null });
-  } catch (err) {
-    res.status(500).json({ error: 'Error al eliminar foto' });
-  }
-});
-
 
 
 router.post('/', upload.single('fotoPerfil'), async (req, res) => {

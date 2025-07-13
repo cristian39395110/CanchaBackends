@@ -43,6 +43,10 @@ const Usuario = sequelize.define('Usuario', {
   type: DataTypes.STRING,
   allowNull: true
   },
+  cloudinaryId: {
+  type: DataTypes.STRING,
+  allowNull: true
+},
   verificado: {
   type: DataTypes.BOOLEAN,
   defaultValue: false
