@@ -3,6 +3,27 @@ const router = express.Router();
 const { MensajePartido, Usuario, Suscripcion } = require('../models');
 const admin = require('../firebase');
 
+
+router.get('/partido/:partidoId', async (req, res) => {
+  const { partidoId } = req.params;
+
+  console.log("estoy en partidoid a ver que onda")
+  console.log(partidoId)
+  try {
+    const mensajes = await MensajePartido.findAll({
+      where: { partidoId },
+      include: [{ model: Usuario, attributes: ['id', 'nombre', 'foto'] }],
+      order: [['createdAt', 'ASC']]
+    });
+    res.json(mensajes);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener mensajes' });
+  }
+});
+
+
+
+
 // 👉 Obtener mensajes de un partido
 router.get('/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
@@ -87,23 +108,5 @@ router.get('/chats-partidos/:usuarioId', async (req, res) => {
   }
 });
 // ✅ Obtener mensajes grupales de un partido (nuevo endpoint seguro)
-router.get('/partido/:partidoId', async (req, res) => {
-  const { partidoId } = req.params;
-
-  console.log("estoy en partidoid a ver que onda")
-  console.log(partidoId)
-  try {
-    const mensajes = await MensajePartido.findAll({
-      where: { partidoId },
-      include: [{ model: Usuario, attributes: ['id', 'nombre', 'foto'] }],
-      order: [['createdAt', 'ASC']]
-    });
-    res.json(mensajes);
-  } catch (error) {
-    res.status(500).json({ error: 'Error al obtener mensajes' });
-  }
-});
-
-
 
 module.exports = router;
