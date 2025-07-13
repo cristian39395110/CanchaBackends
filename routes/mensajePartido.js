@@ -16,7 +16,7 @@ router.get('/partido/:partidoId', async (req, res) => {
       where: { partidoId },
       include: [{
         model: Usuario,
-        attributes: ['id', 'nombre', 'foto'],
+        attributes: ['id', 'nombre', 'fotoPerfil'],
         required: false, // importante para permitir mensajes sin usuario (sistema)
       }],
       order: [['createdAt', 'ASC']]
