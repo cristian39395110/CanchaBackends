@@ -27,7 +27,7 @@ const io = req.app.get('io');
     const jugadores = await UsuarioPartido.findAll({
       where: {
         partidoId,
-        confirmado: true,
+        estado: 'confirmado',
         usuarioId: { [Op.ne]: usuarioId }
       },
       include: [{ model: Usuario, attributes: ['nombre'] }]
