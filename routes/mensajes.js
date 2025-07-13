@@ -302,13 +302,23 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
     });
 
     const resultado = partidos.map((up) => {
-      const partido = up.Partido;
-      return {
-        id: partido.id,
-        nombre: `${partido.Deporte.nombre} - ${partido.fecha} ${partido.hora}`,
-        organizador: partido.organizador?.nombre || '',
-      };
-    });
+  const partido = up.Partido;
+
+  const fechaFormateada = new Date(`${partido.fecha}T${partido.hora}`).toLocaleString('es-AR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  return {
+    id: partido.id,
+    nombre: `${partido.Deporte.nombre} - ${fechaFormateada}`,
+    organizador: partido.organizador?.nombre || '',
+  };
+});
 
     res.json(resultado);
   } catch (error) {
