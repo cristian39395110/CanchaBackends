@@ -89,6 +89,9 @@ router.get('/chats-partidos/:usuarioId', async (req, res) => {
 // ✅ Obtener mensajes grupales de un partido (nuevo endpoint seguro)
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
+
+  console.log("estoy en partidoid a ver que onda")
+  console.log(partidoId)
   try {
     const mensajes = await MensajePartido.findAll({
       where: { partidoId },
