@@ -7,17 +7,24 @@ const admin = require('../firebase');
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
 
-  console.log("estoy en partidoid a ver que onda")
-  console.log(partidoId)
+  console.log("estoy en partidoid a ver que onda");
+  console.log(partidoId);
+
   try {
     const mensajes = await MensajePartido.findAll({
       where: { partidoId },
-      include: [{ model: Usuario, attributes: ['id', 'nombre', 'foto'] }],
+      include: [{
+        model: Usuario,
+        attributes: ['id', 'nombre', 'foto'],
+        required: false, // importante para permitir mensajes sin usuario (sistema)
+      }],
       order: [['createdAt', 'ASC']]
     });
     res.json(mensajes);
   } catch (error) {
-    res.status(500).json({ error: 'Error al obtener mensajes' });
+    console.error('❌ Error al obtener mensajes del partido:', error.message);
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener mensajes', detalle: error.message });
   }
 });
 
