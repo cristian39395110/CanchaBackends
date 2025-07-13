@@ -1,7 +1,7 @@
 //routes mensaje partido
 const express = require('express');
 const router = express.Router();
-const { MensajePartido, Usuario, Suscripcion } = require('../models/model');
+const { MensajePartido, Usuario, Suscripcion,UsuarioPartido} = require('../models/model');
 const admin = require('../firebase');
 
 
