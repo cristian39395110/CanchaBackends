@@ -5,6 +5,65 @@ const { MensajePartido, Usuario, Suscripcion } = require('../models/model');
 const admin = require('../firebase');
 
 
+
+const { Op } = require('sequelize');
+const { io } = require('../socket');
+
+// ✅ POST: Enviar mensaje grupal de partido
+router.post('/partido/enviar', async (req, res) => {
+  const { partidoId, usuarioId, mensaje } = req.body;
+  try {
+    const nuevoMensaje = await MensajePartido.create({
+      partidoId,
+      usuarioId,
+      mensaje,
+      tipo: 'texto'
+    });
+
+    // 🔄 Emitir por WebSocket a todos en la sala del partido
+    io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', nuevoMensaje);
+
+    // 🔔 Obtener jugadores confirmados (excepto el emisor)
+    const jugadores = await UsuarioPartido.findAll({
+      where: {
+        partidoId,
+        confirmado: true,
+        usuarioId: { [Op.ne]: usuarioId }
+      },
+      include: [{ model: Usuario, attributes: ['nombre'] }]
+    });
+
+    for (const jugador of jugadores) {
+      const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.usuarioId } });
+
+      if (suscripcion && suscripcion.fcmToken) {
+        const payload = {
+          notification: {
+            title: `💬 Nuevo mensaje en el partido`,
+            body: `${jugador.Usuario?.nombre || 'Otro jugador'}: ${mensaje}`,
+          }
+        };
+
+        try {
+          await admin.messaging().send({ token: suscripcion.fcmToken, ...payload });
+        } catch (error) {
+          if (error.code === 'messaging/registration-token-not-registered') {
+            await Suscripcion.destroy({ where: { fcmToken: suscripcion.fcmToken } });
+          } else {
+            console.error('❌ Error al enviar notificación:', error);
+          }
+        }
+      }
+    }
+
+    res.json(nuevoMensaje);
+  } catch (err) {
+    console.error('❌ Error al enviar mensaje de partido:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
 
@@ -47,64 +106,7 @@ router.get('/:partidoId', async (req, res) => {
   }
 });
 
-router.post('/partido/enviar', async (req, res) => {
-  const { partidoId, usuarioId, mensaje } = req.body;
 
-  if (!partidoId || !usuarioId || !mensaje) {
-    return res.status(400).json({ error: 'Faltan datos requeridos' });
-  }
-
-  try {
-    // 1. Guardar el mensaje
-    const nuevoMensaje = await MensajePartido.create({ partidoId, usuarioId, mensaje });
-
-    // 2. Emitir mensaje por WebSocket
-    req.io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', nuevoMensaje);
-
-    // 3. Obtener usuarios confirmados en ese partido (excepto el que envía)
-    const usuarios = await UsuarioPartido.findAll({
-      where: {
-        partidoId,
-        estado: 'confirmado',
-        UsuarioId: { [Op.ne]: usuarioId }
-      },
-      include: [{ model: Usuario }]
-    });
-
-    // 4. Obtener tokens FCM
-    const tokens = usuarios
-      .map(u => u.Usuario?.fcmToken)
-      .filter(token => token);
-
-    // 5. Enviar notificaciones FCM
-    const payload = {
-      notification: {
-        title: 'Nuevo mensaje en el grupo',
-        body: mensaje,
-      },
-      data: {
-        tipo: 'mensajePartido',
-        partidoId: partidoId.toString(),
-      }
-    };
-
-    for (const token of tokens) {
-      try {
-        await admin.messaging().send({ ...payload, token });
-      } catch (error) {
-        if (error.code === 'messaging/registration-token-not-registered') {
-          console.log('🧹 Token FCM no válido, debería eliminarse:', token);
-          // Acá podrías eliminarlo si querés, como ya hiciste en otros endpoints
-        }
-      }
-    }
-
-    res.json(nuevoMensaje);
-  } catch (error) {
-    console.error('❌ Error al enviar mensaje de partido:', error);
-    res.status(500).json({ error: 'Error interno al enviar mensaje' });
-  }
-});
 
 // 👉 Guardar mensaje y enviar notificación si corresponde
 router.post('/', async (req, res) => {
