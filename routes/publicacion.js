@@ -118,15 +118,29 @@ router.post('/', upload.single('foto'), async (req, res) => {
     const nueva = await Publicacion.create({
       usuarioId,
       contenido,
-      foto: req.file ? req.file.path : null, // ✅ URL pública de Cloudinary
-      cloudinaryId: req.file ? req.file.filename : null, // ✅ ID en Cloudinary
+      foto: req.file ? req.file.path : null,
+      cloudinaryId: req.file ? req.file.filename : null,
       esPublica: true
     });
 
-    res.status(201).json({
-      ...nueva.toJSON(),
-      foto: req.file ? req.file.path : null // ✅ Devuelve la URL de la imagen
+    const nuevaConUsuario = await Publicacion.findByPk(nueva.id, {
+      include: [
+        {
+          model: Usuario,
+          attributes: ['id', 'nombre', 'fotoPerfil']
+        },
+        {
+          model: Comentario,
+          include: [{ model: Usuario, attributes: ['id', 'nombre'] }]
+        },
+        {
+          model: Like,
+          include: [{ model: Usuario, attributes: ['id', 'nombre'] }]
+        }
+      ]
     });
+
+    res.status(201).json(nuevaConUsuario);
   } catch (err) {
     console.error('❌ Error al crear publicación:', err);
     res.status(500).json({ error: 'Error al crear publicación' });
