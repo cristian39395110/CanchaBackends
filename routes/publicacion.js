@@ -1,3 +1,5 @@
+//routes/publicacion
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -21,11 +23,13 @@ cloudinary.config({
 // Storage para publicaciones (carpeta Cloudinary: publicaciones)
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: {
+  params: async (req, file) => ({
     folder: 'publicaciones',
+    resource_type: 'auto', // 👈 Esto permite subir tanto imágenes como videos
     allowed_formats: ['jpg', 'jpeg', 'png', 'mp4'],
-  },
+  }),
 });
+
 
 const upload = multer({ storage });
 
@@ -115,6 +119,7 @@ router.post('/', upload.single('foto'), async (req, res) => {
       usuarioId,
       contenido,
       foto: req.file ? req.file.path : null, // ✅ URL pública de Cloudinary
+      cloudinaryId: req.file ? req.file.filename : null, // ✅ ID en Cloudinary
       esPublica: true
     });
 
@@ -128,10 +133,23 @@ router.post('/', upload.single('foto'), async (req, res) => {
   }
 });
 
+
 // ✅ DELETE publicación
 router.delete('/:id', async (req, res) => {
   try {
-    await Publicacion.destroy({ where: { id: req.params.id } });
+    const publicacion = await Publicacion.findByPk(req.params.id);
+    if (!publicacion) return res.status(404).json({ error: 'No encontrada' });
+
+    // 🧨 Eliminar de Cloudinary si tiene cloudinaryId
+    if (publicacion.cloudinaryId) {
+      try {
+        await cloudinary.uploader.destroy(publicacion.cloudinaryId);
+      } catch (err) {
+        console.warn('⚠️ No se pudo eliminar de Cloudinary:', err.message);
+      }
+    }
+
+    await publicacion.destroy();
     res.sendStatus(204);
   } catch (err) {
     console.error(err);

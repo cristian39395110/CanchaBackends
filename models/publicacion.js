@@ -20,6 +20,11 @@ const Publicacion = sequelize.define('Publicacion', {
     type: DataTypes.STRING,
     allowNull: true // puede no tener imagen
   },
+  cloudinaryId: {
+  type: DataTypes.STRING,
+  allowNull: true
+},
+
   esPublica: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
