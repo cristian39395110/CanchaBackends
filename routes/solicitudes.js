@@ -4,7 +4,8 @@ const express = require('express');
 const router = express.Router();
 const { Partido, Usuario, Deporte, UsuarioPartido, UsuarioDeporte ,Mensaje,Suscripcion,MensajePartido} = require('../models/model');
 const admin = require('firebase-admin');
-const { Op } = require('sequelize');
+
+const { Sequelize, Op } = require('sequelize');
 
 // ✅ Inicializar Firebase Admin solo una vez
 if (!admin.apps.length) {
