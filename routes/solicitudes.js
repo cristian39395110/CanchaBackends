@@ -241,6 +241,7 @@ router.post('/cancelar', async (req, res) => {
 
 // POST /solicitudes/aceptar
 // routes/solicitudes.js
+// POST /solicitudes/aceptar
 router.post('/aceptar', async (req, res) => {
   const { usuarioId, partidoId } = req.body;
 
@@ -281,18 +282,27 @@ router.post('/aceptar', async (req, res) => {
 
     // 💬 Crear mensaje grupal de sistema
     const mensajeGrupal = await MensajePartido.create({
-  partidoId: partido.id,
-  usuarioId: jugador.id, // ✅ Queda registrado quién se unió
-  mensaje: `✅ ${jugador.nombre} se unió al partido.`
-});
+      partidoId: partido.id,
+      usuarioId: jugador.id,
+      mensaje: `✅ ${jugador.nombre} se unió al partido.`
+    });
 
+    // ✅ Obtener IDs de jugadores confirmados
+    const confirmadosData = await UsuarioPartido.findAll({
+      where: {
+        PartidoId: partidoId,
+        estado: 'confirmado'
+      },
+      attributes: ['UsuarioId']
+    });
 
+    const ids = confirmadosData.map(p => p.UsuarioId);
 
-    // 🔔 Notificación FCM al grupo (opcional)
+    // 🔔 Notificación FCM al grupo (excepto al que se unió)
     const suscripciones = await Suscripcion.findAll({
       where: {
         usuarioId: {
-          [Op.in]: Sequelize.literal(`(SELECT "UsuarioId" FROM "UsuarioPartidos" WHERE "PartidoId" = ${partidoId} AND estado = 'confirmado')`)
+          [Op.in]: ids
         }
       }
     });
@@ -325,6 +335,7 @@ router.post('/aceptar', async (req, res) => {
     res.status(500).json({ error: 'Error al aceptar la invitación' });
   }
 });
+
 
 // POST /solicitudes/rechazar/:id
 router.post('/rechazar', async (req, res) => {
