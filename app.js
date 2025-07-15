@@ -33,6 +33,7 @@
 
   // 👉 Canal privado del usuario
   socket.on('join', (usuarioId) => {
+    socket.usuarioId = Number(usuarioId);
     socket.join(`usuario-${usuarioId}`);
     console.log(`📡 Usuario ${usuarioId} unido a su canal privado`);
   });
@@ -50,13 +51,31 @@
       const nuevo = await require('./models/MensajePartido').create({ partidoId, usuarioId, mensaje });
 
       // Emitir mensaje a todos los conectados al partido
-      io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', {
-        id: nuevo.id,
-        partidoId,
-        usuarioId,
-        mensaje,
-        createdAt: nuevo.createdAt,
-      });
+  const sockets = await io.in(`partido-${partidoId}`).allSockets();
+
+for (const socketId of sockets) {
+  const socketInstance = io.sockets.sockets.get(socketId);
+
+  if (socketInstance?.usuarioId === Number(usuarioId)) {
+    socketInstance.emit('nuevo-mensaje-partido', {
+      id: nuevo.id,
+      partidoId,
+      usuarioId,
+      mensaje,
+      createdAt: nuevo.createdAt,
+      esMio: true, // 👈 Solo a él se lo mandamos así
+    });
+  } else {
+    socketInstance?.emit('nuevo-mensaje-partido', {
+      id: nuevo.id,
+      partidoId,
+      usuarioId,
+      mensaje,
+      createdAt: nuevo.createdAt,
+    });
+  }
+}
+
 
       // Enviar notificaciones FCM (excepto al emisor)
       const { Suscripcion, Usuario } = require('./models');
