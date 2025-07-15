@@ -426,6 +426,13 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
       console.error('❌ Error durante el envío escalonado:', err);
     }
 
+   await MensajePartido.create({
+  partidoId: partido.id,
+  usuarioId: req.body.organizadorId,
+  mensaje: `📢 El organizador ${organizador?.nombre || 'desconocido'} ha creado el partido.`,
+});
+
+
     res.status(201).json({
       mensaje: '✅ Partido creado correctamente (No Premium)',
       partido
