@@ -397,7 +397,7 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
         }
       });
 
-      if (partidosHoy >= 2) {
+      if (partidosHoy >= 5) {
         return res.status(403).json({ error: 'Solo podés crear 2 partidos por día siendo usuario no premium.' });
       }
     }
@@ -417,6 +417,12 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
       rangoEdad,
       ubicacionManual
     });
+// Crear relación del organizador al partido (pero con estado distinto)
+await UsuarioPartido.create({
+  UsuarioId: organizadorId,
+  PartidoId: partido.id,
+  estado: 'organizador' // para distinguirlo de 'confirmado'
+});
 
     const deporte = await Deporte.findByPk(deporteId);
 

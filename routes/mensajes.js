@@ -285,10 +285,10 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    const partidos = await UsuarioPartido.findAll({
+   const partidos = await UsuarioPartido.findAll({
       where: {
-        usuarioId: usuarioId,
-        estado: 'confirmado',
+        usuarioId,
+        estado: { [Op.in]: ['confirmado', 'organizador'] } // 🎯 incluimos los dos
       },
       include: [
         {
@@ -300,7 +300,6 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
         },
       ],
     });
-
     const resultado = partidos.map((up) => {
   const partido = up.Partido;
 
