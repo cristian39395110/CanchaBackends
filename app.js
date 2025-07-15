@@ -37,7 +37,10 @@
     socket.join(`usuario-${usuarioId}`);
     console.log(`📡 Usuario ${usuarioId} unido a su canal privado`);
   });
-
+ socket.on('leave', (usuarioId) => {
+    socket.leave(`usuario-${usuarioId}`);
+    console.log(`👋 Usuario ${usuarioId} salió de su canal privado`);
+  });
   // 👉 Canal grupal del partido
   socket.on('join-partido', (partidoId) => {
     socket.join(`partido-${partidoId}`);
