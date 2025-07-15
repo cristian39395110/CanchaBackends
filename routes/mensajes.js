@@ -135,6 +135,33 @@ router.post('/enviar', async (req, res) => {
       leido: false
     });
 
+    
+    const io = req.app.get('io');
+
+    if (io) {
+      // 🔄 Emitir por WebSocket a todos en las salas, marcando esMio solo al emisor
+      const sockets = await io.in(`usuario-${emisorId}`).allSockets();
+
+      for (const socketId of sockets) {
+        const socketInstance = io.sockets.sockets.get(socketId);
+
+        if (socketInstance?.usuarioId === Number(emisorId)) {
+          socketInstance.emit('mensajeNuevo', {
+            ...nuevoMensaje.toJSON(),
+            esMio: true
+          });
+        }
+      }
+
+      // ✅ Al receptor sin esMio
+      io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
+      io.to(`usuario-${receptorId}`).emit('actualizar-contadores');
+
+
+      // ✅ Actualizar contadores del emisor
+      io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
+    }
+
     // Enviar notificación push si hay token FCM
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: receptorId } });
 
@@ -154,14 +181,7 @@ router.post('/enviar', async (req, res) => {
     }
 
     // Emitir mensaje vía WebSocket SOLO al receptor
-    const io = req.app.get('io');
-    if (io) {
-
-      io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
-      io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
-        io.to(`usuario-${emisorId}`).emit('mensajeNuevo', nuevoMensaje);
-
-    }
+   
 
     res.status(201).json(nuevoMensaje);
   } catch (error) {
