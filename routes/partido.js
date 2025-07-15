@@ -12,7 +12,8 @@ const {
   Usuario,
   UsuarioDeporte,
   Partido,
-  Deporte
+  Deporte,
+  MensajePartido
 } = require('../models/model');
 
 const Mensaje = require('../models/Mensaje'); // Asegurate de tener este modelo
