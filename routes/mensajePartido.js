@@ -21,7 +21,22 @@ router.post('/partido/enviar', async (req, res) => {
     });
 const io = req.app.get('io');
     // 🔄 Emitir por WebSocket a todos en la sala del partido
-    io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', nuevoMensaje);
+   // 🔄 Emitir por WebSocket a todos en la sala del partido, marcando esMio solo al emisor
+const sockets = await io.in(`partido-${partidoId}`).allSockets();
+
+for (const socketId of sockets) {
+  const socketInstance = io.sockets.sockets.get(socketId);
+
+  if (socketInstance?.usuarioId === Number(usuarioId)) {
+    socketInstance.emit('nuevo-mensaje-partido', {
+      ...nuevoMensaje.toJSON(),
+      esMio: true
+    });
+  } else {
+    socketInstance?.emit('nuevo-mensaje-partido', nuevoMensaje);
+  }
+}
+
 
     // 🔔 Obtener jugadores confirmados (excepto el emisor)
    const jugadores = await UsuarioPartido.findAll({
