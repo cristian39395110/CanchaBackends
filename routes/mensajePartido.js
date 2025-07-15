@@ -24,14 +24,15 @@ const io = req.app.get('io');
     io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', nuevoMensaje);
 
     // 🔔 Obtener jugadores confirmados (excepto el emisor)
-    const jugadores = await UsuarioPartido.findAll({
-      where: {
-        partidoId,
-        estado: 'confirmado',
-        usuarioId: { [Op.ne]: usuarioId }
-      },
-      include: [{ model: Usuario, attributes: ['nombre'] }]
-    });
+   const jugadores = await UsuarioPartido.findAll({
+  where: {
+    partidoId,
+    estado: { [Op.in]: ['confirmado', 'organizador'] }, // 🎯 Incluye al organizador
+    usuarioId: { [Op.ne]: usuarioId } // excluye al que escribió el mensaje
+  },
+  include: [{ model: Usuario, attributes: ['nombre'] }]
+});
+
 
     for (const jugador of jugadores) {
       const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.UsuarioId } });
