@@ -159,6 +159,7 @@ router.post('/enviar', async (req, res) => {
 
       io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
       io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
+        io.to(`usuario-${emisorId}`).emit('mensajeNuevo', nuevoMensaje);
 
     }
 
