@@ -135,28 +135,23 @@ router.post('/enviar', async (req, res) => {
       leido: false
     });
 
-    
-    const io = req.app.get('io');
+     const io = req.app.get('io');
 
     if (io) {
-      // 🔄 Emitir por WebSocket a todos en las salas, marcando esMio solo al emisor
-      const sockets = await io.in(`usuario-${emisorId}`).allSockets();
+      const sockets = await io.fetchSockets();
 
-      for (const socketId of sockets) {
-        const socketInstance = io.sockets.sockets.get(socketId);
+      for (const socketInstance of sockets) {
+        const socketUserId = socketInstance.usuarioId;
 
-        if (socketInstance?.usuarioId === Number(emisorId)) {
+        if (socketUserId === Number(emisorId)) {
           socketInstance.emit('mensajeNuevo', {
             ...nuevoMensaje.toJSON(),
-            esMio: true
+            esMio: true,
           });
+        } else if (socketUserId === Number(receptorId)) {
+          socketInstance.emit('mensajeNuevo', nuevoMensaje);
         }
       }
-
-      // ✅ Al receptor sin esMio
-      io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
-      io.to(`usuario-${receptorId}`).emit('actualizar-contadores');
-
 
       // ✅ Actualizar contadores del emisor
       io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
