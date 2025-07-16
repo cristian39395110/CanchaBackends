@@ -79,6 +79,15 @@ edad: {
   type: DataTypes.INTEGER,
   allowNull: false
 },
+precision: {
+  type: DataTypes.FLOAT,
+  allowNull: true
+},
+ultimaUbicacion: {
+  type: DataTypes.DATE,
+  allowNull: true,
+},
+
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,

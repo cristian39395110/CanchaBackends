@@ -3,6 +3,36 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Amistad,Usuario } = require('../models/model');
 
+
+// para saber ubicacion 10 min 
+
+
+router.post('/ubicacion', async (req, res) => {
+  const { usuarioId, latitud, longitud, precision } = req.body;
+
+  if (!usuarioId || !latitud || !longitud) {
+    return res.status(400).json({ error: 'Faltan datos: usuarioId, latitud o longitud' });
+  }
+
+  try {
+    const usuario = await Usuario.findByPk(usuarioId);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    await usuario.update({
+      latitud,
+      longitud,
+      precision,
+      ultimaUbicacion: new Date()
+    });
+
+    return res.json({ mensaje: '📍 Ubicación actualizada correctamente' });
+  } catch (error) {
+    console.error('❌ Error actualizando ubicación:', error);
+    return res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
 router.get('/lista/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
