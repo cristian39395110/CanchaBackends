@@ -137,6 +137,21 @@ router.patch('/:id/foto', autenticarToken, upload.single('foto'), async (req, re
   }
 });
 
+
+router.get('/yo', autenticarToken, async (req, res) => {
+  try {
+    const usuario = await Usuario.findByPk(req.usuario.id, {
+      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'sexo', 'edad', 'premium'],
+    });
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    res.json(usuario);
+  } catch (err) {
+    console.error('❌ Error al obtener usuario autenticado:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 router.post('/:id/cambiar-password', async (req, res) => {
   const { id } = req.params;
   const { actual, nueva } = req.body;
