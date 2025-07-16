@@ -384,6 +384,8 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ message: 'Debes verificar tu correo electrónico antes de iniciar sesión.' });
     }
 
+
+/*
     // ⚠️ Validar si el dispositivo coincide
     if (usuario.deviceId && usuario.deviceId !== deviceId) {
       return res.status(403).json({ message: 'Este dispositivo no está autorizado para esta cuenta.' });
@@ -394,6 +396,8 @@ router.post('/login', async (req, res) => {
       usuario.deviceId = deviceId;
       await usuario.save();
     }
+
+    */
 
     const token = jwt.sign(
       {
