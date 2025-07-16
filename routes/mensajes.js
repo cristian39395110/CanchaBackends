@@ -140,18 +140,14 @@ router.post('/enviar', async (req, res) => {
     if (io) {
       const sockets = await io.fetchSockets();
 
-      for (const socketInstance of sockets) {
-        const socketUserId = socketInstance.usuarioId;
+// Solo al emisor, con propiedad esMio
+io.to(`usuario-${emisorId}`).emit('mensajeNuevo', {
+  ...nuevoMensaje.toJSON(),
+  esMio: true,
+});
 
-        if (socketUserId === Number(emisorId)) {
-          socketInstance.emit('mensajeNuevo', {
-            ...nuevoMensaje.toJSON(),
-            esMio: true,
-          });
-        } else if (socketUserId === Number(receptorId)) {
-          socketInstance.emit('mensajeNuevo', nuevoMensaje);
-        }
-      }
+// Solo al receptor, sin propiedad esMio
+io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
 
       // ✅ Actualizar contadores del emisor
       io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
