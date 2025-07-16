@@ -174,19 +174,19 @@ if (rangoEdad && Array.isArray(rangoEdad) && rangoEdad.length > 0) {
 // 🔎 Filtro por categoría
 // 🔎 Filtro por categoría
 if (partido.categorias && Array.isArray(partido.categorias) && partido.categorias.length > 0) {
-  console.log('🏷️ Filtro por categorías activado:', partido.categorias);
+  console.log('🏷️ Filtro por nivel/categorías activado:', partido.categorias);
 
-  const usuariosFiltradosPorCategoria = await Usuario.findAll({
+  const usuariosFiltradosPorNivel = await Usuario.findAll({
     where: {
       id: { [Op.in]: candidatos }
     },
     include: [
       {
         model: UsuarioDeporte,
-        as: 'UsuarioDeportes',
+        as: 'UsuarioDeportes', // tiene que coincidir con tu alias en las asociaciones
         where: {
           deporteId: partido.deporteId,
-          categoria: {
+          nivel: {
             [Op.in]: partido.categorias
           }
         }
@@ -194,14 +194,13 @@ if (partido.categorias && Array.isArray(partido.categorias) && partido.categoria
     ]
   });
 
-  const idsFiltradosCategoria = usuariosFiltradosPorCategoria.map(u => u.id);
-  candidatos = candidatos.filter(id => idsFiltradosCategoria.includes(id));
-  
-console.log('✅ Usuarios que pasaron el filtro por categoría:', idsFiltradosCategoria.length);
-console.log('👥 Candidatos después del filtro categoría:', candidatos.length);
+  const idsFiltradosNivel = usuariosFiltradosPorNivel.map(u => u.id);
+  candidatos = candidatos.filter(id => idsFiltradosNivel.includes(id));
 
- 
+  console.log('✅ Usuarios que pasaron el filtro por nivel:', idsFiltradosNivel.length);
+  console.log('👥 Candidatos después del filtro por nivel:', candidatos.length);
 }
+
 
 
 
