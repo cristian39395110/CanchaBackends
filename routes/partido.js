@@ -183,7 +183,7 @@ if (partido.categorias && Array.isArray(partido.categorias) && partido.categoria
     include: [
       {
         model: UsuarioDeporte,
-        as: 'deportes',
+        as: 'UsuarioDeportes',
         where: {
           deporteId: partido.deporteId,
           categoria: {
@@ -196,9 +196,11 @@ if (partido.categorias && Array.isArray(partido.categorias) && partido.categoria
 
   const idsFiltradosCategoria = usuariosFiltradosPorCategoria.map(u => u.id);
   candidatos = candidatos.filter(id => idsFiltradosCategoria.includes(id));
+  
+console.log('✅ Usuarios que pasaron el filtro por categoría:', idsFiltradosCategoria.length);
+console.log('👥 Candidatos después del filtro categoría:', candidatos.length);
 
-  console.log('✅ Usuarios que pasaron el filtro por categoría:', idsFiltradosCategoria.length);
-  console.log('👥 Candidatos después del filtro categoría:', candidatos.length);
+ 
 }
 
 
