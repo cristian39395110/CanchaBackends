@@ -137,21 +137,6 @@ router.patch('/:id/foto', autenticarToken, upload.single('foto'), async (req, re
   }
 });
 
-
-router.get('/yo', autenticarToken, async (req, res) => {
-  try {
-    const usuario = await Usuario.findByPk(req.usuario.id, {
-      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'sexo', 'edad', 'premium'],
-    });
-    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
-
-    res.json(usuario);
-  } catch (err) {
-    console.error('❌ Error al obtener usuario autenticado:', err);
-    res.status(500).json({ error: 'Error interno' });
-  }
-});
-
 router.post('/:id/cambiar-password', async (req, res) => {
   const { id } = req.params;
   const { actual, nueva } = req.body;
@@ -371,7 +356,7 @@ router.get('/verificar/:token', async (req, res) => {
 
 // Login con verificación
 router.post('/login', async (req, res) => {
-  const { email, password, deviceId } = req.body;
+  const { email, password } = req.body;
 
   try {
     const usuario = await Usuario.findOne({ where: { email } });
@@ -379,44 +364,33 @@ router.post('/login', async (req, res) => {
     if (!usuario || !(await bcrypt.compare(password, usuario.password))) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
+      
+
+    
 
     if (!usuario.verificado) {
       return res.status(403).json({ message: 'Debes verificar tu correo electrónico antes de iniciar sesión.' });
     }
 
 
-/*
-    // ⚠️ Validar si el dispositivo coincide
-    if (usuario.deviceId && usuario.deviceId !== deviceId) {
-      return res.status(403).json({ message: 'Este dispositivo no está autorizado para esta cuenta.' });
-    }
+    
+const token = jwt.sign(
+  {
+    id: usuario.id,
+    email: usuario.email,
+    premium: usuario.premium,
+    esAdmin: usuario.esAdmin  // 👈 Agregado
+  },
+  SECRET_KEY,
+  { expiresIn: '365d' }
+);
 
-    // ✅ Si no tiene deviceId aún, lo guardamos
-    if (!usuario.deviceId) {
-      usuario.deviceId = deviceId;
-      await usuario.save();
-    }
-
-    */
-
-    const token = jwt.sign(
-      {
-        id: usuario.id,
-        email: usuario.email,
-        premium: usuario.premium,
-        esAdmin: usuario.esAdmin,
-      },
-      SECRET_KEY,
-      { expiresIn: '1h' }
-    );
 
     res.json({ message: 'Login exitoso', token, usuarioId: usuario.id, esPremium: usuario.premium });
   } catch (error) {
-    console.error('❌ Error en login:', error);
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
-
 // Obtener todos los usuarios
 router.get('/', async (req, res) => {
   try {
