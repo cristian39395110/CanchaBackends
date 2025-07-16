@@ -11,13 +11,29 @@ const { Op } = require('sequelize');
 
 // ✅ POST: Enviar mensaje grupal de partido
 router.post('/partido/enviar', async (req, res) => {
-  const { partidoId, usuarioId, mensaje } = req.body;
-  try {
+  const { partidoId, usuarioId, mensaje,frontendId } = req.body;
+
+if (!partidoId || !usuarioId || !mensaje) {
+    return res.status(400).json({ error: 'Faltan datos requeridos' });
+  }
+
+try {
+    // Evitar duplicados si llega el mismo frontendId
+    if (frontendId) {
+      const yaExiste = await MensajePartido.findOne({ where: { frontendId } });
+      if (yaExiste) {
+        console.log('⚠️ Mensaje duplicado ignorado (frontendId)');
+        return res.status(200).json(yaExiste);
+      }
+    }
+
+
     const nuevoMensaje = await MensajePartido.create({
       partidoId,
       usuarioId,
       mensaje,
-      tipo: 'texto'
+      tipo: 'texto',
+     frontendId: frontendId || null
     });
 const io = req.app.get('io');
     // 🔄 Emitir por WebSocket a todos en la sala del partido
