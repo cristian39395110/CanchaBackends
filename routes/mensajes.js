@@ -120,39 +120,46 @@ router.put('/marcar-leido/:usuarioId/:otroId', async (req, res) => {
 
 // Enviar mensaje
 router.post('/enviar', async (req, res) => {
-  const { emisorId, receptorId, mensaje } = req.body;
+  const { emisorId, receptorId, mensaje,frontendId  } = req.body;
 
   if (!emisorId || !receptorId || !mensaje) {
     return res.status(400).json({ error: 'Faltan datos requeridos' });
   }
 
-  try {
-    // Guardar el mensaje en la BD
+ try {
+    // 🔄 Verificar si ya existe un mensaje con ese frontendId
+    if (frontendId) {
+      const mensajeExistente = await Mensaje.findOne({ where: { frontendId } });
+      if (mensajeExistente) {
+        console.log('⚠️ Mensaje duplicado ignorado (mismo frontendId)');
+        return res.status(200).json(mensajeExistente); // Devolvemos el existente
+      }
+    }
+
+    // 📝 Guardar nuevo mensaje
     const nuevoMensaje = await Mensaje.create({
       emisorId,
       receptorId,
       contenido: mensaje,
-      leido: false
+      leido: false,
+      frontendId: frontendId || null
     });
 
-     const io = req.app.get('io');
+    const io = req.app.get('io');
 
     if (io) {
-      const sockets = await io.fetchSockets();
+      // ✅ Emitir al emisor con esMio: true
+      io.to(`usuario-${emisorId}`).emit('mensajeNuevo', {
+        ...nuevoMensaje.toJSON(),
+        esMio: true,
+      });
 
-// Solo al emisor, con propiedad esMio
-io.to(`usuario-${emisorId}`).emit('mensajeNuevo', {
-  ...nuevoMensaje.toJSON(),
-  esMio: true,
-});
+      // ✅ Emitir al receptor normal
+      io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
 
-// Solo al receptor, sin propiedad esMio
-io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
-
-      // ✅ Actualizar contadores del emisor
+      // 🔁 Contadores si usás
       io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
     }
-
     // Enviar notificación push si hay token FCM
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: receptorId } });
 

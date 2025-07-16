@@ -27,6 +27,11 @@ const Mensaje = sequelize.define('Mensaje', {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: false
-  }
+  },
+  frontendId: {
+  type: DataTypes.STRING,
+  allowNull: true, // opcional por compatibilidad
+  unique: true     // ⚠️ importante para evitar duplicados
+}
 });
 module.exports = Mensaje;
