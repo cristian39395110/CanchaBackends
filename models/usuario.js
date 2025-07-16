@@ -79,15 +79,10 @@ edad: {
   type: DataTypes.INTEGER,
   allowNull: false
 },
-precision: {
-  type: DataTypes.FLOAT,
+deviceId: {
+  type: DataTypes.STRING,
   allowNull: true
 },
-ultimaUbicacion: {
-  type: DataTypes.DATE,
-  allowNull: true,
-},
-
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,
