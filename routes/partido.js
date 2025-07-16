@@ -139,42 +139,60 @@ console.log('📍 Rango edad:',rangoEdad );
       candidatos = candidatos.filter(id => idsFiltradosSexo.includes(id));
     }
 // 🔎 Filtro por edad (usando campo edad)
-if (rangoEdad) {
-  let edadMin = 0;
-  let edadMax = 120;
 
-  if (rangoEdad === 'adolescente') {
-    edadMin = 10;
-    edadMax = 20;
-  } else if (rangoEdad === 'joven') {
-    edadMin = 21;
-    edadMax = 40;
-  } else if (rangoEdad === 'veterano') {
-    edadMin = 41;
-    edadMax = 120;
-  }
+// 🔎 Filtro por edad (usando campo edad)
+if (rangoEdad && Array.isArray(rangoEdad) && rangoEdad.length > 0) {
+  let rangos = [];
 
-  console.log('🎂 Filtro por edad activado');
-  console.log('🧮 Candidatos antes del filtro edad:', candidatos.length);
-  console.log('📊 Rango de edad aplicado:', edadMin, '-', edadMax);
+  if (rangoEdad.includes('adolescente')) rangos.push({ min: 10, max: 20 });
+  if (rangoEdad.includes('joven')) rangos.push({ min: 21, max: 40 });
+  if (rangoEdad.includes('veterano')) rangos.push({ min: 41, max: 120 });
+
+  console.log('🎂 Filtro por edad activado:', rangos);
 
   const usuariosFiltradosPorEdad = await Usuario.findAll({
     where: {
       id: { [Op.in]: candidatos },
       edad: {
-        [Op.ne]: null, // Solo los que tienen edad definida
-        [Op.gte]: edadMin,
-        [Op.lte]: edadMax
+        [Op.ne]: null
       }
     }
   });
 
-  const idsFiltradosEdad = usuariosFiltradosPorEdad.map(u => u.id);
-  console.log('✅ Usuarios que pasaron el filtro de edad:', idsFiltradosEdad.length);
+  const idsFiltradosEdad = usuariosFiltradosPorEdad
+    .filter(usuario =>
+      rangos.some(r => usuario.edad >= r.min && usuario.edad <= r.max)
+    )
+    .map(u => u.id);
 
   candidatos = candidatos.filter(id => idsFiltradosEdad.includes(id));
+
+  console.log('✅ Usuarios que pasaron el filtro de edad:', idsFiltradosEdad.length);
   console.log('👥 Candidatos después del filtro edad:', candidatos.length);
 }
+
+// 🔎 Filtro por categoría
+if (partido.categorias && Array.isArray(partido.categorias) && partido.categorias.length > 0) {
+  console.log('🏷️ Filtro por categorías activado:', partido.categorias);
+
+  const usuariosFiltradosPorCategoria = await Usuario.findAll({
+    where: {
+      id: { [Op.in]: candidatos },
+      categoria: {
+        [Op.in]: partido.categorias
+      }
+    }
+  });
+
+  const idsFiltradosCategoria = usuariosFiltradosPorCategoria.map(u => u.id);
+  candidatos = candidatos.filter(id => idsFiltradosCategoria.includes(id));
+
+  console.log('✅ Usuarios que pasaron el filtro por categoría:', idsFiltradosCategoria.length);
+  console.log('👥 Candidatos después del filtro categoría:', candidatos.length);
+}
+
+
+
 
     // 🔐 Evitar duplicados
     const yaContactados = await UsuarioPartido.findAll({
@@ -185,6 +203,10 @@ if (rangoEdad) {
 
     let enviados = new Set();
     let intentos = 0;
+
+
+    console.log('🎯 Candidatos finales listos para invitar:', candidatos.length);
+
 
     async function enviarTanda() {
       const aceptados = await UsuarioPartido.count({
@@ -362,6 +384,7 @@ router.post('/', async (req, res) => {
     longitud,
     sexo,
     rangoEdad,
+    categorias,
     ubicacionManual
   } = req.body;
 
@@ -415,6 +438,10 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
       longitud: longitud || null,
       sexo,
       rangoEdad,
+      categorias,
+      canchaId: req.body.canchaId || null,
+canchaNombreManual: req.body.canchaNombreManual || null,
+
       ubicacionManual
     });
 // Crear relación del organizador al partido (pero con estado distinto)

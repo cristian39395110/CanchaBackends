@@ -22,8 +22,8 @@ const Partido = sequelize.define('Partido', {
   defaultValue: 'todos'
 },
 rangoEdad: {
-  type: DataTypes.STRING,
-  defaultValue: ''
+   type: DataTypes.JSON,
+   defaultValue: []
 },
   // 🆕 Campos nuevos para integrar cancha
   canchaId: {
@@ -42,6 +42,12 @@ rangoEdad: {
     type: DataTypes.STRING,
     allowNull: true
   },
+  categorias: {
+  type: DataTypes.JSON, // o TEXT si usás SQLite
+  allowNull: true,
+  defaultValue: []
+}
+
   
 
 }, {
