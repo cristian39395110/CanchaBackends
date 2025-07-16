@@ -172,16 +172,26 @@ if (rangoEdad && Array.isArray(rangoEdad) && rangoEdad.length > 0) {
 }
 
 // 🔎 Filtro por categoría
+// 🔎 Filtro por categoría
 if (partido.categorias && Array.isArray(partido.categorias) && partido.categorias.length > 0) {
   console.log('🏷️ Filtro por categorías activado:', partido.categorias);
 
   const usuariosFiltradosPorCategoria = await Usuario.findAll({
     where: {
-      id: { [Op.in]: candidatos },
-      categoria: {
-        [Op.in]: partido.categorias
+      id: { [Op.in]: candidatos }
+    },
+    include: [
+      {
+        model: UsuarioDeporte,
+        as: 'deportes',
+        where: {
+          deporteId: partido.deporteId,
+          categoria: {
+            [Op.in]: partido.categorias
+          }
+        }
       }
-    }
+    ]
   });
 
   const idsFiltradosCategoria = usuariosFiltradosPorCategoria.map(u => u.id);
