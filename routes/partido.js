@@ -227,9 +227,13 @@ if (partido.categorias && Array.isArray(partido.categorias) && partido.categoria
       const faltan = partido.cantidadJugadores - aceptados;
       if (faltan <= 0 || candidatos.length === 0) return false;
 
+
+ const multiplicador = 2.5; // Probá con 2.5 y ajustá si querés más
+  const cantidadASolicitar = Math.ceil(faltan * multiplicador);
+
       const siguiente = candidatos
         .filter(id => !enviados.has(id))
-        .slice(0, MAX_POR_TANDA);
+        .slice(0, cantidadASolicitar);
 
       if (siguiente.length === 0) return false;
 

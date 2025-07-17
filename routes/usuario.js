@@ -49,6 +49,25 @@ function generarPasswordAleatoria(length = 8) {
   }
   return pass;
 }
+
+
+// 🧠 Devuelve los datos del usuario actual logueado
+router.get('/yo', autenticarToken, async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id; // ← Viene del token
+    const usuario = await Usuario.findByPk(usuarioId, {
+      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'sexo', 'edad', 'premium'],
+    });
+
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    res.json(usuario);
+  } catch (error) {
+    console.error('❌ Error en /usuarios/yo:', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
 router.post('/recuperar', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Falta el email.' });
