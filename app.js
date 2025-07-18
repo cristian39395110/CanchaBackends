@@ -32,15 +32,18 @@
   console.log('✅ Nuevo cliente conectado');
 
   // 👉 Canal privado del usuario
-  socket.on('join', (usuarioId) => {
-    socket.usuarioId = Number(usuarioId);
-    socket.join(`usuario-${usuarioId}`);
-    console.log(`📡 Usuario ${usuarioId} unido a su canal privado`);
-  });
- socket.on('leave', (usuarioId) => {
-    socket.leave(`usuario-${usuarioId}`);
-    console.log(`👋 Usuario ${usuarioId} salió de su canal privado`);
-  });
+socket.on('join', (sala) => {
+  const idExtraido = sala.split('-')[1]; // sacás el número del ID
+  socket.usuarioId = Number(idExtraido); // se lo guardás al socket
+  socket.join(sala); // lo metés a la sala correcta
+  console.log(`📡 Usuario unido a sala ${sala}`);
+});
+
+socket.on('leave', (sala) => {
+  socket.leave(sala);
+  console.log(`👋 Usuario salió de la sala ${sala}`);
+});
+
   // 👉 Canal grupal del partido
   socket.on('join-partido', (partidoId) => {
     socket.join(`partido-${partidoId}`);
