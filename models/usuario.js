@@ -83,6 +83,10 @@ deviceId: {
   type: DataTypes.STRING,
   allowNull: true
 },
+ultimoCambioDevice: {
+  type: DataTypes.DATE,
+  allowNull: true,
+},
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,

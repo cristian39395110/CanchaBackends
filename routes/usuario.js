@@ -399,19 +399,26 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ message: 'Debes verificar tu correo electrónico antes de iniciar sesión.' });
     }
       
+  // ✅ Si aún no tiene un deviceId (primer login desde celular nuevo)
+    if (!usuario.deviceId && deviceId) {
+      await usuario.update({ deviceId, ultimoCambioDevice: new Date() });
+    }
+
     // 🛑 Si el usuario ya tiene un deviceId registrado, lo comparamos
     if (usuario.deviceId && usuario.deviceId !== deviceId) {
-      return res.status(403).json({
-        message: 'Este correo ya está vinculado a otro celular. Solo podés iniciar sesión desde ese dispositivo.',
-      });
-    }
+      const ahora = new Date();
+      const ultimaVez = new Date(usuario.ultimoCambioDevice || 0);
+      const diferenciaEnDias = (ahora - ultimaVez) / (1000 * 60 * 60 * 24);
 
-    // ✅ Si aún no tiene un deviceId (primer login desde celular nuevo)
-    if (!usuario.deviceId && deviceId) {
-      await usuario.update({ deviceId });
-    }
-    
+      if (diferenciaEnDias < 7) {
+        return res.status(403).json({
+          message: 'Solo podés iniciar sesión en un nuevo dispositivo una vez cada 7 días.',
+        });
+      }
 
+      // ✅ Si pasaron los días, se actualiza el device y la fecha
+      await usuario.update({ deviceId, ultimoCambioDevice: ahora });
+    }
 
 
 
@@ -587,16 +594,29 @@ router.post('/limpiar-device', async (req, res) => {
       return res.status(401).json({ message: 'Contraseña incorrecta' });
     }
 
-    // Si coincide, limpiamos el deviceId (o lo actualizamos directamente)
-    await usuario.update({ deviceId });
+    // 🛑 Verificar si ya cambió el dispositivo hoy
+    const ahora = new Date();
+    const ultimaVez = new Date(usuario.ultimoCambioDevice || 0);
+    const diferenciaEnHoras = (ahora.getTime() - ultimaVez.getTime()) / (1000 * 60 * 60);
 
-    res.json({ message: 'Device actualizado correctamente.' });
+    if (diferenciaEnHoras < 24) {
+      return res.status(403).json({
+        message: 'Ya realizaste un cambio de dispositivo hoy. Intentá nuevamente mañana.',
+      });
+    }
+
+    // 🔄 Actualizar device y fecha del cambio
+    await usuario.update({
+      deviceId,
+      ultimoCambioDevice: ahora,
+    });
+
+    res.json({ message: '✅ Dispositivo actualizado correctamente. Ahora podés iniciar sesión.' });
   } catch (error) {
     console.error('❌ Error al limpiar deviceId:', error);
     res.status(500).json({ message: 'Error al limpiar deviceId' });
   }
 });
-
 
 
 
