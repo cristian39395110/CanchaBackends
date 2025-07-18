@@ -227,6 +227,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   longitud,
   sexo,
   edad,
+   deviceId 
 } = req.body;
 
 
@@ -234,6 +235,12 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
     if (existente) {
       return res.status(400).json({ error: 'Ya existe un usuario con ese email.' });
     }
+
+    const dispositivoExistente = await Usuario.findOne({ where: { deviceId } });
+if (dispositivoExistente) {
+  return res.status(400).json({ error: 'Ya existe una cuenta registrada desde este dispositivo.' });
+}
+
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
@@ -264,6 +271,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   longitud,
   sexo,
   edad,
+  deviceId, 
   fotoPerfil: urlImagen,
   verificado: false,
   tokenVerificacion,
@@ -355,7 +363,10 @@ router.get('/buscar', async (req, res) => {
     console.error('❌ Error al buscar usuarios:', err);
     res.status(500).json({ error: 'Error interno al buscar usuarios' });
   }
-});// Verificación de cuenta
+});
+
+
+// Verificación de cuenta
 router.get('/verificar/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -375,7 +386,7 @@ router.get('/verificar/:token', async (req, res) => {
 
 // Login con verificación
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, deviceId } = req.body;
 
   try {
     const usuario = await Usuario.findOne({ where: { email } });
@@ -383,13 +394,25 @@ router.post('/login', async (req, res) => {
     if (!usuario || !(await bcrypt.compare(password, usuario.password))) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
-      
 
-    
-
-    if (!usuario.verificado) {
+        if (!usuario.verificado) {
       return res.status(403).json({ message: 'Debes verificar tu correo electrónico antes de iniciar sesión.' });
     }
+      
+    // 🛑 Si el usuario ya tiene un deviceId registrado, lo comparamos
+    if (usuario.deviceId && usuario.deviceId !== deviceId) {
+      return res.status(403).json({
+        message: 'Este correo ya está vinculado a otro celular. Solo podés iniciar sesión desde ese dispositivo.',
+      });
+    }
+
+    // ✅ Si aún no tiene un deviceId (primer login desde celular nuevo)
+    if (!usuario.deviceId && deviceId) {
+      await usuario.update({ deviceId });
+    }
+    
+
+
 
 
     
@@ -545,6 +568,35 @@ router.put('/:id/password', autenticarToken, async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+router.post('/limpiar-device', async (req, res) => {
+  const { email, password, deviceId } = req.body;
+
+  if (!email || !password || !deviceId) {
+    return res.status(400).json({ message: 'Faltan datos' });
+  }
+
+  try {
+    const usuario = await Usuario.findOne({ where: { email } });
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    const coincide = await bcrypt.compare(password, usuario.password);
+    if (!coincide) {
+      return res.status(401).json({ message: 'Contraseña incorrecta' });
+    }
+
+    // Si coincide, limpiamos el deviceId (o lo actualizamos directamente)
+    await usuario.update({ deviceId });
+
+    res.json({ message: 'Device actualizado correctamente.' });
+  } catch (error) {
+    console.error('❌ Error al limpiar deviceId:', error);
+    res.status(500).json({ message: 'Error al limpiar deviceId' });
+  }
+});
+
 
 
 
