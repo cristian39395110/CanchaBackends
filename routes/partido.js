@@ -432,7 +432,7 @@ if (!organizador?.premium) {
     }
   });
 
-  if (partidosHoy >= 2) {
+  if (partidosHoy >= 1) {
     return res.status(403).json({ error: 'Solo podés crear 2 partidos por día siendo usuario no premium.' });
   }
 }
