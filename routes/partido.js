@@ -415,6 +415,12 @@ const fechaHoy = new Date().toISOString().split('T')[0];
 console.log("fechaHoy");
 console.log(fechaHoy);
 
+console.log("fechaaaaaa");
+console.log(fecha);
+
+
+
+
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
   }
