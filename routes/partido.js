@@ -410,8 +410,8 @@ router.post('/', async (req, res) => {
   } = req.body;
 
 
-const fechaAjustada = new Date(fecha);
-fechaAjustada.setHours(fechaAjustada.getHours() + 3);
+const fechaAjustada = new Date(fecha); // ya viene con la hora correcta
+
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
