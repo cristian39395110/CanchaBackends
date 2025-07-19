@@ -442,7 +442,7 @@ if (!organizador?.premium) {
   const partidosHoy = await Partido.count({
     where: {
       organizadorId,
-      fecha: fechaHoy
+      fecha: fecha
     }
   });
 
