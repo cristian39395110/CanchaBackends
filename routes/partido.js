@@ -293,18 +293,24 @@ console.log('🔑 Tokens FCM válidos:', fcmTokens);
   }
 }
 
-router.get('/cantidad/:usuarioId', async (req, res) => {
-  const { usuarioId } = req.params;
+router.post('/cantidad', async (req, res) => {
+  const { usuarioId, fecha } = req.body;
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  if (!usuarioId || !fecha) {
+    return res.status(400).json({ error: 'Faltan usuarioId o fecha' });
+  }
 
   try {
+    const inicioDia = new Date(`${fecha}T00:00:00`);
+    const finDia = new Date(`${fecha}T23:59:59.999`);
+
     const cantidad = await Partido.count({
       where: {
         organizadorId: usuarioId,
-        createdAt: { [Op.gte]: hoy }
-      }
+        createdAt: {
+          [Op.between]: [inicioDia, finDia],
+        },
+      },
     });
 
     res.json({ cantidad });
