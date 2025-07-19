@@ -18,9 +18,18 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // ✅ GET /api/canchas — todas las canchas
+const { Op } = require('sequelize');
+
 router.get('/', async (req, res) => {
   try {
-    const canchas = await Cancha.findAll();
+    const { deporte } = req.query;
+
+    let where = {};
+    if (deporte) {
+      where.deportes = { [Op.like]: `%${deporte}%` };
+    }
+
+    const canchas = await Cancha.findAll({ where });
     res.json(canchas);
   } catch (error) {
     console.error('❌ Error al obtener canchas:', error);
