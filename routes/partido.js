@@ -403,8 +403,7 @@ router.post('/', async (req, res) => {
     ubicacionManual
   } = req.body;
 
-  console.log('📅 Fecha recibida del frontend:', fecha);
-console.log('🕒 Fecha transformada a Date:', new Date(fecha));
+
 const fechaAjustada = new Date(fecha);
 fechaAjustada.setHours(fechaAjustada.getHours() + 3);
 
@@ -418,28 +417,28 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
     if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
       return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
     }
+if (!organizador?.premium) {
+  if (cantidadJugadores > 12) {
+    return res.status(403).json({ error: 'Como usuario no premium, solo podés ingresar hasta 12 jugadores.' });
+  }
 
-    if (!organizador?.premium) {
-      if (cantidadJugadores > 6) {
-        return res.status(403).json({ error: 'Como usuario no premium, solo podés ingresar hasta 6 jugadores.' });
-      }
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
 
-      // Contar partidos del día
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-
-      const partidosHoy = await Partido.count({
-        where: {
-          organizadorId,
-          createdAt: { [Op.gte]: hoy }
-        }
-      });
-
-      if (partidosHoy >= 5) {
-        return res.status(403).json({ error: 'Solo podés crear 2 partidos por día siendo usuario no premium.' });
-      }
+  const partidosHoy = await Partido.count({
+    where: {
+      organizadorId,
+      createdAt: { [Op.gte]: hoy }
     }
+  });
 
+  if (partidosHoy >= 2) {
+    return res.status(403).json({ error: 'Solo podés crear 2 partidos por día siendo usuario no premium.' });
+  }
+}
+
+const categoriasSanitizadas = Array.isArray(categorias) ? categorias.filter(c => typeof c === 'string') : [];
+const rangoEdadSanitizado = Array.isArray(rangoEdad) ? rangoEdad.filter(r => typeof r === 'string') : [];
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
@@ -452,8 +451,8 @@ fechaAjustada.setHours(fechaAjustada.getHours() + 3);
       latitud: latitud || null,
       longitud: longitud || null,
       sexo,
-      rangoEdad,
-      categorias,
+      rangoEdad: rangoEdadSanitizado,
+categorias: categoriasSanitizadas,
       canchaId: req.body.canchaId || null,
 canchaNombreManual: req.body.canchaNombreManual || null,
 
@@ -481,14 +480,16 @@ await UsuarioPartido.create({
   mensaje: `📢 El organizador ${organizador?.nombre || 'desconocido'} ha creado el partido.`,
 });
 
+console.log(`🎉 Partido creado por ${organizador?.nombre} (premium: ${organizador?.premium})`);
 
     res.status(201).json({
-      mensaje: '✅ Partido creado correctamente (No Premium)',
+    mensaje: '✅ Partido creado correctamente',
+
       partido
     });
 
   } catch (error) {
-    console.error('❌ Error creando partido no premium:', error);
+    console.error('❌ Error creando partido :', error);
     res.status(500).json({ error: 'Error al crear el partido o enviar notificaciones.' });
   }
 });
