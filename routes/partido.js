@@ -434,12 +434,12 @@ if (!organizador?.premium) {
   const partidosHoy = await Partido.count({
     where: {
       organizadorId,
-      fecha: fechaHoy
+      fecha: fechaAjustada
     }
   });
 
   if (partidosHoy >= 1) {
-    return res.status(403).json({ error: 'Solo podés crear 2 partidos por día siendo usuario no premium.' });
+    return res.status(403).json({ error: 'Solo podés crear 1 partidos por día siendo usuario no premium.' });
   }
 }
 
