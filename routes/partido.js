@@ -411,7 +411,9 @@ router.post('/', async (req, res) => {
 
 
 const fechaAjustada = new Date(fecha); // ya viene con la hora correcta
-
+const fechaHoy = new Date().toISOString().split('T')[0];
+console.log("fechaHoy");
+console.log(fechaHoy);
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
@@ -434,7 +436,7 @@ if (!organizador?.premium) {
   const partidosHoy = await Partido.count({
     where: {
       organizadorId,
-      fecha: fechaAjustada
+      fecha: fechaHoy
     }
   });
 
