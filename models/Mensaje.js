@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+
 const Mensaje = sequelize.define('Mensaje', {
   id: {
     type: DataTypes.INTEGER,
@@ -26,12 +27,13 @@ const Mensaje = sequelize.define('Mensaje', {
   leido: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
-    defaultValue: false
+    defaultValue: false,
   },
   frontendId: {
-  type: DataTypes.STRING,
-  allowNull: true, // opcional por compatibilidad
-  unique: true     // ⚠️ importante para evitar duplicados
-}
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true, // ⚠️ importante para evitar duplicados
+  },
 });
+
 module.exports = Mensaje;
