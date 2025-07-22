@@ -344,7 +344,7 @@ router.post('/:publicacionId/like', async (req, res) => {
 // o usá req.app.get('io') si lo tenés así
 
 router.post('/:publicacionId/comentarios', async (req, res) => {
-  const io = require('../socket');
+  const io = req.app.get('io'); 
   const { publicacionId } = req.params;
   const { usuarioId, contenido } = req.body;
   console.log("entramos a comentario")
