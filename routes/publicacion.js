@@ -256,10 +256,9 @@ router.post('/', upload.single('foto'), async (req, res) => {
     const io = req.app.get('io'); // asegurate de hacer esto en tu app.js
 
     amigos.forEach(amigoId => {
-      io.to(`usuario-${amigoId}`).emit('nueva-publicacion', {
-        publicacionId: nueva.id,
-        mensaje: '🆕 Tu amigo publicó algo nuevo',
-      });
+   io.to(`usuario-${amigoId}`).emit('nueva-publicacion', {
+  publicacion: nuevaConUsuario, // envías el objeto completo
+});
     });
 
 
