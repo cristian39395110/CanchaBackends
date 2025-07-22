@@ -110,6 +110,103 @@ router.get('/amigos/:usuarioId', async (req, res) => {
   }
 });
 
+// POST /api/publicaciones/leidas
+router.post('/leidas', async (req, res) => {
+  const { usuarioId } = req.body;
+
+  if (!usuarioId) return res.status(400).json({ error: 'Falta usuarioId' });
+
+  try {
+    const amistades = await Amistad.findAll({
+      where: {
+        [Op.or]: [
+          { usuarioId },
+          { amigoId: usuarioId }
+        ],
+        estado: 'aceptado'
+      }
+    });
+
+    const idsAmigos = amistades.map(a =>
+      a.usuarioId === Number(usuarioId) ? a.amigoId : a.usuarioId
+    );
+
+    const publicaciones = await Publicacion.findAll({
+      where: {
+        usuarioId: { [Op.in]: idsAmigos }
+      }
+    });
+
+    for (const pub of publicaciones) {
+      const yaLeida = await PublicacionLeida.findOne({
+        where: {
+          usuarioId,
+          publicacionId: pub.id
+        }
+      });
+
+      if (!yaLeida) {
+        await PublicacionLeida.create({
+          usuarioId,
+          publicacionId: pub.id
+        });
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('❌ Error al marcar publicaciones como leídas:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// GET /api/publicaciones/nuevas/:usuarioId
+router.get('/nuevas/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  if (!usuarioId) return res.status(400).json({ error: 'Falta usuarioId' });
+
+  try {
+    const amistades = await Amistad.findAll({
+      where: {
+        [Op.or]: [
+          { usuarioId },
+          { amigoId: usuarioId }
+        ],
+        estado: 'aceptado'
+      }
+    });
+
+    const idsAmigos = amistades.map(a =>
+      a.usuarioId === Number(usuarioId) ? a.amigoId : a.usuarioId
+    );
+
+    const publicaciones = await Publicacion.findAll({
+      where: {
+        usuarioId: { [Op.in]: idsAmigos }
+      }
+    });
+
+    let noVistas = 0;
+
+    for (const pub of publicaciones) {
+      const leida = await PublicacionLeida.findOne({
+        where: {
+          usuarioId,
+          publicacionId: pub.id
+        }
+      });
+
+      if (!leida) noVistas++;
+    }
+
+    res.json({ nuevas: noVistas });
+  } catch (err) {
+    console.error('❌ Error al contar nuevas publicaciones:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 // ✅ POST nueva publicación
 router.post('/', upload.single('foto'), async (req, res) => {
   const { contenido, usuarioId } = req.body;
