@@ -237,6 +237,32 @@ router.post('/', upload.single('foto'), async (req, res) => {
       ]
     });
 
+    
+    // 🔥 Emitir notificación por WebSocket a los amigos
+    const amistades = await Amistad.findAll({
+      where: {
+        estado: 'aceptado',
+        [Op.or]: [
+          { usuarioId },
+          { amigoId: usuarioId }
+        ]
+      }
+    });
+
+    const amigos = amistades.map(a =>
+      a.usuarioId == usuarioId ? a.amigoId : a.usuarioId
+    );
+
+    const io = req.app.get('io'); // asegurate de hacer esto en tu app.js
+
+    amigos.forEach(amigoId => {
+      io.to(`usuario-${amigoId}`).emit('nueva-publicacion', {
+        publicacionId: nueva.id,
+        mensaje: '🆕 Tu amigo publicó algo nuevo',
+      });
+    });
+
+
     res.status(201).json(nuevaConUsuario);
   } catch (err) {
     console.error('❌ Error al crear publicación:', err);
