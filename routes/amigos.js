@@ -231,16 +231,15 @@ router.post('/aceptar', async (req, res) => {
     }
 
     // ✅ Marcar la notificación original de "solicitud" como leída
-    await envioNotificacion.update(
-      { leida: true },
-      {
-        where: {
-          usuarioId: usuarioId, // quien recibió la solicitud originalmente
-          emisorId: amigoId,    // quien la envió
-          tipo: 'solicitud'
-        }
-      }
-    );
+   // 🔥 Eliminar la notificación de solicitud
+await envioNotificacion.destroy({
+  where: {
+    usuarioId: usuarioId, // el receptor actual
+    emisorId: amigoId,    // quien envió la solicitud
+    tipo: 'solicitud'
+  }
+});
+
 
     res.json({ mensaje: '✅ Amistad aceptada correctamente' });
 
