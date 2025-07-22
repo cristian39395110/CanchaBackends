@@ -396,5 +396,48 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
     res.status(500).json({ error: 'Error al agregar comentario' });
   }
 });
+// ✅ GET /api/publicaciones/detalle/:id
+router.get('/detalle/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const publicacion = await Publicacion.findByPk(id, {
+      include: [
+        {
+          model: Usuario,
+          attributes: ['id', 'nombre', 'fotoPerfil']
+        },
+        {
+          model: Comentario,
+          include: [
+            {
+              model: Usuario,
+              attributes: ['id', 'nombre', 'fotoPerfil']
+            }
+          ]
+        },
+        {
+          model: Like,
+          include: [
+            {
+              model: Usuario,
+              attributes: ['id', 'nombre']
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!publicacion) {
+      return res.status(404).json({ error: 'Publicación no encontrada' });
+    }
+
+    res.json(publicacion);
+  } catch (err) {
+    console.error('❌ Error al obtener detalle de publicación:', err);
+    res.status(500).json({ error: 'Error al obtener la publicación' });
+  }
+});
+
 
 module.exports = router;
