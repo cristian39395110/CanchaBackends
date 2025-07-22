@@ -169,6 +169,8 @@ const formateado = solicitudes.map(s => ({
 router.post('/aceptar', async (req, res) => {
   const { usuarioId, amigoId } = req.body;
 
+  console.log("perfectotgooooooooooooooooooooooooo")
+
   try {
     // 🧩 Buscar solicitud pendiente
     const solicitud = await Amistad.findOne({
