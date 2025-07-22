@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { Op } = require('sequelize');
-const { Publicacion, Usuario, Amistad } = require('../models/model');
+const { Publicacion, Usuario, Amistad ,envioNotificacion} = require('../models/model');
 
 // 🖼️ Configuración de multer para subir imágenes
 const storage = multer.diskStorage({
@@ -128,17 +128,48 @@ router.post('/solicitar', async (req, res) => {
   const { usuarioId, amigoId } = req.body;
 
   try {
-    const existente = await Amistad.findOne({ where: { usuarioId, amigoId } });
+    const existente = await Amistad.findOne({
+      where: {
+        [Op.or]: [
+          { usuarioId, amigoId },
+          { usuarioId: amigoId, amigoId: usuarioId }
+        ],
+        estado: { [Op.in]: ['pendiente', 'aceptado'] }
+      }
+    });
+
     if (existente) return res.status(400).json({ error: 'Ya existe una solicitud o amistad' });
 
+    // ✅ Crear la solicitud
     const solicitud = await Amistad.create({ usuarioId, amigoId, estado: 'pendiente' });
+
+    // ✅ Buscar datos del emisor para la notificación
+    const emisor = await Usuario.findByPk(usuarioId);
+
+
+
+    // ✅ Crear notificación
+    await envioNotificacion.create({
+      usuarioId: amigoId, // el que recibe la notificación
+      emisorId: usuarioId,
+      tipo: 'solicitud',
+      mensaje: `${emisor.nombre} te envió una solicitud de amistad`
+    });
+ const io = req.app.get('io'); 
+    // ✅ Enviar por WebSocket si corresponde
+    if (io) {
+      io.to(`usuario-${amigoId}`).emit('nuevaNotificacion', {
+        tipo: 'solicitud',
+        mensaje: `${emisor.nombre} te envió una solicitud de amistad`
+      });
+    }
+
     res.status(201).json(solicitud);
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error al enviar solicitud:', err);
     res.status(500).json({ error: 'Error al enviar solicitud' });
   }
 });
-
 // Aceptar solicitud
 router.post('/aceptar', async (req, res) => {
   const { usuarioId, amigoId } = req.body;

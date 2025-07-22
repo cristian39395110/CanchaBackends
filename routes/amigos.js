@@ -170,6 +170,7 @@ router.post('/aceptar', async (req, res) => {
   const { usuarioId, amigoId } = req.body;
 
   try {
+    // 🧩 Buscar solicitud pendiente
     const solicitud = await Amistad.findOne({
       where: {
         usuarioId,
@@ -180,10 +181,11 @@ router.post('/aceptar', async (req, res) => {
 
     if (!solicitud) return res.status(404).json({ error: 'Solicitud no encontrada' });
 
+    // ✅ Aceptar solicitud
     solicitud.estado = 'aceptado';
     await solicitud.save();
 
-    // 👉 Verificamos si ya existe la relación inversa
+    // ✅ Crear relación inversa si no existe
     const inversa = await Amistad.findOne({
       where: {
         usuarioId: amigoId,
@@ -191,7 +193,6 @@ router.post('/aceptar', async (req, res) => {
       }
     });
 
-    // Si no existe, la creamos
     if (!inversa) {
       await Amistad.create({
         usuarioId: amigoId,
@@ -199,25 +200,42 @@ router.post('/aceptar', async (req, res) => {
         estado: 'aceptado'
       });
     }
-// 🔔 Notificación al emisor de la solicitud
-    const emisor = await Usuario.findByPk(usuarioId); // Quien acepta
-    const receptor = await Usuario.findByPk(amigoId); // A quien se la acepta
 
+    // ✅ Datos para la notificación
+    const aceptante = await Usuario.findByPk(usuarioId); // quien acepta
+    const solicitante = await Usuario.findByPk(amigoId); // quien envió
+
+    // ✅ Crear nueva notificación "amistad"
     const nuevaNoti = await envioNotificacion.create({
-      usuarioId: amigoId,              // a quién le llega
-      emisorId: usuarioId,             // quién aceptó
+      usuarioId: amigoId,         // le llega al solicitante original
+      emisorId: usuarioId,        // quien la acepta
       tipo: 'amistad',
-      mensaje: `✅ ${emisor.nombre} aceptó tu solicitud de amistad`,
-      fotoEmisor: emisor.fotoPerfil
+      mensaje: `✅ ${aceptante.nombre} aceptó tu solicitud de amistad`,
+      fotoEmisor: aceptante.fotoPerfil
     });
 
-    // 🔌 Emitir por WebSocket
+    // ✅ Emitir por WebSocket
     const io = req.app.get('io');
-    io.to(`usuario-${amigoId}`).emit('nuevaNotificacion', {
-      tipo: 'amistad',
-      mensaje: nuevaNoti.mensaje,
-      foto: emisor.fotoPerfil
-    });
+    if (io) {
+      io.to(`usuario-${amigoId}`).emit('nuevaNotificacion', {
+        tipo: 'amistad',
+        mensaje: nuevaNoti.mensaje,
+        foto: aceptante.fotoPerfil,
+        createdAt: nuevaNoti.createdAt
+      });
+    }
+
+    // ✅ Marcar la notificación original de "solicitud" como leída
+    await envioNotificacion.update(
+      { leida: true },
+      {
+        where: {
+          usuarioId: usuarioId, // quien recibió la solicitud originalmente
+          emisorId: amigoId,    // quien la envió
+          tipo: 'solicitud'
+        }
+      }
+    );
 
     res.json({ mensaje: '✅ Amistad aceptada correctamente' });
 
@@ -226,6 +244,7 @@ router.post('/aceptar', async (req, res) => {
     res.status(500).json({ error: 'Error al aceptar solicitud' });
   }
 });
+
 
 
 // ❌ Cancelar solicitud
@@ -245,11 +264,22 @@ router.post('/cancelar', async (req, res) => {
 
     await solicitud.destroy();
 
-    res.json({ mensaje: '❌ Solicitud cancelada' });
+    // 🗑️ Eliminar notificación relacionada
+    await envioNotificacion.destroy({
+      where: {
+        usuarioId: amigoId,   // quien recibió la solicitud
+        emisorId: usuarioId,  // quien la envió (y ahora la cancela)
+        tipo: 'solicitud'
+      }
+    });
+
+    res.json({ mensaje: '❌ Solicitud cancelada y notificación eliminada' });
+
   } catch (error) {
     console.error('❌ Error al cancelar solicitud:', error);
     res.status(500).json({ error: 'Error al cancelar solicitud' });
   }
 });
+
 
 module.exports = router;
