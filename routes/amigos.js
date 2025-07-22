@@ -173,13 +173,16 @@ router.post('/aceptar', async (req, res) => {
 
   try {
     // 🧩 Buscar solicitud pendiente
-    const solicitud = await Amistad.findOne({
-      where: {
-        usuarioId,
-        amigoId,
-        estado: 'pendiente'
-      }
-    });
+  const solicitud = await Amistad.findOne({
+  where: {
+    estado: 'pendiente',
+    [Op.or]: [
+      { usuarioId, amigoId },
+      { usuarioId: amigoId, amigoId: usuarioId }
+    ]
+  }
+});
+
 
     if (!solicitud) return res.status(404).json({ error: 'Solicitud no encontrada' });
 
