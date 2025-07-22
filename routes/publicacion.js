@@ -7,7 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const { Op } = require('sequelize');
 
-const { Publicacion, Usuario, Amistad, Comentario, Like } = require('../models/model');
+
+const { Publicacion, Usuario, Amistad, Comentario, Like ,PublicacionLeida} = require('../models/model');
 
 // 🖼️ Configuración de multer para subir imágenes
 const cloudinary = require('cloudinary').v2;
