@@ -16,6 +16,24 @@ const Bloqueo = require('./Bloqueo');
 const Cancha = require('./cancha');
 const MensajePartido = require('./MensajePartido');
 const PublicacionLeida = require('./publicacionLeida');
+const envioNotificacion = require('./envioNotificacion');
+
+
+// 🔔 Relaciones de envioNotificacion
+
+// La notificación pertenece al usuario receptor
+envioNotificacion.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'receptor' });
+
+// La notificación también pertenece al emisor (quien generó la notificación)
+envioNotificacion.belongsTo(Usuario, { foreignKey: 'emisorId', as: 'emisor' });
+
+// Relación opcional con publicación si es una notificación relacionada
+envioNotificacion.belongsTo(Publicacion, { foreignKey: 'publicacionId' });
+
+Usuario.hasMany(envioNotificacion, { foreignKey: 'usuarioId', as: 'notificacionesRecibidas' });
+Usuario.hasMany(envioNotificacion, { foreignKey: 'emisorId', as: 'notificacionesEnviadas' });
+Publicacion.hasMany(envioNotificacion, { foreignKey: 'publicacionId' });
+
 
 
 Publicacion.hasMany(PublicacionLeida, { foreignKey: 'publicacionId' });
@@ -128,5 +146,6 @@ module.exports = {
   Bloqueo,
   Cancha ,
   MensajePartido,
-  PublicacionLeida
+  PublicacionLeida,
+  envioNotificacion
 };

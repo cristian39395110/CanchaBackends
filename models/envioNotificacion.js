@@ -1,5 +1,8 @@
-module.exports = (sequelize, DataTypes) => {
-  const Notificacion = sequelize.define('Notificacion', {
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
+const envioNotificacion = sequelize.define('envioNotificacion', {
+ 
     usuarioId: DataTypes.INTEGER, // a quién le llega
     emisorId: DataTypes.INTEGER,  // quién la generó
     tipo: DataTypes.STRING,       // 'comentario', 'solicitud', 'aceptado'
@@ -8,5 +11,6 @@ module.exports = (sequelize, DataTypes) => {
     publicacionId: DataTypes.INTEGER,
     leida: { type: DataTypes.BOOLEAN, defaultValue: false }
   });
-  return envioNotificacion.js;
-};
+ 
+
+module.exports = envioNotificacion;
