@@ -358,9 +358,10 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
     });
 
     // 2. Obtener el comentario con datos del usuario
-    const comentarioConUsuario = await Comentario.findByPk(nuevoComentario.id, {
-      include: [{ model: Usuario, attributes: ['id', 'nombre'] }],
-    });
+   const comentarioConUsuario = await Comentario.findByPk(nuevoComentario.id, {
+  include: [{ model: Usuario, attributes: ['id', 'nombre', 'fotoPerfil'] }],
+});
+
 
     // 3. Buscar la publicación
     const publicacion = await Publicacion.findByPk(publicacionId, {
@@ -388,7 +389,13 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
       const ioInstance = req.app.get('io') || io;
 
       // 🔔 Emitir notificación al dueño de la publicación
-      ioInstance.to(`usuario-${receptorId}`).emit('nueva-notificacion', nuevaNotificacion);
+    ioInstance.to(`usuario-${receptorId}`).emit('nuevaNotificacion', {
+  tipo: 'comentario',
+  mensaje: `💬 ${comentarioConUsuario.Usuario.nombre} comentó tu publicación.`,
+  foto: comentarioConUsuario.Usuario.fotoPerfil,
+  publicacionId: publicacion.id
+});
+
     }
 
     res.status(201).json(comentarioConUsuario);
