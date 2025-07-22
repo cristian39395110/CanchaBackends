@@ -344,26 +344,21 @@ router.post('/:publicacionId/like', async (req, res) => {
 // o usá req.app.get('io') si lo tenés así
 
 router.post('/:publicacionId/comentarios', async (req, res) => {
-  const io = req.app.get('io'); 
+  const ioInstance = req.app.get('io'); 
   const { publicacionId } = req.params;
   const { usuarioId, contenido } = req.body;
-  console.log("entramos a comentario")
 
   try {
-    // 1. Crear el comentario
     const nuevoComentario = await Comentario.create({
       publicacionId,
       usuarioId,
       contenido,
     });
 
-    // 2. Obtener el comentario con datos del usuario
-   const comentarioConUsuario = await Comentario.findByPk(nuevoComentario.id, {
-  include: [{ model: Usuario, attributes: ['id', 'nombre', 'fotoPerfil'] }],
-});
+    const comentarioConUsuario = await Comentario.findByPk(nuevoComentario.id, {
+      include: [{ model: Usuario, attributes: ['id', 'nombre', 'fotoPerfil'] }],
+    });
 
-
-    // 3. Buscar la publicación
     const publicacion = await Publicacion.findByPk(publicacionId, {
       include: [{ model: Usuario, attributes: ['id', 'nombre'] }]
     });
@@ -375,7 +370,6 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
     const receptorId = publicacion.usuarioId;
     const emisorId = Number(usuarioId);
 
-    // 4. Evitar enviar notificación si el emisor es el mismo que el receptor
     if (emisorId !== receptorId) {
       const nuevaNotificacion = await envioNotificacion.create({
         usuarioId: receptorId,
@@ -383,19 +377,17 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
         tipo: 'comentario',
         leida: false,
         publicacionId: publicacion.id,
-        mensaje: `💬 ${comentarioConUsuario.Usuario.nombre} comentó tu publicación.`
+        mensaje: `💬 ${comentarioConUsuario.Usuario.nombre} comentó tu publicación.`,
       });
 
-      const ioInstance = req.app.get('io') || io;
-
-      // 🔔 Emitir notificación al dueño de la publicación
-    ioInstance.to(`usuario-${receptorId}`).emit('nuevaNotificacion', {
-  tipo: 'comentario',
-  mensaje: `💬 ${comentarioConUsuario.Usuario.nombre} comentó tu publicación.`,
-  foto: comentarioConUsuario.Usuario.fotoPerfil,
-  publicacionId: publicacion.id
-});
-
+      ioInstance.to(`usuario-${receptorId}`).emit('nuevaNotificacion', {
+        id: nuevaNotificacion.id,
+        tipo: 'comentario',
+        mensaje: nuevaNotificacion.mensaje,
+        foto: comentarioConUsuario.Usuario.fotoPerfil,
+        publicacionId: publicacion.id,
+        emisorId: emisorId
+      });
     }
 
     res.status(201).json(comentarioConUsuario);
@@ -404,6 +396,5 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
     res.status(500).json({ error: 'Error al agregar comentario' });
   }
 });
-
 
 module.exports = router;
