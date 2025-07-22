@@ -149,7 +149,9 @@ for (const socketId of sockets) {
   const puntuacionRoutes = require('./routes/puntuacion');
   const historialdeposicionesRoutes = require('./routes/historialpuntuacion');
   const mensajePartidoRouter = require('./routes/mensajePartido');
-  const envioNotificacionRouter = require('./routes/envioNotificacion');
+  const envioNotificacionRouter = require('./routes/envioNotificacion')
+
+  
 app.use('/api/envio-notificaciones', envioNotificacionRouter);
 
 
