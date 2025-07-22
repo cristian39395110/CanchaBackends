@@ -347,6 +347,7 @@ router.post('/:publicacionId/comentarios', async (req, res) => {
   const io = require('../socket');
   const { publicacionId } = req.params;
   const { usuarioId, contenido } = req.body;
+  console.log("entramos a comentario")
 
   try {
     // 1. Crear el comentario
