@@ -8,7 +8,7 @@ const fs = require('fs');
 const { Op } = require('sequelize');
 
 
-const { Publicacion, Usuario, Amistad, Comentario, Like ,PublicacionLeida} = require('../models/model');
+const { Publicacion, Usuario, Amistad, Comentario, Like ,PublicacionLeida,envioNotificacion} = require('../models/model');
 
 // 🖼️ Configuración de multer para subir imágenes
 const cloudinary = require('cloudinary').v2;
@@ -213,6 +213,8 @@ router.post('/', upload.single('foto'), async (req, res) => {
   const { contenido, usuarioId } = req.body;
 
   try {
+    const usuario = await Usuario.findByPk(usuarioId);
+
     const nueva = await Publicacion.create({
       usuarioId,
       contenido,
@@ -238,8 +240,6 @@ router.post('/', upload.single('foto'), async (req, res) => {
       ]
     });
 
-    
-    // 🔥 Emitir notificación por WebSocket a los amigos
     const amistades = await Amistad.findAll({
       where: {
         estado: 'aceptado',
@@ -254,14 +254,29 @@ router.post('/', upload.single('foto'), async (req, res) => {
       a.usuarioId == usuarioId ? a.amigoId : a.usuarioId
     );
 
-    const io = req.app.get('io'); // asegurate de hacer esto en tu app.js
+    const io = req.app.get('io'); // ✅ Solo una vez
 
-    amigos.forEach(amigoId => {
-   io.to(`usuario-${amigoId}`).emit('nueva-publicacion', {
-  publicacion: nuevaConUsuario, // envías el objeto completo
-});
-    });
+    for (const amigoId of amigos) {
+      await envioNotificacion.create({
+        usuarioId: amigoId,
+        emisorId: usuarioId,
+        tipo: 'publicacion',
+        mensaje: `🆕 ${usuario.nombre} publicó algo nuevo`,
+        fotoEmisor: usuario.fotoPerfil,
+        publicacionId: nueva.id
+      });
 
+      io.to(`usuario-${amigoId}`).emit('nueva-publicacion', {
+        publicacion: nuevaConUsuario
+      });
+
+      io.to(`usuario-${amigoId}`).emit('nuevaNotificacion', {
+        tipo: 'publicacion',
+        mensaje: `🆕 ${usuario.nombre} publicó algo nuevo`,
+        foto: usuario.fotoPerfil,
+        publicacionId: nueva.id
+      });
+    }
 
     res.status(201).json(nuevaConUsuario);
   } catch (err) {

@@ -3,10 +3,10 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Amistad,Usuario } = require('../models/model');
+const { Amistad,Usuario ,envioNotificacion} = require('../models/model');
 
 
-// para saber ubicacion 10 min 
+// para saber ubicacion 10 min amistad???
 
 
 router.post('/ubicacion', async (req, res) => {
@@ -199,6 +199,25 @@ router.post('/aceptar', async (req, res) => {
         estado: 'aceptado'
       });
     }
+// 🔔 Notificación al emisor de la solicitud
+    const emisor = await Usuario.findByPk(usuarioId); // Quien acepta
+    const receptor = await Usuario.findByPk(amigoId); // A quien se la acepta
+
+    const nuevaNoti = await envioNotificacion.create({
+      usuarioId: amigoId,              // a quién le llega
+      emisorId: usuarioId,             // quién aceptó
+      tipo: 'amistad',
+      mensaje: `✅ ${emisor.nombre} aceptó tu solicitud de amistad`,
+      fotoEmisor: emisor.fotoPerfil
+    });
+
+    // 🔌 Emitir por WebSocket
+    const io = req.app.get('io');
+    io.to(`usuario-${amigoId}`).emit('nuevaNotificacion', {
+      tipo: 'amistad',
+      mensaje: nuevaNoti.mensaje,
+      foto: emisor.fotoPerfil
+    });
 
     res.json({ mensaje: '✅ Amistad aceptada correctamente' });
 
