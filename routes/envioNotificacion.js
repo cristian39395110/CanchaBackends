@@ -116,3 +116,5 @@ router.patch('/marcar-todas/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar notificaciones' });
   }
 });
+
+module.exports = router;
