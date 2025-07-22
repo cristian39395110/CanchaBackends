@@ -323,6 +323,28 @@ router.post('/cancelar', async (req, res) => {
         }
       }
 
+      // 🔔 Notificar al organizador (si no es el mismo que se unió)
+if (partido.organizador.id !== jugador.id) {
+  const susOrganizador = await Suscripcion.findOne({
+    where: { usuarioId: partido.organizador.id }
+  });
+
+  if (susOrganizador && susOrganizador.fcmToken) {
+    await admin.messaging().send({
+      token: susOrganizador.fcmToken,
+      notification: {
+        title: '📥 Jugador confirmado',
+        body: `${jugador.nombre} aceptó la invitación al partido que organizaste el ${partido.fecha} a las ${partido.hora} hs`
+      },
+      data: {
+        tipo: 'organizador',
+        partidoId: partido.id.toString()
+      }
+    });
+  }
+}
+
+
       // 📡 Emitir mensaje al grupo por WebSocket
       if (io) {
         io.to(`partido-${partido.id}`).emit('nuevo-mensaje-partido', mensajeGrupal);
