@@ -242,109 +242,109 @@ router.post('/cancelar', async (req, res) => {
 // POST /solicitudes/aceptar
 // routes/solicitudes.js
 // POST /solicitudes/aceptar
-  router.post('/aceptar', async (req, res) => {
-    const { usuarioId, partidoId } = req.body;
+    router.post('/aceptar', async (req, res) => {
+      const { usuarioId, partidoId } = req.body;
 
-    try {
-      const partido = await Partido.findByPk(partidoId, {
-        include: [
-          { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] },
-          { model: Deporte, attributes: ['nombre'] }
-        ]
-      });
+      try {
+        const partido = await Partido.findByPk(partidoId, {
+          include: [
+            { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] },
+            { model: Deporte, attributes: ['nombre'] }
+          ]
+        });
 
-      if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+        if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
 
-      const confirmados = await UsuarioPartido.count({
-        where: {
-          PartidoId: partidoId,
-          estado: 'confirmado'
+        const confirmados = await UsuarioPartido.count({
+          where: {
+            PartidoId: partidoId,
+            estado: 'confirmado'
+          }
+        });
+
+        if (confirmados >= Number(partido.cantidadJugadores)) {
+          return res.status(400).json({ error: '❌ Ya se alcanzó el número máximo de jugadores' });
         }
-      });
 
-      if (confirmados >= Number(partido.cantidadJugadores)) {
-        return res.status(400).json({ error: '❌ Ya se alcanzó el número máximo de jugadores' });
-      }
+        const actualizado = await UsuarioPartido.update(
+          { estado: 'confirmado' },
+          { where: { UsuarioId: usuarioId, PartidoId: partidoId } }
+        );
 
-      const actualizado = await UsuarioPartido.update(
-        { estado: 'confirmado' },
-        { where: { UsuarioId: usuarioId, PartidoId: partidoId } }
-      );
+        if (actualizado[0] === 0) {
+          return res.status(404).json({ error: 'No se encontró la invitación' });
+        }
 
-      if (actualizado[0] === 0) {
-        return res.status(404).json({ error: 'No se encontró la invitación' });
-      }
+        const jugador = await Usuario.findByPk(usuarioId);
+        if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' });
 
-      const jugador = await Usuario.findByPk(usuarioId);
-      if (!jugador) return res.status(404).json({ error: 'Jugador no encontrado' });
+        const io = req.app.get('io');
 
-      const io = req.app.get('io');
+        // 💬 Crear mensaje grupal de sistema
+        const mensajeGrupal = await MensajePartido.create({
+          partidoId: partido.id,
+          usuarioId: jugador.id,
+          mensaje: `✅ ${jugador.nombre} se unió al partido.`
+        });
 
-      // 💬 Crear mensaje grupal de sistema
-      const mensajeGrupal = await MensajePartido.create({
-        partidoId: partido.id,
-        usuarioId: jugador.id,
-        mensaje: `✅ ${jugador.nombre} se unió al partido.`
-      });
+        // ✅ Obtener IDs de jugadores confirmados
+        const confirmadosData = await UsuarioPartido.findAll({
+          where: {
+            PartidoId: partidoId,
+            estado: 'confirmado'
+          },
+          attributes: ['UsuarioId']
+        });
 
-      // ✅ Obtener IDs de jugadores confirmados
-      const confirmadosData = await UsuarioPartido.findAll({
-        where: {
-          PartidoId: partidoId,
-          estado: 'confirmado'
-        },
-        attributes: ['UsuarioId']
-      });
+        const ids = confirmadosData.map(p => p.UsuarioId);
 
-      const ids = confirmadosData.map(p => p.UsuarioId);
+        // 🔔 Notificación FCM al grupo (excepto al que se unió)
+        const suscripciones = await Suscripcion.findAll({
+          where: {
+            usuarioId: {
+              [Op.in]: ids
+            }
+          }
+        });
 
-      // 🔔 Notificación FCM al grupo (excepto al que se unió)
-      const suscripciones = await Suscripcion.findAll({
-        where: {
-          usuarioId: {
-            [Op.in]: ids
+        for (const sus of suscripciones) {
+          if (sus.fcmToken && sus.usuarioId !== jugador.id) {
+            await admin.messaging().send({
+              token: sus.fcmToken,
+              notification: {
+                title: '👥 Nuevo jugador confirmado',
+                body: `${jugador.nombre} se unió al partido de ${partido.Deporte.nombre} el ${partido.fecha} a las ${partido.hora} hs`
+              },
+              data: {
+                tipo: 'grupo',
+                partidoId: partido.id.toString()
+              }
+            });
           }
         }
-      });
 
-      for (const sus of suscripciones) {
-        if (sus.fcmToken && sus.usuarioId !== jugador.id) {
-          await admin.messaging().send({
-            token: sus.fcmToken,
-            notification: {
-              title: '👥 Nuevo jugador confirmado',
-              body: `${jugador.nombre} se unió al partido de ${partido.Deporte.nombre} el ${partido.fecha} a las ${partido.hora} hs`
-            },
-            data: {
-              tipo: 'grupo',
-              partidoId: partido.id.toString()
-            }
-          });
-        }
-      }
-
-      // 🔔 Notificar al organizador (si no es el mismo que se unió)
-if (partido.organizador.id !== jugador.id) {
-  const susOrganizador = await Suscripcion.findOne({
-    where: { usuarioId: partido.organizador.id }
-  });
-
-  if (susOrganizador && susOrganizador.fcmToken) {
-    await admin.messaging().send({
-      token: susOrganizador.fcmToken,
-      notification: {
-        title: '📥 Jugador confirmado',
-        body: `${jugador.nombre} aceptó la invitación al partido que organizaste el ${partido.fecha} a las ${partido.hora} hs`
-      },
-    data: {
-  tipo: 'organizador',
-  partidoId: partido.id.toString(),
-  click_action: 'FLUTTER_NOTIFICATION_CLICK' // 👈 Esto activa la navegación en Android
-}
-
+        // 🔔 Notificar al organizador (si no es el mismo que se unió)
+  if (partido.organizador.id !== jugador.id) {
+    const susOrganizador = await Suscripcion.findOne({
+      where: { usuarioId: partido.organizador.id }
     });
+
+    if (susOrganizador && susOrganizador.fcmToken) {
+      await admin.messaging().send({
+        token: susOrganizador.fcmToken,
+        notification: {
+          title: '📥 Jugador confirmado',
+          body: `${jugador.nombre} aceptó la invitación al partido que organizaste el ${partido.fecha} a las ${partido.hora} hs`
+        },
+      data: {
+    tipo: 'organizador',
+    partidoId: partido.id.toString(),
+    click_action: 'FLUTTER_NOTIFICATION_CLICK' // 👈 Esto activa la navegación en Android
   }
-}
+
+      });
+    }
+  }
 
 
       // 📡 Emitir mensaje al grupo por WebSocket

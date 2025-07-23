@@ -31,14 +31,38 @@ router.delete('/conversacion/:usuarioId1/:usuarioId2', async (req, res) => {
 
 
 // DELETE /api/mensajes/partido/:partidoId
+// DELETE /api/mensajes/partido/:partidoId?usuarioId=123
 router.delete('/partido/:partidoId', async (req, res) => {
-   const { partidoId } = req.params;
-  console.log('➡️ Eliminando chat del partido:', partidoId);
+  const { partidoId } = req.params;
+  const usuarioId = req.query.usuarioId;
+
+  if (!usuarioId) {
+    return res.status(400).json({ error: 'Falta el usuarioId' });
+  }
+
   try {
-    await MensajePartido.destroy({ where: { partidoId } });
-    res.json({ success: true });
+    console.log(`🚪 Usuario ${usuarioId} saliendo del partido ${partidoId}...`);
+
+    // Eliminar mensajes del usuario en ese partido
+    await MensajePartido.destroy({
+      where: {
+        partidoId,
+        usuarioId
+      }
+    });
+
+    // Eliminar la relación en UsuarioPartido (ya no está en el grupo)
+    await UsuarioPartido.destroy({
+      where: {
+        PartidoId: partidoId,
+        UsuarioId: usuarioId
+      }
+    });
+
+    res.json({ success: true, message: 'Saliste del partido y eliminaste el chat' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al eliminar chat del partido' });
+    console.error('❌ Error al salir del partido:', err);
+    res.status(500).json({ error: 'Error al salir del partido' });
   }
 });
 
@@ -340,45 +364,49 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-   const partidos = await UsuarioPartido.findAll({
-      where: {
-        usuarioId,
-        estado: { [Op.in]: ['confirmado', 'organizador'] } // 🎯 incluimos los dos
-      },
-      include: [
-        {
-          model: Partido,
-          include: [
-            { model: Deporte },
-            { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] },
-          ],
-        },
-      ],
+    // Solo partidos donde este usuario tenga mensajes
+    const mensajes = await MensajePartido.findAll({
+      where: { usuarioId },
+      attributes: ['partidoId'],
+      group: ['partidoId']
     });
-    const resultado = partidos.map((up) => {
-  const partido = up.Partido;
 
-  const fechaFormateada = new Date(`${partido.fecha}T${partido.hora}`).toLocaleString('es-AR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
+    const partidoIds = mensajes.map(m => m.partidoId);
 
-  return {
-    id: partido.id,
-    nombre: `${partido.Deporte.nombre} - ${fechaFormateada}`,
-    organizador: partido.organizador?.nombre || '',
-  };
-});
+    if (partidoIds.length === 0) return res.json([]);
+
+    // Obtener detalles de los partidos (aunque ya no esté en UsuarioPartido)
+    const partidos = await Partido.findAll({
+      where: { id: { [Op.in]: partidoIds } },
+      include: [
+        { model: Deporte },
+        { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] }
+      ]
+    });
+
+    const resultado = partidos.map((partido) => {
+      const fechaFormateada = new Date(`${partido.fecha}T${partido.hora}`).toLocaleString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      return {
+        id: partido.id,
+        nombre: `${partido.Deporte.nombre} - ${fechaFormateada}`,
+        organizador: partido.organizador?.nombre || ''
+      };
+    });
 
     res.json(resultado);
   } catch (error) {
-    console.error('❌ Error al obtener partidos con chat:', error);
+    console.error('❌ Error al obtener partidos confirmados:', error);
     res.status(500).json({ error: 'Error al obtener partidos con chat' });
   }
 });
+
 
 module.exports = router;
