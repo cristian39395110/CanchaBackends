@@ -505,17 +505,35 @@ router.get('/:id', async (req, res) => {
     let haySolicitudPendiente = false;
 
     if (solicitanteId && solicitanteId !== id) {
-      const relacion = await Amistad.findOne({
+      // Primero revisamos si ya son amigos
+      const amistad = await Amistad.findOne({
         where: {
           [Op.or]: [
             { usuarioId: solicitanteId, amigoId: id },
             { usuarioId: id, amigoId: solicitanteId }
-          ]
+          ],
+          estado: 'aceptado' // 👈 clave
         }
       });
 
-      if (relacion?.estado === 'aceptada') esAmigo = true;
-      if (relacion?.estado === 'pendiente') haySolicitudPendiente = true;
+      if (amistad) {
+        esAmigo = true;
+      } else {
+        // Solo si no son amigos, revisamos si hay una solicitud pendiente
+        const pendiente = await Amistad.findOne({
+          where: {
+            [Op.or]: [
+              { usuarioId: solicitanteId, amigoId: id },
+              { usuarioId: id, amigoId: solicitanteId }
+            ],
+            estado: 'pendiente'
+          }
+        });
+
+        if (pendiente) {
+          haySolicitudPendiente = true;
+        }
+      }
     }
 
     res.json({
