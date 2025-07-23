@@ -336,10 +336,12 @@ if (partido.organizador.id !== jugador.id) {
         title: '📥 Jugador confirmado',
         body: `${jugador.nombre} aceptó la invitación al partido que organizaste el ${partido.fecha} a las ${partido.hora} hs`
       },
-      data: {
-        tipo: 'organizador',
-        partidoId: partido.id.toString()
-      }
+    data: {
+  tipo: 'organizador',
+  partidoId: partido.id.toString(),
+  click_action: 'FLUTTER_NOTIFICATION_CLICK' // 👈 Esto activa la navegación en Android
+}
+
     });
   }
 }
