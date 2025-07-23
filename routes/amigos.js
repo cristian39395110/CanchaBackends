@@ -250,6 +250,43 @@ await envioNotificacion.destroy({
 });
 
 
+// Eliminar amistad y notificación
+router.post('/eliminar', async (req, res) => {
+  const { usuarioId, amigoId } = req.body;
+
+  try {
+    const eliminado = await Amistad.destroy({
+      where: {
+        [Op.or]: [
+          { usuarioId, amigoId },
+          { usuarioId: amigoId, amigoId: usuarioId }
+        ],
+        estado: 'aceptado'
+      }
+    });
+
+    // 💣 También eliminar notificación de amistad (si existe)
+    await envioNotificacion.destroy({
+      where: {
+        [Op.or]: [
+          { usuarioId, emisorId: amigoId, tipo: 'solicitud' },
+          { usuarioId: amigoId, emisorId: usuarioId, tipo: 'solicitud' }
+        ]
+      }
+    });
+
+    if (!eliminado) {
+      return res.status(404).json({ error: 'No hay amistad que eliminar' });
+    }
+
+    res.json({ mensaje: '❌ Amistad eliminada y notificación eliminada' });
+
+  } catch (error) {
+    console.error('❌ Error:', error);
+    res.status(500).json({ error: 'Error al eliminar amistad' });
+  }
+});
+
 
 // ❌ Cancelar solicitud
 router.post('/cancelar', async (req, res) => {

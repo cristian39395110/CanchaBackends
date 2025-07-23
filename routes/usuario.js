@@ -484,15 +484,15 @@ router.put('/:id', autenticarToken, async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
+  const solicitanteId = req.query.solicitanteId;
 
   try {
     const usuario = await Usuario.findByPk(id, {
-      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'perfilPublico', 'partidosJugados','sexo',
-  'edad'],
+      attributes: ['id', 'nombre', 'email', 'fotoPerfil', 'localidad', 'perfilPublico', 'partidosJugados','sexo', 'edad'],
       include: [{
         model: UsuarioDeporte,
-        include: [{ model: Deporte }],
-      }],
+        include: [{ model: Deporte }]
+      }]
     });
 
     if (!usuario) {
@@ -500,6 +500,23 @@ router.get('/:id', async (req, res) => {
     }
 
     const deportes = usuario.UsuarioDeportes?.map(ud => ud.Deporte?.nombre) || [];
+
+    let esAmigo = false;
+    let haySolicitudPendiente = false;
+
+    if (solicitanteId && solicitanteId !== id) {
+      const relacion = await Amistad.findOne({
+        where: {
+          [Op.or]: [
+            { usuarioId: solicitanteId, amigoId: id },
+            { usuarioId: id, amigoId: solicitanteId }
+          ]
+        }
+      });
+
+      if (relacion?.estado === 'aceptada') esAmigo = true;
+      if (relacion?.estado === 'pendiente') haySolicitudPendiente = true;
+    }
 
     res.json({
       id: usuario.id,
@@ -509,15 +526,19 @@ router.get('/:id', async (req, res) => {
       localidad: usuario.localidad,
       perfilPublico: usuario.perfilPublico,
       partidosJugados: usuario.partidosJugados || 0,
-       sexo: usuario.sexo,
-  edad: usuario.edad,
+      sexo: usuario.sexo,
+      edad: usuario.edad,
       deportes,
+      esAmigo,
+      haySolicitudPendiente
     });
+
   } catch (error) {
     console.error('❌ Error al obtener perfil de usuario:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 // POST /api/usuarios/bloquear
 router.post('/bloquear', async (req, res) => {
   const { usuarioId, bloqueadoId } = req.body;
