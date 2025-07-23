@@ -439,5 +439,25 @@ router.get('/detalle/:id', async (req, res) => {
   }
 });
 
+router.delete('/comentarios/:comentarioId', async (req, res) => {
+  const { comentarioId } = req.params;
+  const { usuarioId } = req.body;
+
+  try {
+    const comentario = await Comentario.findByPk(comentarioId);
+    if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
+
+    if (comentario.usuarioId !== Number(usuarioId)) {
+      return res.status(403).json({ error: 'No tenés permiso para borrar este comentario' });
+    }
+
+    await comentario.destroy();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al borrar el comentario' });
+  }
+});
+
+
 
 module.exports = router;
