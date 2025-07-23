@@ -7,6 +7,41 @@ const { Op } = require('sequelize');
 const admin = require('firebase-admin');
 
 // Obtener una conversación entre dos usuarios
+
+
+// DELETE /api/mensajes/conversacion/:usuarioId1/:usuarioId2
+router.delete('/conversacion/:usuarioId1/:usuarioId2', async (req, res) => {
+  const { usuarioId1, usuarioId2 } = req.params;
+  try {
+    await Mensaje.destroy({
+      where: {
+        [Op.or]: [
+          { emisorId: usuarioId1, receptorId: usuarioId2 },
+          { emisorId: usuarioId2, receptorId: usuarioId1 }
+        ]
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar conversación' });
+  }
+});
+
+
+
+
+// DELETE /api/mensajes-partido/partido/:partidoId
+router.delete('/partido/:partidoId', async (req, res) => {
+  const { partidoId } = req.params;
+  try {
+    await MensajePartido.destroy({ where: { partidoId } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar chat del partido' });
+  }
+});
+
+
 router.get('/conversacion/:emisorId/:receptorId', async (req, res) => {
   const { emisorId, receptorId } = req.params;
   try {
