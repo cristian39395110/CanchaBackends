@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Usuario, UsuarioPartido, Mensaje, Suscripcion,Partido,Deporte } = require('../models/model');
+const { Usuario, UsuarioPartido, Mensaje, Suscripcion,Partido,Deporte,MensajePartido } = require('../models/model');
 const { Op } = require('sequelize');
 const admin = require('firebase-admin');
 
