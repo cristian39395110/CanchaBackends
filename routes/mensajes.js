@@ -89,13 +89,16 @@ router.get('/conversacion/:emisorId/:receptorId', async (req, res) => {
 // DELETE /api/mensajes/eliminar/:id
 router.delete('/eliminar/:id', async (req, res) => {
   const { id } = req.params;
+  const { usuarioId } = req.query; 
 
   try {
     const mensaje = await Mensaje.findByPk(id);
     if (!mensaje) {
       return res.status(404).json({ error: 'Mensaje no encontrado' });
     }
-
+  if (mensaje.emisorId !== Number(usuarioId)) {
+      return res.status(403).json({ error: 'No autorizado para eliminar este mensaje' });
+    }
     await mensaje.destroy();
     res.json({ success: true });
   } catch (err) {
