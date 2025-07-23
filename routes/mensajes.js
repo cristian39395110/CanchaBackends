@@ -86,6 +86,25 @@ router.get('/conversacion/:emisorId/:receptorId', async (req, res) => {
   }
 });
 
+// DELETE /api/mensajes/eliminar/:id
+router.delete('/eliminar/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const mensaje = await Mensaje.findByPk(id);
+    if (!mensaje) {
+      return res.status(404).json({ error: 'Mensaje no encontrado' });
+    }
+
+    await mensaje.destroy();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Error al eliminar mensaje:', err);
+    res.status(500).json({ error: 'Error al eliminar mensaje' });
+  }
+});
+
+
 // Contar mensajes no leídos
 router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
