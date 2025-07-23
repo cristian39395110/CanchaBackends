@@ -440,8 +440,8 @@ router.get('/detalle/:id', async (req, res) => {
 });
 
 router.delete('/comentarios/:comentarioId', async (req, res) => {
-  const { comentarioId } = req.params;
-  const { usuarioId } = req.body;
+ const { comentarioId } = req.params;
+  const { usuarioId } = req.query; 
 
   try {
     const comentario = await Comentario.findByPk(comentarioId);
