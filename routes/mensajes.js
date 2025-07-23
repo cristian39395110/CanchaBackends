@@ -30,9 +30,10 @@ router.delete('/conversacion/:usuarioId1/:usuarioId2', async (req, res) => {
 
 
 
-// DELETE /api/mensajes-partido/partido/:partidoId
+// DELETE /api/mensajes/partido/:partidoId
 router.delete('/partido/:partidoId', async (req, res) => {
-  const { partidoId } = req.params;
+   const { partidoId } = req.params;
+  console.log('➡️ Eliminando chat del partido:', partidoId);
   try {
     await MensajePartido.destroy({ where: { partidoId } });
     res.json({ success: true });
