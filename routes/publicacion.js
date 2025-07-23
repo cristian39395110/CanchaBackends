@@ -439,9 +439,11 @@ router.get('/detalle/:id', async (req, res) => {
   }
 });
 
+
+
 router.delete('/comentarios/:comentarioId', async (req, res) => {
- const { comentarioId } = req.params;
-  const { usuarioId } = req.query; 
+  const { comentarioId } = req.params;
+  const { usuarioId } = req.query;
 
   try {
     const comentario = await Comentario.findByPk(comentarioId);
@@ -451,13 +453,22 @@ router.delete('/comentarios/:comentarioId', async (req, res) => {
       return res.status(403).json({ error: 'No tenés permiso para borrar este comentario' });
     }
 
+    // 🧽 Eliminar notificaciones del tipo 'comentario' asociadas a esta publicación y este emisor
+    await envioNotificacion.destroy({
+      where: {
+        tipo: 'comentario',
+        publicacionId: comentario.publicacionId,
+        emisorId: comentario.usuarioId
+      }
+    });
+
     await comentario.destroy();
     res.json({ success: true });
   } catch (error) {
+    console.error('❌ Error al borrar comentario y notificación:', error);
     res.status(500).json({ error: 'Error al borrar el comentario' });
   }
 });
-
 
 
 module.exports = router;
