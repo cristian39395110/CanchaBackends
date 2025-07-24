@@ -33,11 +33,21 @@
 
   // 👉 Canal privado del usuario
 socket.on('join', (sala) => {
-  const idExtraido = sala.split('-')[1]; // sacás el número del ID
-  socket.usuarioId = Number(idExtraido); // se lo guardás al socket
-  socket.join(sala); // lo metés a la sala correcta
-  console.log(`📡 Usuario unido a sala ${sala}`);
+  if (sala.startsWith('usuario-')) {
+    const idExtraido = sala.split('-')[1];
+    socket.usuarioId = Number(idExtraido);
+    socket.join(sala);
+    console.log(`📡 Usuario unido a sala ${sala}`);
+  }
+
+  if (sala.startsWith('noti-')) {
+    socket.join(sala);
+    console.log(`🔔 Usuario unido a sala de notificaciones ${sala}`);
+  }
 });
+
+
+
 
 socket.on('leave', (sala) => {
   socket.leave(sala);
