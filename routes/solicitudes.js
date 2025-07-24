@@ -342,9 +342,20 @@ router.post('/cancelar', async (req, res) => {
     click_action: 'FLUTTER_NOTIFICATION_CLICK' // 👈 Esto activa la navegación en Android
   }
 
+
+
       });
     }
+io.to(`noti-${partido.organizador.id}`).emit('alertaVisual', {
+  tipo: 'partido',
+  partidoId: partido.id,
+  nombre: jugador.nombre,
+  mensaje: `${jugador.nombre} aceptó la invitación al partido`
+});
+
+
   }
+  
 
 
       // 📡 Emitir mensaje al grupo por WebSocket

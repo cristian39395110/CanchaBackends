@@ -19,6 +19,7 @@ if (!partidoId || !usuarioId || !mensaje) {
 
 try {
     // Evitar duplicados si llega el mismo frontendId
+
     if (frontendId) {
       const yaExiste = await MensajePartido.findOne({ where: { frontendId } });
       if (yaExiste) {
@@ -63,16 +64,30 @@ for (const socketId of sockets) {
   },
   include: [{ model: Usuario, attributes: ['nombre'] }]
 });
-
+    const emisor = await Usuario.findByPk(usuarioId); // << nombre del que escribe
+const nombreEmisor = emisor?.nombre || 'Jugador';
 
     for (const jugador of jugadores) {
       const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.UsuarioId } });
 
+
+  io.to(`noti-${jugador.UsuarioId}`).emit('alertaVisual', {
+  tipo: 'partido',
+  partidoId,
+  nombre: nombreEmisor,
+  mensaje: mensaje.length > 60 ? mensaje.slice(0, 60) + '...' : mensaje
+});
+
+
+     
+     
       if (suscripcion && suscripcion.fcmToken) {
         const payload = {
           notification: {
             title: `💬 Nuevo mensaje en el partido`,
-            body: `${jugador.Usuario?.nombre || 'Otro jugador'}: ${mensaje}`,
+           body: `${nombreEmisor}: ${mensaje}`, // ✅ Correcto
+
+
           }
         };
 

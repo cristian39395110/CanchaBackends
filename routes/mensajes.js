@@ -209,6 +209,10 @@ router.post('/enviar', async (req, res) => {
   }
 
  try {
+
+  const emisor = await Usuario.findByPk(emisorId);
+  const nombreEmisor = emisor?.nombre || `Usuario ${emisorId}`;
+
     // 🔄 Verificar si ya existe un mensaje con ese frontendId
     if (frontendId) {
       const mensajeExistente = await Mensaje.findOne({ where: { frontendId } });
@@ -238,6 +242,15 @@ router.post('/enviar', async (req, res) => {
 
       // ✅ Emitir al receptor normal
       io.to(`usuario-${receptorId}`).emit('mensajeNuevo', nuevoMensaje);
+
+io.to(`noti-${receptorId}`).emit('alertaVisual', {
+  tipo: 'usuario',
+  usuarioId: emisorId, // 👈 Por si querés usarlo también
+  nombre: nombreEmisor,
+  mensaje: mensaje.length > 60 ? mensaje.slice(0, 60) + '...' : mensaje
+});
+
+
 
       // 🔁 Contadores si usás
       io.to(`usuario-${emisorId}`).emit('actualizar-contadores');
