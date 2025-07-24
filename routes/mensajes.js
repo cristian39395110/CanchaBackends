@@ -114,7 +114,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
   try {
     const mensajes = await Mensaje.findAll({
       where: {
-        receptorId: usuarioId,
+        receptorId: Number(usuarioId), // 👈 conversión necesaria
         leido: false
       }
     });
@@ -124,6 +124,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
 
 // Obtener lista de chats
 router.get('/chats/:usuarioId', async (req, res) => {
