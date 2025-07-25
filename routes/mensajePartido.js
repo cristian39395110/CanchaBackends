@@ -109,6 +109,26 @@ const nombreEmisor = emisor?.nombre || 'Jugador';
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+// PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
+router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
+  const { partidoId, usuarioId } = req.params;
+  try {
+    await MensajePartido.update(
+      { leido: true },
+      {
+        where: {
+          partidoId,
+          usuarioId: { [Op.ne]: usuarioId }, // solo los mensajes que no escribió él
+          leido: false
+        }
+      }
+    );
+    res.status(200).json({ mensaje: 'Mensajes marcados como leídos' });
+  } catch (error) {
+    console.error('❌ Error al marcar como leídos (partido):', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
 
 
 router.get('/partido/:partidoId', async (req, res) => {
