@@ -67,6 +67,34 @@ router.delete('/partido/:partidoId', async (req, res) => {
 });
 
 
+// Obtener partidos con mensajes no leídos
+router.get('/no-leidos/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    const mensajes = await MensajePartido.findAll({
+      where: {
+        leido: false,
+        usuarioId: { [Op.ne]: usuarioId } // que no los haya enviado el mismo usuario
+      },
+      include: [{
+        model: UsuarioPartido,
+        where: { UsuarioId: usuarioId, estado: 'confirmado' },
+        required: true
+      }]
+    });
+
+    const partidosConMensajes = [...new Set(mensajes.map(m => m.partidoId))];
+
+    res.json({ partidosConMensajes });
+  } catch (error) {
+    console.error('❌ Error al contar mensajes no leídos de partido:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+
+
 router.get('/conversacion/:emisorId/:receptorId', async (req, res) => {
   const { emisorId, receptorId } = req.params;
   try {
@@ -114,16 +142,20 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
   try {
     const mensajes = await Mensaje.findAll({
       where: {
-        receptorId: Number(usuarioId), // 👈 conversión necesaria
+        receptorId: Number(usuarioId),
         leido: false
       }
     });
-    res.json({ total: mensajes.length });
+
+    const usuariosConMensajes = [...new Set(mensajes.map(m => m.emisorId))];
+
+    res.json({ usuariosConMensajes });
   } catch (error) {
     console.error('❌ Error al contar mensajes no leídos:', error);
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
 
 
 // Obtener lista de chats
