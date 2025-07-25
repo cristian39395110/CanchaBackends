@@ -23,6 +23,11 @@ const MensajePartido = sequelize.define('MensajePartido', {
     type: DataTypes.ENUM('texto', 'sistema', 'imagen'),
     defaultValue: 'texto'
   },
+  leido: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false
+},
+
   frontendId: {
   type: DataTypes.STRING,
   allowNull: true,
