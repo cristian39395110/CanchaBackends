@@ -381,8 +381,9 @@ io.to(`noti-${partido.organizador.id}`).emit('alertaVisual', {
 
 
 // POST /solicitudes/rechazar/:id
-router.post('/rechazar', async (req, res) => {
-  const { usuarioId, partidoId } = req.body;
+router.post('/rechazar/:partidoId', async (req, res) => {
+  const { usuarioId } = req.body; // viene en el body
+  const { partidoId } = req.params; // viene por la URL
 
   try {
     await UsuarioPartido.update(
@@ -401,6 +402,5 @@ router.post('/rechazar', async (req, res) => {
     res.status(500).json({ error: 'Error al rechazar invitación' });
   }
 });
-
 
 module.exports = router;
