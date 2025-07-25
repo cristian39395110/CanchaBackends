@@ -260,18 +260,20 @@ io.to(`noti-${receptorId}`).emit('alertaVisual', {
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: receptorId } });
 
     if (suscripcion?.fcmToken) {
-      await admin.messaging().send({
-        token: suscripcion.fcmToken,
-        notification: {
-          title: '📩 Nuevo mensaje',
-          body: mensaje.length > 40 ? mensaje.slice(0, 40) + '...' : mensaje
-        },
-        data: {
-          url: '/chat',
-          tipo: 'mensaje',
-          emisorId: String(emisorId)
-        }
-      });
+     await admin.messaging().send({
+  token: suscripcion.fcmToken,
+  notification: {
+    title: `📩 Mensaje de ${nombreEmisor}`,
+    body: mensaje.length > 40 ? mensaje.slice(0, 40) + '...' : mensaje
+  },
+  data: {
+    url: `/chat/${emisorId}`,
+    tipo: 'mensaje',
+    emisorId: String(emisorId),
+    nombre: nombreEmisor
+  }
+});
+
     }
 
     // Emitir mensaje vía WebSocket SOLO al receptor

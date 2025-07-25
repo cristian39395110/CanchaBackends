@@ -320,7 +320,8 @@ router.post('/cancelar', async (req, res) => {
               },
               data: {
                 tipo: 'grupo',
-                partidoId: partido.id.toString()
+                partidoId: partido.id.toString(),
+                 url: `/chat/partido/${partido.id}`
               }
             });
           }
@@ -342,7 +343,8 @@ router.post('/cancelar', async (req, res) => {
       data: {
     tipo: 'organizador',
     partidoId: partido.id.toString(),
-    click_action: 'FLUTTER_NOTIFICATION_CLICK' // 👈 Esto activa la navegación en Android
+       url: `/chat/partido/${partido.id}`
+   // 👈 Esto activa la navegación en Android
   }
 
 
