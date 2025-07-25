@@ -109,6 +109,29 @@ const nombreEmisor = emisor?.nombre || 'Jugador';
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+// ✅ Obtener IDs de partidos con mensajes no leídos (para el usuario)
+router.get('/no-leidos/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    const mensajes = await MensajePartido.findAll({
+      where: {
+        usuarioId: { [Op.ne]: usuarioId }, // que no sean escritos por él
+        leido: false
+      },
+      attributes: ['partidoId']
+    });
+
+    const partidosConMensajes = [...new Set(mensajes.map(m => m.partidoId))];
+
+    res.json({ partidosConMensajes });
+  } catch (error) {
+    console.error('❌ Error en /mensajes-partido/no-leidos:', error);
+    res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
+  }
+});
+
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
   const { partidoId, usuarioId } = req.params;
