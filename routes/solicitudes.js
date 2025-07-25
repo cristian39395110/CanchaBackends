@@ -384,6 +384,10 @@ io.to(`noti-${partido.organizador.id}`).emit('alertaVisual', {
 router.post('/rechazar/:partidoId', async (req, res) => {
   const { usuarioId } = req.body; // viene en el body
   const { partidoId } = req.params; // viene por la URL
+console.log('UsuarioId------------------------------:');
+console.log('UsuarioId:', usuarioId);
+console.log('PartidoId:', partidoId);
+
 
   try {
     await UsuarioPartido.update(
