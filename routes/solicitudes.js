@@ -225,6 +225,9 @@ router.post('/cancelar', async (req, res) => {
       io.to(`usuario-${partido.organizador.id}`).emit('mensajeNuevo', mensaje);
       io.to(`usuario-${partido.organizador.id}`).emit('actualizar-contadores');
     }
+    if (io) {
+  io.to(`noti-${usuarioId}`).emit('actualizar-notificaciones', { receptorId: usuarioId });
+}
 
     res.json({ mensaje: '✅ Asistencia cancelada y notificación enviada.' });
   } catch (error) {
@@ -362,7 +365,10 @@ io.to(`noti-${partido.organizador.id}`).emit('alertaVisual', {
       if (io) {
         io.to(`partido-${partido.id}`).emit('nuevo-mensaje-partido', mensajeGrupal);
       }
-
+     
+      if (io) {
+  io.to(`noti-${usuarioId}`).emit('actualizar-notificaciones', { receptorId: usuarioId });
+}
       res.json({ mensaje: '✅ Invitación aceptada y notificada al grupo' });
 
     } catch (error) {
@@ -374,13 +380,25 @@ io.to(`noti-${partido.organizador.id}`).emit('alertaVisual', {
 
 // POST /solicitudes/rechazar/:id
 router.post('/rechazar', async (req, res) => {
- const { usuarioId, partidoId } = req.body;
+  const { usuarioId, partidoId } = req.body;
+
   try {
-    await UsuarioPartido.update({ estado: 'rechazada' }, { where: { usuarioId } });
+    await UsuarioPartido.update(
+      { estado: 'rechazada' },
+      { where: { UsuarioId: usuarioId, PartidoId: partidoId } }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`noti-${usuarioId}`).emit('actualizar-notificaciones', { receptorId: usuarioId });
+    }
+
     res.json({ success: true });
   } catch (error) {
+    console.error('❌ Error al rechazar invitación:', error);
     res.status(500).json({ error: 'Error al rechazar invitación' });
   }
 });
+
 
 module.exports = router;
