@@ -41,16 +41,21 @@ const io = req.app.get('io');
    // 🔄 Emitir por WebSocket a todos en la sala del partido, marcando esMio solo al emisor
 const sockets = await io.in(`partido-${partidoId}`).allSockets();
 
+const mensajeConUsuario = {
+  ...nuevoMensaje.toJSON(),
+  Usuario: { nombre: emisor?.nombre || 'Jugador' } // 👈 le agregamos el nombre para el frontend
+};
+
 for (const socketId of sockets) {
   const socketInstance = io.sockets.sockets.get(socketId);
 
   if (socketInstance?.usuarioId === Number(usuarioId)) {
     socketInstance.emit('nuevo-mensaje-partido', {
-      ...nuevoMensaje.toJSON(),
+      ...mensajeConUsuario,
       esMio: true
     });
   } else {
-    socketInstance?.emit('nuevo-mensaje-partido', nuevoMensaje);
+    socketInstance?.emit('nuevo-mensaje-partido', mensajeConUsuario);
   }
 }
 
