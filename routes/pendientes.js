@@ -217,6 +217,12 @@ router.post('/rechazar', async (req, res) => {
         }
       });
     }
+    for (const socket of io.sockets.sockets.values()) {
+  if (socket.usuarioId === jugadorId) {
+    socket.leave(`partido-${partidoId}`);
+    break;
+  }
+}
 
     res.json({ mensaje: '✅ Jugador removido, notificado y mensaje enviado al grupo' });
 

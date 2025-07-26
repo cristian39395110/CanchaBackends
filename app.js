@@ -55,10 +55,49 @@ socket.on('leave', (sala) => {
 });
 
   // 👉 Canal grupal del partido
+  /*  anda bien este que une al partido 
   socket.on('join-partido', (partidoId) => {
     socket.join(`partido-${partidoId}`);
     console.log(`⚽ Usuario unido al chat del partido ${partidoId}`);
   });
+*/
+
+  const { Partido, UsuarioPartido } = require('./models');
+
+socket.on('join-partido', async (partidoId) => {
+  try {
+    const usuarioId = socket.usuarioId;
+
+    if (!usuarioId) return;
+
+    const partido = await Partido.findByPk(partidoId);
+
+    if (!partido) return;
+
+    // ✅ Si es organizador, dejarlo entrar
+    if (partido.organizadorId === usuarioId) {
+      socket.join(`partido-${partidoId}`);
+      console.log(`⚽ Organizador ${usuarioId} se unió a partido-${partidoId}`);
+      return;
+    }
+
+    // ✅ Si es jugador confirmado, dejarlo entrar
+    const relacion = await UsuarioPartido.findOne({
+      where: { UsuarioId: usuarioId, PartidoId: partidoId, estado: 'confirmado' }
+    });
+
+    if (relacion) {
+      socket.join(`partido-${partidoId}`);
+      console.log(`⚽ Jugador ${usuarioId} se unió a partido-${partidoId}`);
+    } else {
+      console.log(`⛔ Usuario ${usuarioId} NO autorizado a unirse a partido-${partidoId}`);
+      socket.emit('expulsado-del-partido', { partidoId }); // 👈 Notifica al frontend
+    }
+  } catch (err) {
+    console.error('❌ Error al unir a sala del partido:', err);
+  }
+});
+
 
   // 👉 Evento: enviar mensaje al grupo del partido
   socket.on('mensaje-partido', async ({ partidoId, usuarioId, mensaje }) => {
