@@ -210,15 +210,38 @@ router.get('/nuevas/:usuarioId', async (req, res) => {
 
 // ✅ POST nueva publicación
 router.post('/', upload.single('foto'), async (req, res) => {
-  const { contenido, usuarioId ,perfilId} = req.body;
+  const { contenido, usuarioId, perfilId } = req.body;
 
   try {
-    const usuario = await Usuario.findByPk(usuarioId);
+    const idUsuario = Number(usuarioId);
+    const idPerfil = Number(perfilId);
+
+    if (!idUsuario || !idPerfil) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios' });
+    }
+
+    if (idUsuario !== idPerfil) {
+      const amistad = await Amistad.findOne({
+        where: {
+          estado: 'aceptado',
+          [Op.or]: [
+            { usuarioId: idUsuario, amigoId: idPerfil },
+            { usuarioId: idPerfil, amigoId: idUsuario }
+          ]
+        }
+      });
+
+      if (!amistad) {
+        return res.status(403).json({ error: 'No tenés permiso para publicar en este perfil' });
+      }
+    }
+
+    const usuario = await Usuario.findByPk(idUsuario);
 
     const nueva = await Publicacion.create({
-      usuarioId,
+      usuarioId: idUsuario,
       contenido,
-      perfilId,
+      perfilId: idPerfil,
       foto: req.file ? req.file.path : null,
       cloudinaryId: req.file ? req.file.filename : null,
       esPublica: true
@@ -245,22 +268,22 @@ router.post('/', upload.single('foto'), async (req, res) => {
       where: {
         estado: 'aceptado',
         [Op.or]: [
-          { usuarioId },
-          { amigoId: usuarioId }
+          { usuarioId: idUsuario },
+          { amigoId: idUsuario }
         ]
       }
     });
 
     const amigos = amistades.map(a =>
-      a.usuarioId == usuarioId ? a.amigoId : a.usuarioId
+      a.usuarioId === idUsuario ? a.amigoId : a.usuarioId
     );
 
-    const io = req.app.get('io'); // ✅ Solo una vez
+    const io = req.app.get('io');
 
     for (const amigoId of amigos) {
       await envioNotificacion.create({
         usuarioId: amigoId,
-        emisorId: usuarioId,
+        emisorId: idUsuario,
         tipo: 'publicacion',
         mensaje: `🆕 ${usuario.nombre} publicó algo nuevo`,
         fotoEmisor: usuario.fotoPerfil,
