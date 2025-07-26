@@ -289,11 +289,22 @@ router.post('/', upload.single('foto'), async (req, res) => {
 
 // ✅ DELETE publicación
 router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { usuarioId } = req.query;
+
   try {
-    const publicacion = await Publicacion.findByPk(req.params.id);
+    const publicacion = await Publicacion.findByPk(id);
     if (!publicacion) return res.status(404).json({ error: 'No encontrada' });
 
-    // 🧨 Eliminar de Cloudinary si tiene cloudinaryId
+    // ✅ Verificar que el usuario es el dueño del perfil o el autor
+    if (
+      String(publicacion.usuarioId) !== String(usuarioId) &&
+      String(publicacion.perfilId) !== String(usuarioId)
+    ) {
+      return res.status(403).json({ error: 'No autorizado para eliminar esta publicación' });
+    }
+
+    // 🧨 Eliminar de Cloudinary si corresponde
     if (publicacion.cloudinaryId) {
       try {
         await cloudinary.uploader.destroy(publicacion.cloudinaryId);
