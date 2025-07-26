@@ -41,12 +41,16 @@ router.get('/:usuarioId', async (req, res) => {
 
   try {
     const publicaciones = await Publicacion.findAll({
-      where: {
+  where: {
   [Op.or]: [
     { perfilId: usuarioId },
-    { usuarioId: usuarioId, perfilId: null } // publicaciones propias antiguas
+    {
+      usuarioId: usuarioId,
+      perfilId: { [Op.or]: [null, undefined] }
+    }
   ]
 },
+
  // 👈 cambio clave
       include: [
         {
