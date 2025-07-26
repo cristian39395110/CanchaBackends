@@ -232,6 +232,7 @@ app.post('/api/test-fcm', async (req, res) => {
 
   // Iniciar servidor
   //sequelize.sync({ alter: true })
+  /*
   sequelize.sync().then(() => {
   console.log('✅ Base de datos sincronizada (sin alter)');
   server.listen(3000, '0.0.0.0', () => {
@@ -239,12 +240,11 @@ app.post('/api/test-fcm', async (req, res) => {
   });
 });
 
-
-  /*
+*/
+  
   sequelize.sync({ alter: true }).then(() => {
     console.log('Base de datos sincronizada');
     server.listen(3000, '0.0.0.0', () => {
       console.log('✅ Servidor con Socket.io corriendo en puerto 3000');
     });
   });
-*/

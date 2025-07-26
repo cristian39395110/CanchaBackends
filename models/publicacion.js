@@ -16,6 +16,10 @@ const Publicacion = sequelize.define('Publicacion', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  perfilId: {
+  type: DataTypes.INTEGER,
+  allowNull: false
+},
   foto: {
     type: DataTypes.STRING,
     allowNull: true // puede no tener imagen

@@ -210,7 +210,7 @@ router.get('/nuevas/:usuarioId', async (req, res) => {
 
 // ✅ POST nueva publicación
 router.post('/', upload.single('foto'), async (req, res) => {
-  const { contenido, usuarioId } = req.body;
+  const { contenido, usuarioId ,perfilId} = req.body;
 
   try {
     const usuario = await Usuario.findByPk(usuarioId);
@@ -218,6 +218,7 @@ router.post('/', upload.single('foto'), async (req, res) => {
     const nueva = await Publicacion.create({
       usuarioId,
       contenido,
+      perfilId,
       foto: req.file ? req.file.path : null,
       cloudinaryId: req.file ? req.file.filename : null,
       esPublica: true
