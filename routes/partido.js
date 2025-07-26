@@ -336,6 +336,22 @@ router.post('/rechazar-jugador', async (req, res) => {
   }
 });
 
+// ✅ Verificar si un usuario sigue en un partido
+router.get('/sigue-en-el-partido', async (req, res) => {
+  const { partidoId, usuarioId } = req.query;
+
+  try {
+    const relacion = await UsuarioPartido.findOne({
+      where: { partidoId, usuarioId }
+    });
+
+    res.json({ sigue: !!relacion }); // true si existe, false si fue expulsado
+  } catch (err) {
+    console.error('❌ Error al verificar si sigue en el partido:', err);
+    res.status(500).json({ error: 'Error interno al verificar jugador' });
+  }
+});
+
 // ✅ Confirmar jugador
 router.post('/confirmar-jugador', async (req, res) => {
   const { usuarioId, partidoId, organizadorId } = req.body;
