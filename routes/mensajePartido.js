@@ -40,11 +40,12 @@ const io = req.app.get('io');
     // 🔄 Emitir por WebSocket a todos en la sala del partido
    // 🔄 Emitir por WebSocket a todos en la sala del partido, marcando esMio solo al emisor
 const sockets = await io.in(`partido-${partidoId}`).allSockets();
-
+  let emisor = await Usuario.findByPk(usuarioId); 
 const mensajeConUsuario = {
   ...nuevoMensaje.toJSON(),
   Usuario: { nombre: emisor?.nombre || 'Jugador' } // 👈 le agregamos el nombre para el frontend
 };
+
 
 for (const socketId of sockets) {
   const socketInstance = io.sockets.sockets.get(socketId);
@@ -69,8 +70,8 @@ for (const socketId of sockets) {
   },
   include: [{ model: Usuario, attributes: ['nombre'] }]
 });
-    const emisor = await Usuario.findByPk(usuarioId); // << nombre del que escribe
-const nombreEmisor = emisor?.nombre || 'Jugador';
+    //let emisor = await Usuario.findByPk(usuarioId); // << nombre del que escribe
+let nombreEmisor = emisor?.nombre || 'Jugador';
 
     for (const jugador of jugadores) {
       const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.UsuarioId } });
