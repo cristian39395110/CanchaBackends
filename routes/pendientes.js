@@ -199,10 +199,12 @@ router.post('/rechazar', async (req, res) => {
     });
 
     // 🔔 Emitir por socket al grupo
-    io.to(`partido-${partidoId}`).emit('mensajePartidoNuevo', {
-      ...nuevoMensaje.dataValues,
-      esMio: false
-    });
+   io.to(`partido-${partidoId}`).emit('nuevo-mensaje-partido', {
+  ...nuevoMensaje.toJSON(),
+  Usuario: { nombre: 'Sistema' }, // 👈 ESTO es lo que cambia
+  esMio: false
+});
+
 
     // 🔥 Enviar FCM al jugador expulsado
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugadorId } });

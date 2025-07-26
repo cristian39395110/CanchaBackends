@@ -21,6 +21,17 @@ if (!partidoId || !usuarioId || !mensaje) {
 try {
     // Evitar duplicados si llega el mismo frontendId
 
+      const estaEnElPartido = await UsuarioPartido.findOne({
+      where: {
+        partidoId,
+        usuarioId,
+        estado: { [Op.in]: ['confirmado', 'organizador'] }
+      }
+    });
+
+    if (!estaEnElPartido) {
+      return res.status(403).json({ error: 'No estás autorizado para enviar mensajes en este partido' });
+    } 
     if (frontendId) {
       const yaExiste = await MensajePartido.findOne({ where: { frontendId } });
       if (yaExiste) {
@@ -28,6 +39,8 @@ try {
         return res.status(200).json(yaExiste);
       }
     }
+
+  
 
 
     const nuevoMensaje = await MensajePartido.create({
@@ -60,7 +73,7 @@ for (const socketId of sockets) {
     socketInstance?.emit('nuevo-mensaje-partido', mensajeConUsuario);
   }
 }
-
+ 
 
     // 🔔 Obtener jugadores confirmados (excepto el emisor)
    const jugadores = await UsuarioPartido.findAll({
