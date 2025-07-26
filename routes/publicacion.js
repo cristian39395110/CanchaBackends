@@ -332,7 +332,12 @@ router.delete('/:id', async (req, res) => {
       return res.status(403).json({ error: 'No autorizado para eliminar esta publicación' });
     }
 
-    // 🧨 Eliminar de Cloudinary si corresponde
+    // ✅ Eliminar notificaciones relacionadas a esta publicación
+    await envioNotificacion.destroy({
+      where: { publicacionId: id }
+    });
+
+    // ✅ Eliminar de Cloudinary si corresponde
     if (publicacion.cloudinaryId) {
       try {
         await cloudinary.uploader.destroy(publicacion.cloudinaryId);
@@ -341,13 +346,16 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
+    // ✅ Eliminar publicación
     await publicacion.destroy();
+
     res.sendStatus(204);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al eliminar publicación' });
   }
 });
+
 
 // ✅ POST dar/quitar like
 router.post('/:publicacionId/like', async (req, res) => {
