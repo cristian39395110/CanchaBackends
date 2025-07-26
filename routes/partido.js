@@ -338,15 +338,27 @@ router.post('/rechazar-jugador', async (req, res) => {
 
 // ✅ Verificar si un usuario sigue en un partido
 // GET /api/partido/sigue-en-el-partido?partidoId=...&usuarioId=...
+// ✅ Verificar si el usuario sigue en el partido (jugador confirmado o es el organizador)
 router.get('/sigue-en-el-partido', async (req, res) => {
   const { partidoId, usuarioId } = req.query;
 
   try {
+    const partido = await Partido.findByPk(partidoId);
+
+    if (!partido) return res.status(404).json({ sigue: false });
+
+    // ✅ Si es el organizador, puede hablar
+    if (partido.organizadorId === Number(usuarioId)) {
+      return res.json({ sigue: true });
+    }
+
+    // ✅ Si es jugador confirmado, también puede hablar
     const relacion = await UsuarioPartido.findOne({
       where: { partidoId, usuarioId, estado: 'confirmado' }
     });
 
     res.json({ sigue: !!relacion });
+
   } catch (err) {
     console.error('❌ Error al verificar si sigue en el partido:', err);
     res.status(500).json({ error: 'Error interno' });
