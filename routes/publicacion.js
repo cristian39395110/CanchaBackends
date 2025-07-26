@@ -35,23 +35,22 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage });
 
 
-// ✅ GET publicaciones que aparecen en el muro de un perfil
 router.get('/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
     const publicaciones = await Publicacion.findAll({
- where: {
-  [Op.or]: [
-    { perfilId: usuarioId },
-    {
-      usuarioId: usuarioId,
-      perfilId: null // 👈 solo null, no undefined
-    }
-  ]
-}
-,
- // 👈 cambio clave
+      where: {
+        [Op.or]: [
+          { perfilId: usuarioId },
+          {
+            usuarioId: usuarioId,
+            perfilId: {
+              [Op.or]: [null, usuarioId]
+            }
+          }
+        ]
+      },
       include: [
         {
           model: Usuario,
@@ -75,7 +74,6 @@ router.get('/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener publicaciones' });
   }
 });
-
 
 // ✅ GET publicaciones de amigos + uno mismo (muro general)
 router.get('/amigos/:usuarioId', async (req, res) => {
