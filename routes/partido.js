@@ -337,18 +337,19 @@ router.post('/rechazar-jugador', async (req, res) => {
 });
 
 // ✅ Verificar si un usuario sigue en un partido
+// GET /api/partido/sigue-en-el-partido?partidoId=...&usuarioId=...
 router.get('/sigue-en-el-partido', async (req, res) => {
   const { partidoId, usuarioId } = req.query;
 
   try {
     const relacion = await UsuarioPartido.findOne({
-      where: { partidoId, usuarioId }
+      where: { partidoId, usuarioId, estado: 'confirmado' }
     });
 
-    res.json({ sigue: !!relacion }); // true si existe, false si fue expulsado
+    res.json({ sigue: !!relacion });
   } catch (err) {
     console.error('❌ Error al verificar si sigue en el partido:', err);
-    res.status(500).json({ error: 'Error interno al verificar jugador' });
+    res.status(500).json({ error: 'Error interno' });
   }
 });
 
