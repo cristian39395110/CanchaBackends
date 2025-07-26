@@ -17,7 +17,14 @@ const Cancha = require('./cancha');
 const MensajePartido = require('./MensajePartido');
 const PublicacionLeida = require('./publicacionLeida');
 const envioNotificacion = require('./envioNotificacion');
+const MensajePartidoLeido = require('./MensajePartidoLeido');
 
+
+MensajePartidoLeido.belongsTo(MensajePartido, { foreignKey: 'mensajePartidoId' });
+MensajePartidoLeido.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+
+MensajePartido.hasMany(MensajePartidoLeido, { foreignKey: 'mensajePartidoId' });
+Usuario.hasMany(MensajePartidoLeido, { foreignKey: 'usuarioId' });
 
 // 🔔 Relaciones de envioNotificacion
 
@@ -147,5 +154,6 @@ module.exports = {
   Cancha ,
   MensajePartido,
   PublicacionLeida,
+  MensajePartidoLeido,
   envioNotificacion
 };

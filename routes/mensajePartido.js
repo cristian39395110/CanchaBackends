@@ -1,7 +1,7 @@
 //routes mensaje partido
 const express = require('express');
 const router = express.Router();
-const { MensajePartido, Usuario, Suscripcion,UsuarioPartido} = require('../models/model');
+const { MensajePartido, Usuario, Suscripcion,UsuarioPartido,MensajePartidoLeido} = require('../models/model');
 const admin = require('../firebase');
 
 
@@ -117,19 +117,38 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 });
 
 // ✅ Obtener IDs de partidos con mensajes no leídos (para el usuario)
+
+
 router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
+    // Traemos todos los mensajes que NO fueron escritos por el usuario
     const mensajes = await MensajePartido.findAll({
       where: {
-        usuarioId: { [Op.ne]: usuarioId }, // que no sean escritos por él
-        leido: false
+        usuarioId: { [Op.ne]: usuarioId }
       },
-      attributes: ['partidoId']
+      attributes: ['id', 'partidoId']
     });
 
-    const partidosConMensajes = [...new Set(mensajes.map(m => m.partidoId))];
+    const mensajeIds = mensajes.map(m => m.id);
+
+    // Traemos los mensajes que ya fueron marcados como leídos por el usuario
+    const mensajesLeidos = await MensajePartidoLeido.findAll({
+      where: {
+        usuarioId,
+        mensajePartidoId: { [Op.in]: mensajeIds }
+      },
+      attributes: ['mensajePartidoId']
+    });
+
+    const mensajesLeidosIds = new Set(mensajesLeidos.map(ml => ml.mensajePartidoId));
+
+    // Filtramos los mensajes no leídos
+    const mensajesNoLeidos = mensajes.filter(m => !mensajesLeidosIds.has(m.id));
+
+    // Agrupamos por partidoId
+    const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
     res.json({ partidosConMensajes });
   } catch (error) {
@@ -141,24 +160,46 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
   const { partidoId, usuarioId } = req.params;
+
   try {
-    await MensajePartido.update(
-      { leido: true },
-      {
-        where: {
-          partidoId,
-          usuarioId: { [Op.ne]: usuarioId }, // solo los mensajes que no escribió él
-          leido: false
-        }
+    // Traemos los mensajes del partido que no escribió el usuario
+    const mensajes = await MensajePartido.findAll({
+      where: {
+        partidoId,
+        usuarioId: { [Op.ne]: usuarioId }
       }
-    );
+    });
+
+    const nuevosLeidos = [];
+
+    for (const mensaje of mensajes) {
+      // Verificamos si ya está marcado como leído
+      const yaExiste = await MensajePartidoLeido.findOne({
+        where: {
+          mensajePartidoId: mensaje.id,
+          usuarioId
+        }
+      });
+
+      if (!yaExiste) {
+        nuevosLeidos.push({
+          mensajePartidoId: mensaje.id,
+          usuarioId
+        });
+      }
+    }
+
+    // Insertamos todos los nuevos registros
+    if (nuevosLeidos.length > 0) {
+      await MensajePartidoLeido.bulkCreate(nuevosLeidos);
+    }
+
     res.status(200).json({ mensaje: 'Mensajes marcados como leídos' });
   } catch (error) {
     console.error('❌ Error al marcar como leídos (partido):', error);
     res.status(500).json({ error: 'Error interno' });
   }
 });
-
 
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
