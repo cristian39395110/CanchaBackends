@@ -166,6 +166,7 @@ router.post('/aceptar', async (req, res) => {
 // ✅ Rechazar una invitación (opcional: podrías eliminarla o marcar como "rechazado")
 router.post('/rechazar', async (req, res) => {
   const { usuarioId, jugadorId, partidoId } = req.body;
+  const io = req.app.get('io');
 
   try {
     const partido = await Partido.findByPk(partidoId, {
@@ -178,48 +179,44 @@ router.post('/rechazar', async (req, res) => {
       return res.status(400).json({ error: '❌ Ya usaste el cupo de rechazo para este partido' });
     }
 
-    // Eliminar el jugador del partido
+    // Eliminar jugador del partido
     await UsuarioPartido.destroy({ where: { usuarioId: jugadorId, partidoId } });
 
-    // Actualizar campo para evitar más rechazos
+    // Marcar como ya usado el rechazo
     partido.rechazoDisponible = false;
     await partido.save();
 
+    // Buscar jugador expulsado
     const jugador = await Usuario.findByPk(jugadorId);
-    const mensaje = `⚠ ${jugador.nombre} fue removido del partido por el organizador.`;
+    const mensajeSistema = `⚠ ${jugador.nombre} fue removido del partido de ${partido.Deporte.nombre} en ${partido.lugar}.`;
 
-    // Guardar mensaje como sistema en el chat grupal
+    // 👉 Crear mensaje de sistema en el chat grupal
     const nuevoMensaje = await MensajePartido.create({
       partidoId,
       usuarioId: null, // mensaje del sistema
-      mensaje,
+      mensaje: mensajeSistema,
       tipo: 'sistema'
     });
 
-    // 🔔 Notificación push al jugador removido
+    // 🔔 Emitir por socket al grupo
+    io.to(`partido-${partidoId}`).emit('mensajePartidoNuevo', {
+      ...nuevoMensaje.dataValues,
+      esMio: false
+    });
+
+    // 🔥 Enviar FCM al jugador expulsado
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugadorId } });
     if (suscripcion?.fcmToken) {
       await admin.messaging().send({
         token: suscripcion.fcmToken,
         notification: {
-          title: '⛔ Fuiste removido de un partido',
-          body: mensaje
-        },
-        data: {
-          tipo: 'expulsion',
-          partidoId: partidoId.toString()
+          title: '⛔ Has sido removido de un partido',
+          body: `El organizador ajustó el equipo en el partido de ${partido.Deporte.nombre}.`
         }
       });
     }
 
-    // 🔁 Emitimos al grupo para que el mensaje se vea en tiempo real
-    const io = req.app.get('io');
-    io?.to(`partido-${partidoId}`).emit('nuevoMensajePartido', {
-      ...nuevoMensaje.toJSON(),
-      esMio: false
-    });
-
-    res.json({ mensaje: '✅ Jugador removido, mensaje enviado al grupo y notificación enviada' });
+    res.json({ mensaje: '✅ Jugador removido, notificado y mensaje enviado al grupo' });
 
   } catch (err) {
     console.error('❌ Error al rechazar:', err);
