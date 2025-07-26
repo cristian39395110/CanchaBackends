@@ -35,6 +35,7 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage });
 
 
+// ✅ GET publicaciones del muro de un perfil
 router.get('/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
@@ -42,7 +43,10 @@ router.get('/:usuarioId', async (req, res) => {
     const publicaciones = await Publicacion.findAll({
       where: {
         [Op.or]: [
+          // 1. Te escribieron en tu muro
           { perfilId: usuarioId },
+
+          // 2. Tus propias publicaciones (viejas o en tu muro)
           {
             usuarioId: usuarioId,
             perfilId: {
