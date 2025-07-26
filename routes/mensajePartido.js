@@ -9,6 +9,7 @@ const admin = require('../firebase');
 const { Op } = require('sequelize');
 
 
+
 // ✅ POST: Enviar mensaje grupal de partido
 router.post('/partido/enviar', async (req, res) => {
   const { partidoId, usuarioId, mensaje,frontendId } = req.body;
@@ -161,6 +162,8 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
   const { partidoId, usuarioId } = req.params;
+  const io = req.app.get('io');
+
 
   try {
     const mensajes = await MensajePartido.findAll({
