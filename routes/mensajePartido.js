@@ -158,11 +158,11 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 });
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
+// PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
   const { partidoId, usuarioId } = req.params;
 
   try {
-    // Traemos los mensajes del partido que no escribió el usuario
     const mensajes = await MensajePartido.findAll({
       where: {
         partidoId,
@@ -173,7 +173,6 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
     const nuevosLeidos = [];
 
     for (const mensaje of mensajes) {
-      // Verificamos si ya está marcado como leído
       const yaExiste = await MensajePartidoLeido.findOne({
         where: {
           mensajePartidoId: mensaje.id,
@@ -189,10 +188,14 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
       }
     }
 
-    // Insertamos todos los nuevos registros
     if (nuevosLeidos.length > 0) {
       await MensajePartidoLeido.bulkCreate(nuevosLeidos);
     }
+
+    // 🔔 Emitimos por socket
+    io.to(`noti-${usuarioId}`).emit('mensajes-leidos-partido', {
+      partidoId
+    });
 
     res.status(200).json({ mensaje: 'Mensajes marcados como leídos' });
   } catch (error) {
