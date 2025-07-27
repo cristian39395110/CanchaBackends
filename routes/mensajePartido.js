@@ -190,7 +190,9 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
-  const { partidoId, usuarioId } = req.params;
+ const partidoId = Number(req.params.partidoId);
+const usuarioId = Number(req.params.usuarioId);
+
   const io = req.app.get('io');
 
   try {
@@ -253,6 +255,30 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
+// /api/mensajes-partido/leidos/:partidoId/:usuarioId
+router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
+  const { partidoId, usuarioId } = req.params;
+
+  try {
+    const leidos = await MensajePartidoLeido.findAll({
+      where: { usuarioId },
+      include: [{
+        model: MensajePartido,
+        where: { partidoId },
+        attributes: []
+      }],
+      attributes: ['mensajePartidoId']
+    });
+
+    const mensajeIdsLeidos = leidos.map(m => m.mensajePartidoId);
+    res.json({ mensajeIdsLeidos });
+  } catch (error) {
+    console.error('❌ Error al obtener mensajes leídos:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
   const { usuarioId } = req.query; // asegurate de pasarlo desde el frontend
