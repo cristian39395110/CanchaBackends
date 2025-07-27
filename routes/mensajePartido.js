@@ -84,14 +84,25 @@ for (const socketId of sockets) {
   },
   include: [{ model: Usuario, attributes: ['nombre'] }]
 });
+
+
+
     //let emisor = await Usuario.findByPk(usuarioId); // << nombre del que escribe
 let nombreEmisor = emisor?.nombre || 'Jugador';
 
     for (const jugador of jugadores) {
       const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.UsuarioId } });
 
+  
 
-  io.to(`noti-${jugador.UsuarioId}`).emit('alertaVisual', {
+     await MensajePartidoLeido.create({
+    mensajePartidoId: nuevoMensaje.id,
+    usuarioId: jugador.usuarioId, // ✅ este es el campo correcto
+  });
+
+      
+
+ io.to(`noti-${jugador.usuarioId}`).emit('alertaVisual', {
   tipo: 'partido',
   partidoId,
   nombre: nombreEmisor,
@@ -100,7 +111,7 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 
 
      
-     
+      
       if (suscripcion && suscripcion.fcmToken) {
         const payload = {
           notification: {
@@ -122,6 +133,11 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
         }
       }
     }
+// ✅ Marcar como leído para el emisor
+await MensajePartidoLeido.create({
+  mensajePartidoId: nuevoMensaje.id,
+  usuarioId
+});
 
     res.json(nuevoMensaje);
   } catch (err) {
