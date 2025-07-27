@@ -1,7 +1,7 @@
 //routes mensaje partido
 const express = require('express');
 const router = express.Router();
-const { MensajePartido, Usuario, Suscripcion,UsuarioPartido,MensajePartidoLeido,Partido} = require('../models/model');
+const { MensajePartido, Usuario, Suscripcion,UsuarioPartido,MensajePartidoLeido} = require('../models/model');
 const admin = require('../firebase');
 
 
@@ -84,26 +84,14 @@ for (const socketId of sockets) {
   },
   include: [{ model: Usuario, attributes: ['nombre'] }]
 });
-
-
-
     //let emisor = await Usuario.findByPk(usuarioId); // << nombre del que escribe
 let nombreEmisor = emisor?.nombre || 'Jugador';
 
     for (const jugador of jugadores) {
       const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugador.UsuarioId } });
 
-  
 
-     await MensajePartidoLeido.create({
-    mensajePartidoId: nuevoMensaje.id,
-    usuarioId: jugador.UsuarioId
- // ✅ este es el campo correcto
-  });
-
-      
-
- io.to(`noti-${jugador.usuarioId}`).emit('alertaVisual', {
+  io.to(`noti-${jugador.UsuarioId}`).emit('alertaVisual', {
   tipo: 'partido',
   partidoId,
   nombre: nombreEmisor,
@@ -112,7 +100,7 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 
 
      
-      
+     
       if (suscripcion && suscripcion.fcmToken) {
         const payload = {
           notification: {
@@ -134,11 +122,6 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
         }
       }
     }
-// ✅ Marcar como leído para el emisor
-await MensajePartidoLeido.create({
-  mensajePartidoId: nuevoMensaje.id,
-  usuarioId
-});
 
     res.json(nuevoMensaje);
   } catch (err) {
@@ -412,29 +395,5 @@ router.get('/chats-partidos/:usuarioId', async (req, res) => {
   }
 });
 // ✅ Obtener mensajes grupales de un partido (nuevo endpoint seguro)
-
-router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
-  const { partidoId, usuarioId } = req.params;
-
-  try {
-    const leidos = await MensajePartidoLeido.findAll({
-      where: { usuarioId },
-      include: [{
-        model: MensajePartido,
-        where: { partidoId },
-        attributes: []
-      }],
-      attributes: ['mensajePartidoId']
-    });
-
-    const mensajeIdsLeidos = leidos.map(m => m.mensajePartidoId);
-    res.json({ mensajeIdsLeidos });
-  } catch (error) {
-    console.error('❌ Error al obtener mensajes leídos:', error);
-    res.status(500).json({ error: 'Error interno' });
-  }
-});
-
-
 
 module.exports = router;
