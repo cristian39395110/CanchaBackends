@@ -58,7 +58,7 @@ socket.on('leave', (sala) => {
   socket.on('join-partido', (partidoId) => {
     socket.join(`partido-${partidoId}`);
     console.log(`⚽ Usuario unido al chat del partido ${partidoId}`);
-  });z
+  });
 
   // 👉 Evento: enviar mensaje al grupo del partido
   socket.on('mensaje-partido', async ({ partidoId, usuarioId, mensaje }) => {
