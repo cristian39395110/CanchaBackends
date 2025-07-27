@@ -50,10 +50,7 @@ try {
       tipo: 'texto',
      frontendId: frontendId || null
     });
-    await MensajePartidoLeido.create({
-  mensajePartidoId: nuevoMensaje.id,
-  usuarioId
-});
+    
 const io = req.app.get('io');
     // 🔄 Emitir por WebSocket a todos en la sala del partido
    // 🔄 Emitir por WebSocket a todos en la sala del partido, marcando esMio solo al emisor
@@ -134,7 +131,6 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
   }
 });
 
-// ✅ Obtener IDs de partidos con mensajes no leídos (para el usuario)
 router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
@@ -151,19 +147,24 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     const partidosActivos = relaciones.map(r => r.partidoId);
 
     if (partidosActivos.length === 0) {
-      return res.json({ partidosConMensajes: [] }); // no hay partidos válidos
+      return res.json({ partidosConMensajes: [] });
     }
 
-    // 📨 Traemos mensajes no escritos por el usuario y solo de esos partidos
+    // 📨 Traemos mensajes de esos partidos escritos por otros (y que tengan usuarioId)
     const mensajes = await MensajePartido.findAll({
       where: {
-        usuarioId: { [Op.ne]: usuarioId },
-        partidoId: { [Op.in]: partidosActivos }
+        usuarioId: { [Op.ne]: usuarioId }, // que no lo haya escrito el mismo usuario
+        partidoId: { [Op.in]: partidosActivos },
+        usuarioId: { [Op.ne]: null } // 👈 aseguramos que no sea null
       },
       attributes: ['id', 'partidoId']
     });
 
     const mensajeIds = mensajes.map(m => m.id);
+
+    if (mensajeIds.length === 0) {
+      return res.json({ partidosConMensajes: [] });
+    }
 
     // ✅ Traemos los que ya fueron leídos
     const mensajesLeidos = await MensajePartidoLeido.findAll({
@@ -188,7 +189,6 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
   }
 });
-
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
