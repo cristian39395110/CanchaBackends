@@ -343,27 +343,44 @@ router.get('/sigue-en-el-partido', async (req, res) => {
   const { partidoId, usuarioId } = req.query;
 
   try {
+    // Validaciones básicas
+    if (!partidoId || !usuarioId) {
+      return res.status(400).json({ error: 'Faltan parámetros', sigue: false });
+    }
+
     const partido = await Partido.findByPk(partidoId);
 
-    if (!partido) return res.status(404).json({ sigue: false });
+    if (!partido) {
+      return res.status(404).json({ error: 'Partido no encontrado', sigue: false });
+    }
 
-    // ✅ Si es el organizador, puede hablar
-    if (partido.organizadorId === Number(usuarioId)) {
+    // ✅ El organizador siempre puede hablar
+    if (Number(partido.organizadorId) === Number(usuarioId)) {
       return res.json({ sigue: true });
     }
 
     // ✅ Si es jugador confirmado, también puede hablar
     const relacion = await UsuarioPartido.findOne({
-      where: { partidoId, usuarioId, estado: 'confirmado' }
+      where: {
+        partidoId,
+        usuarioId,
+        estado: 'confirmado' // asegurate que este estado sea el correcto
+      }
     });
 
-    res.json({ sigue: !!relacion });
+    if (relacion) {
+      return res.json({ sigue: true });
+    }
+
+    // ⛔ Fue eliminado o nunca estuvo
+    return res.json({ sigue: false });
 
   } catch (err) {
     console.error('❌ Error al verificar si sigue en el partido:', err);
-    res.status(500).json({ error: 'Error interno' });
+    res.status(500).json({ error: 'Error interno', sigue: false });
   }
 });
+
 
 // ✅ Confirmar jugador
 router.post('/confirmar-jugador', async (req, res) => {

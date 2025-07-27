@@ -10,7 +10,7 @@
   const sequelize = require('./config/database');
   const verificarBloqueo = require('./middlewares/verificarBloqueo');
   const { autenticarToken } = require('./middlewares/auth');
-
+const { UsuarioPartido, Partido } = require('./models/model'); // Asegurate de importar bien tus modelos
   // Middlewares
   app.use(cors({ origin: '*' }));
   app.use(express.json());
@@ -55,11 +55,47 @@ socket.on('leave', (sala) => {
 });
 
   // 👉 Canal grupal del partido
-  socket.on('join-partido', (partidoId) => {
-    socket.join(`partido-${partidoId}`);
-    console.log(`⚽ Usuario unido al chat del partido ${partidoId}`);
-  });
 
+
+socket.on('join-partido', async (partidoId) => {
+  const usuarioId = socket.usuarioId;
+
+  if (!usuarioId) {
+    console.log('⛔ join-partido rechazado: socket no tiene usuarioId');
+    return;
+  }
+
+  try {
+    // ✅ También dejamos pasar si es el organizador
+    const partido = await Partido.findByPk(partidoId);
+
+    if (!partido) {
+      console.log(`⛔ Partido ${partidoId} no encontrado`);
+      return;
+    }
+
+    const esOrganizador = Number(partido.organizadorId) === Number(usuarioId);
+
+    const relacion = await UsuarioPartido.findOne({
+      where: {
+        usuarioId,
+        partidoId,
+        estado: 'confirmado'
+      }
+    });
+
+    if (!esOrganizador && !relacion) {
+      console.log(`⛔ Usuario ${usuarioId} fue expulsado o no pertenece al partido ${partidoId}`);
+      return;
+    }
+
+    socket.join(`partido-${partidoId}`);
+    console.log(`✅ Usuario ${usuarioId} unido al chat del partido ${partidoId}`);
+
+  } catch (err) {
+    console.error('❌ Error en join-partido:', err);
+  }
+});
   // 👉 Evento: enviar mensaje al grupo del partido
   socket.on('mensaje-partido', async ({ partidoId, usuarioId, mensaje }) => {
     try {
