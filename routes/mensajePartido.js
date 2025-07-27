@@ -131,23 +131,37 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 });
 
 // ✅ Obtener IDs de partidos con mensajes no leídos (para el usuario)
-
-
 router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // Traemos todos los mensajes que NO fueron escritos por el usuario
+    // 🧠 Buscar los partidos donde el usuario sigue participando
+    const relaciones = await UsuarioPartido.findAll({
+      where: {
+        usuarioId,
+        estado: { [Op.in]: ['confirmado', 'organizador'] }
+      },
+      attributes: ['partidoId']
+    });
+
+    const partidosActivos = relaciones.map(r => r.partidoId);
+
+    if (partidosActivos.length === 0) {
+      return res.json({ partidosConMensajes: [] }); // no hay partidos válidos
+    }
+
+    // 📨 Traemos mensajes no escritos por el usuario y solo de esos partidos
     const mensajes = await MensajePartido.findAll({
       where: {
-        usuarioId: { [Op.ne]: usuarioId }
+        usuarioId: { [Op.ne]: usuarioId },
+        partidoId: { [Op.in]: partidosActivos }
       },
       attributes: ['id', 'partidoId']
     });
 
     const mensajeIds = mensajes.map(m => m.id);
 
-    // Traemos los mensajes que ya fueron marcados como leídos por el usuario
+    // ✅ Traemos los que ya fueron leídos
     const mensajesLeidos = await MensajePartidoLeido.findAll({
       where: {
         usuarioId,
@@ -156,12 +170,12 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
       attributes: ['mensajePartidoId']
     });
 
-    const mensajesLeidosIds = new Set(mensajesLeidos.map(ml => ml.mensajePartidoId));
+    const mensajesLeidosIds = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
 
-    // Filtramos los mensajes no leídos
+    // 🔍 Filtramos los mensajes no leídos
     const mensajesNoLeidos = mensajes.filter(m => !mensajesLeidosIds.has(m.id));
 
-    // Agrupamos por partidoId
+    // Agrupamos por partido
     const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
     res.json({ partidosConMensajes });
@@ -170,6 +184,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
   }
 });
+
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
