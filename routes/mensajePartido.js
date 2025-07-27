@@ -222,25 +222,54 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
 
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
-
-  console.log("estoy en partidoid a ver que onda");
-  console.log(partidoId);
+  const { usuarioId } = req.query; // asegurate de pasarlo desde el frontend
 
   try {
+    // 🧠 Buscar el partido
+    const partido = await require('../models/model').Partido.findByPk(partidoId);
+    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+
+    // ✅ El organizador puede ver
+    if (Number(partido.organizadorId) === Number(usuarioId)) {
+      const mensajes = await MensajePartido.findAll({
+        where: { partidoId },
+        include: [{
+          model: Usuario,
+          attributes: ['id', 'nombre', 'fotoPerfil'],
+          required: false
+        }],
+        order: [['createdAt', 'ASC']]
+      });
+      return res.json(mensajes);
+    }
+
+    // 🔒 Verificar si el usuario sigue en el partido
+    const relacion = await UsuarioPartido.findOne({
+      where: {
+        partidoId,
+        usuarioId,
+        estado: 'confirmado'
+      }
+    });
+
+    if (!relacion) {
+      return res.status(403).json({ error: 'Fuiste removido del partido' });
+    }
+
+    // ✅ Si todo bien, devolver los mensajes
     const mensajes = await MensajePartido.findAll({
       where: { partidoId },
       include: [{
         model: Usuario,
         attributes: ['id', 'nombre', 'fotoPerfil'],
-        required: false, // importante para permitir mensajes sin usuario (sistema)
+        required: false
       }],
       order: [['createdAt', 'ASC']]
     });
     res.json(mensajes);
   } catch (error) {
     console.error('❌ Error al obtener mensajes del partido:', error.message);
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener mensajes', detalle: error.message });
+    res.status(500).json({ error: 'Error interno', detalle: error.message });
   }
 });
 
