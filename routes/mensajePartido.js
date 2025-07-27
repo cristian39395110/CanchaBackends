@@ -173,12 +173,31 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
+
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
   const { partidoId, usuarioId } = req.params;
   const io = req.app.get('io');
 
-
   try {
+    // 🔐 Verificar si el usuario sigue en el partido o es organizador
+    const partido = await Partido.findByPk(partidoId);
+    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+
+    const esOrganizador = Number(partido.organizadorId) === Number(usuarioId);
+
+    const relacion = await UsuarioPartido.findOne({
+      where: {
+        partidoId,
+        usuarioId,
+        estado: 'confirmado'
+      }
+    });
+
+    if (!esOrganizador && !relacion) {
+      return res.status(403).json({ error: 'No podés marcar mensajes como leídos. Fuiste removido.' });
+    }
+
+    // ✅ Si pasa la validación, marcamos los mensajes
     const mensajes = await MensajePartido.findAll({
       where: {
         partidoId,
@@ -219,7 +238,6 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
-
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
   const { usuarioId } = req.query; // asegurate de pasarlo desde el frontend
