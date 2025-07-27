@@ -409,10 +409,10 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // Solo partidos donde el usuario sigue confirmado
+    // ✅ Obtenemos todas las relaciones, incluyendo rechazados
     const relaciones = await UsuarioPartido.findAll({
-      where: { UsuarioId: usuarioId, estado: 'confirmado' },
-      attributes: ['PartidoId']
+      where: { UsuarioId: usuarioId },
+      attributes: ['PartidoId', 'estado']
     });
 
     const partidoIds = relaciones.map(r => r.PartidoId);
@@ -437,10 +437,15 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
         hour12: false
       });
 
+      // 🔍 Buscamos el estado de este partido
+      const relacion = relaciones.find(r => r.PartidoId === partido.id);
+      const estado = relacion?.estado || 'desconocido';
+
       return {
         id: partido.id,
         nombre: `${partido.Deporte.nombre} - ${fechaFormateada}`,
-        organizador: partido.organizador?.nombre || ''
+        organizador: partido.organizador?.nombre || '',
+        estado // 👈 NECESARIO para saber si fue rechazado
       };
     });
 
@@ -450,6 +455,5 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener partidos con chat' });
   }
 });
-
 
 module.exports = router;
