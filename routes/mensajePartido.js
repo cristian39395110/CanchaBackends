@@ -413,4 +413,28 @@ router.get('/chats-partidos/:usuarioId', async (req, res) => {
 });
 // ✅ Obtener mensajes grupales de un partido (nuevo endpoint seguro)
 
+router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
+  const { partidoId, usuarioId } = req.params;
+
+  try {
+    const leidos = await MensajePartidoLeido.findAll({
+      where: { usuarioId },
+      include: [{
+        model: MensajePartido,
+        where: { partidoId },
+        attributes: []
+      }],
+      attributes: ['mensajePartidoId']
+    });
+
+    const mensajeIdsLeidos = leidos.map(m => m.mensajePartidoId);
+    res.json({ mensajeIdsLeidos });
+  } catch (error) {
+    console.error('❌ Error al obtener mensajes leídos:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+
+
 module.exports = router;
