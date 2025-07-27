@@ -135,27 +135,34 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // 🧠 Buscar los partidos donde el usuario sigue participando
+    // 🧠 Buscar partidos activos del usuario (confirmado u organizador), con partidoId válido
     const relaciones = await UsuarioPartido.findAll({
       where: {
         usuarioId,
-        estado: { [Op.in]: ['confirmado', 'organizador'] }
+        estado: { [Op.in]: ['confirmado', 'organizador'] },
+        partidoId: { [Op.ne]: null } // 🛡️ evita partidos rotos
       },
       attributes: ['partidoId']
     });
 
-    const partidosActivos = relaciones.map(r => r.partidoId);
+    const partidosActivos = relaciones
+      .map(r => r.partidoId)
+      .filter(id => id !== null); // 🧹 extra por seguridad
 
     if (partidosActivos.length === 0) {
       return res.json({ partidosConMensajes: [] });
     }
 
-    // 📨 Traemos mensajes de esos partidos escritos por otros (y que tengan usuarioId)
+    // 📨 Buscar mensajes de otros usuarios (no del actual), solo de partidos activos
     const mensajes = await MensajePartido.findAll({
       where: {
-        usuarioId: { [Op.ne]: usuarioId }, // que no lo haya escrito el mismo usuario
         partidoId: { [Op.in]: partidosActivos },
-        usuarioId: { [Op.ne]: null } // 👈 aseguramos que no sea null
+        usuarioId: {
+          [Op.and]: {
+            [Op.ne]: usuarioId,
+            [Op.ne]: null // 🛡️ filtramos mensajes sin autor (como del sistema)
+          }
+        }
       },
       attributes: ['id', 'partidoId']
     });
@@ -166,7 +173,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
       return res.json({ partidosConMensajes: [] });
     }
 
-    // ✅ Traemos los que ya fueron leídos
+    // ✅ Buscar cuáles de esos mensajes ya fueron leídos por el usuario
     const mensajesLeidos = await MensajePartidoLeido.findAll({
       where: {
         usuarioId,
@@ -177,10 +184,10 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 
     const mensajesLeidosIds = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
 
-    // 🔍 Filtramos los mensajes no leídos
+    // 🔍 Quedarnos solo con los mensajes no leídos
     const mensajesNoLeidos = mensajes.filter(m => !mensajesLeidosIds.has(m.id));
 
-    // Agrupamos por partido
+    // 📦 Agrupar por partido
     const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
     res.json({ partidosConMensajes });
