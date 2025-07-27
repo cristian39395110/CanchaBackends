@@ -405,23 +405,20 @@ router.post('/confirmacion', async (req, res) => {
     res.status(500).json({ error: 'Error interno al confirmar jugador' });
   }
 });
-
 router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // Solo partidos donde este usuario tenga mensajes
-    const mensajes = await MensajePartido.findAll({
-      where: { usuarioId },
-      attributes: ['partidoId'],
-      group: ['partidoId']
+    // Solo partidos donde el usuario sigue confirmado
+    const relaciones = await UsuarioPartido.findAll({
+      where: { UsuarioId: usuarioId, estado: 'confirmado' },
+      attributes: ['PartidoId']
     });
 
-    const partidoIds = mensajes.map(m => m.partidoId);
+    const partidoIds = relaciones.map(r => r.PartidoId);
 
     if (partidoIds.length === 0) return res.json([]);
 
-    // Obtener detalles de los partidos (aunque ya no esté en UsuarioPartido)
     const partidos = await Partido.findAll({
       where: { id: { [Op.in]: partidoIds } },
       include: [

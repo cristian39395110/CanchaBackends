@@ -132,22 +132,30 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 
 // ✅ Obtener IDs de partidos con mensajes no leídos (para el usuario)
 
-
 router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // Traemos todos los mensajes que NO fueron escritos por el usuario
+    // Partidos donde el usuario sigue confirmado
+    const relaciones = await UsuarioPartido.findAll({
+      where: { UsuarioId: usuarioId, estado: 'confirmado' },
+      attributes: ['PartidoId']
+    });
+
+    const partidosConfirmados = relaciones.map(r => r.PartidoId);
+
+    if (partidosConfirmados.length === 0) return res.json({ partidosConMensajes: [] });
+
     const mensajes = await MensajePartido.findAll({
       where: {
-        usuarioId: { [Op.ne]: usuarioId }
+        usuarioId: { [Op.ne]: usuarioId },
+        partidoId: { [Op.in]: partidosConfirmados }
       },
       attributes: ['id', 'partidoId']
     });
 
     const mensajeIds = mensajes.map(m => m.id);
 
-    // Traemos los mensajes que ya fueron marcados como leídos por el usuario
     const mensajesLeidos = await MensajePartidoLeido.findAll({
       where: {
         usuarioId,
@@ -156,12 +164,10 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
       attributes: ['mensajePartidoId']
     });
 
-    const mensajesLeidosIds = new Set(mensajesLeidos.map(ml => ml.mensajePartidoId));
+    const mensajesLeidosIds = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
 
-    // Filtramos los mensajes no leídos
     const mensajesNoLeidos = mensajes.filter(m => !mensajesLeidosIds.has(m.id));
 
-    // Agrupamos por partidoId
     const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
     res.json({ partidosConMensajes });
@@ -170,6 +176,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
   }
 });
+
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
