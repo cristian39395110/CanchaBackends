@@ -97,7 +97,8 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 
      await MensajePartidoLeido.create({
     mensajePartidoId: nuevoMensaje.id,
-    usuarioId: jugador.usuarioId, // ✅ este es el campo correcto
+    usuarioId: jugador.UsuarioId
+ // ✅ este es el campo correcto
   });
 
       
