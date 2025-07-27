@@ -405,20 +405,23 @@ router.post('/confirmacion', async (req, res) => {
     res.status(500).json({ error: 'Error interno al confirmar jugador' });
   }
 });
+
 router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // ✅ Obtenemos todas las relaciones, incluyendo rechazados
-    const relaciones = await UsuarioPartido.findAll({
-      where: { UsuarioId: usuarioId },
-      attributes: ['PartidoId', 'estado']
+    // Solo partidos donde este usuario tenga mensajes
+    const mensajes = await MensajePartido.findAll({
+      where: { usuarioId },
+      attributes: ['partidoId'],
+      group: ['partidoId']
     });
 
-    const partidoIds = relaciones.map(r => r.PartidoId);
+    const partidoIds = mensajes.map(m => m.partidoId);
 
     if (partidoIds.length === 0) return res.json([]);
 
+    // Obtener detalles de los partidos (aunque ya no esté en UsuarioPartido)
     const partidos = await Partido.findAll({
       where: { id: { [Op.in]: partidoIds } },
       include: [
@@ -437,15 +440,10 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
         hour12: false
       });
 
-      // 🔍 Buscamos el estado de este partido
-      const relacion = relaciones.find(r => r.PartidoId === partido.id);
-      const estado = relacion?.estado || 'desconocido';
-
       return {
         id: partido.id,
         nombre: `${partido.Deporte.nombre} - ${fechaFormateada}`,
-        organizador: partido.organizador?.nombre || '',
-        estado // 👈 NECESARIO para saber si fue rechazado
+        organizador: partido.organizador?.nombre || ''
       };
     });
 
@@ -455,5 +453,6 @@ router.get('/partidos-confirmados/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener partidos con chat' });
   }
 });
+
 
 module.exports = router;

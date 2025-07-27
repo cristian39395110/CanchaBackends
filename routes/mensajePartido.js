@@ -1,7 +1,7 @@
 //routes mensaje partido
 const express = require('express');
 const router = express.Router();
-const { MensajePartido,Partido, Usuario, Suscripcion,UsuarioPartido,MensajePartidoLeido} = require('../models/model');
+const { MensajePartido, Usuario, Suscripcion,UsuarioPartido,MensajePartidoLeido} = require('../models/model');
 const admin = require('../firebase');
 
 
@@ -132,30 +132,22 @@ let nombreEmisor = emisor?.nombre || 'Jugador';
 
 // ✅ Obtener IDs de partidos con mensajes no leídos (para el usuario)
 
+
 router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // Partidos donde el usuario sigue confirmado
-    const relaciones = await UsuarioPartido.findAll({
-      where: { UsuarioId: usuarioId, estado: 'confirmado' },
-      attributes: ['PartidoId']
-    });
-
-    const partidosConfirmados = relaciones.map(r => r.PartidoId);
-
-    if (partidosConfirmados.length === 0) return res.json({ partidosConMensajes: [] });
-
+    // Traemos todos los mensajes que NO fueron escritos por el usuario
     const mensajes = await MensajePartido.findAll({
       where: {
-        usuarioId: { [Op.ne]: usuarioId },
-        partidoId: { [Op.in]: partidosConfirmados }
+        usuarioId: { [Op.ne]: usuarioId }
       },
       attributes: ['id', 'partidoId']
     });
 
     const mensajeIds = mensajes.map(m => m.id);
 
+    // Traemos los mensajes que ya fueron marcados como leídos por el usuario
     const mensajesLeidos = await MensajePartidoLeido.findAll({
       where: {
         usuarioId,
@@ -164,10 +156,12 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
       attributes: ['mensajePartidoId']
     });
 
-    const mensajesLeidosIds = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
+    const mensajesLeidosIds = new Set(mensajesLeidos.map(ml => ml.mensajePartidoId));
 
+    // Filtramos los mensajes no leídos
     const mensajesNoLeidos = mensajes.filter(m => !mensajesLeidosIds.has(m.id));
 
+    // Agrupamos por partidoId
     const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
     res.json({ partidosConMensajes });
@@ -176,7 +170,6 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
   }
 });
-
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
@@ -229,52 +222,24 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
 
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
-  const { usuarioId } = req.query;
+
+  console.log("estoy en partidoid a ver que onda");
+  console.log(partidoId);
 
   try {
-    const partido = await Partido.findByPk(partidoId);
-
-    if (!partido) {
-      return res.status(404).json({ error: 'Partido no encontrado' });
-    }
-
-    // ✅ Si es el organizador, permitir
-    if (Number(usuarioId) === partido.organizadorId) {
-      const mensajes = await traerMensajes();
-      return res.json(mensajes);
-    }
-
-    // ✅ Si es jugador confirmado, permitir
-    const relacion = await UsuarioPartido.findOne({
-      where: {
-        UsuarioId: usuarioId,
-        PartidoId: partidoId,
-        estado: 'confirmado'
-      }
+    const mensajes = await MensajePartido.findAll({
+      where: { partidoId },
+      include: [{
+        model: Usuario,
+        attributes: ['id', 'nombre', 'fotoPerfil'],
+        required: false, // importante para permitir mensajes sin usuario (sistema)
+      }],
+      order: [['createdAt', 'ASC']]
     });
-
-    if (!relacion) {
-      return res.status(403).json({ error: 'No estás autorizado a ver este chat' });
-    }
-
-    const mensajes = await traerMensajes();
-    return res.json(mensajes);
-
-    // 👉 Función auxiliar para traer los mensajes
-    async function traerMensajes() {
-      return await MensajePartido.findAll({
-        where: { partidoId },
-        include: [{
-          model: Usuario,
-          attributes: ['id', 'nombre', 'fotoPerfil'],
-          required: false,
-        }],
-        order: [['createdAt', 'ASC']]
-      });
-    }
-
+    res.json(mensajes);
   } catch (error) {
     console.error('❌ Error al obtener mensajes del partido:', error.message);
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener mensajes', detalle: error.message });
   }
 });

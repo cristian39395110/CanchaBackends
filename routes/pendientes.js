@@ -180,8 +180,7 @@ router.post('/rechazar', async (req, res) => {
     }
 
     // Eliminar jugador del partido
-   await UsuarioPartido.update({ estado: 'rechazado' }, { where: { usuarioId: jugadorId, partidoId } });
-
+    await UsuarioPartido.destroy({ where: { usuarioId: jugadorId, partidoId } });
 
     // Marcar como ya usado el rechazo
     partido.rechazoDisponible = false;
