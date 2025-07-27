@@ -50,6 +50,10 @@ try {
       tipo: 'texto',
      frontendId: frontendId || null
     });
+    await MensajePartidoLeido.create({
+  mensajePartidoId: nuevoMensaje.id,
+  usuarioId
+});
 const io = req.app.get('io');
     // 🔄 Emitir por WebSocket a todos en la sala del partido
    // 🔄 Emitir por WebSocket a todos en la sala del partido, marcando esMio solo al emisor
