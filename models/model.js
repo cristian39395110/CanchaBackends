@@ -20,10 +20,16 @@ const envioNotificacion = require('./envioNotificacion');
 const MensajePartidoLeido = require('./MensajePartidoLeido');
 
 
-MensajePartidoLeido.belongsTo(MensajePartido, { foreignKey: 'mensajePartidoId' });
+MensajePartidoLeido.belongsTo(MensajePartido, {
+  foreignKey: 'mensajePartidoId',
+  as: 'mensajePartido'
+});
 MensajePartidoLeido.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 
-MensajePartido.hasMany(MensajePartidoLeido, { foreignKey: 'mensajePartidoId' });
+MensajePartido.hasMany(MensajePartidoLeido, {
+  foreignKey: 'mensajePartidoId',
+  as: 'leidos'
+});
 Usuario.hasMany(MensajePartidoLeido, { foreignKey: 'usuarioId' });
 
 // 🔔 Relaciones de envioNotificacion

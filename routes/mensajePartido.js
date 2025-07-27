@@ -265,6 +265,7 @@ router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
       where: { usuarioId },
       include: [{
         model: MensajePartido,
+        as: 'mensajePartido',
         where: { partidoId },
         attributes: []
       }],
@@ -278,6 +279,7 @@ router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
     res.status(500).json({ error: 'Error interno' });
   }
 });
+
 
 router.get('/partido/:partidoId', async (req, res) => {
   const { partidoId } = req.params;
