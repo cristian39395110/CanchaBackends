@@ -208,7 +208,11 @@ await UsuarioPartido.update(
   esMio: false
 });
 
-
+io.to(`noti-${jugadorId}`).emit('alertaVisual', {
+  tipo: 'expulsado',
+  partidoId,
+  mensaje: `Fuiste removido del partido de ${partido.Deporte.nombre} en ${partido.lugar}.`
+});
     // 🔥 Enviar FCM al jugador expulsado
     const suscripcion = await Suscripcion.findOne({ where: { usuarioId: jugadorId } });
     if (suscripcion?.fcmToken) {
