@@ -170,14 +170,17 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     const idsLeidos = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
 
     // 2. Buscar mensajes que NO están en esa lista de leídos
-    const mensajesNoLeidos = await MensajePartido.findAll({
-      where: {
-        id: { [Op.notIn]: Array.from(idsLeidos) },
-        usuarioId: { [Op.ne]: usuarioId }, // que no los haya escrito él
-        usuarioId: { [Op.ne]: null }       // que tengan autor
-      },
-      attributes: ['id', 'partidoId']
-    });
+  const mensajesNoLeidos = await MensajePartido.findAll({
+  where: {
+    id: { [Op.notIn]: Array.from(idsLeidos) },
+    [Op.and]: [
+      { usuarioId: { [Op.ne]: usuarioId } }, // que no los haya escrito él
+      { usuarioId: { [Op.ne]: null } }       // que tenga autor
+    ]
+  },
+  attributes: ['id', 'partidoId']
+});
+
 
     if (mensajesNoLeidos.length === 0) {
       return res.json({ partidosConMensajes: [] });
