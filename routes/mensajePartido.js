@@ -213,6 +213,7 @@ router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
   const partidoId = Number(req.params.partidoId);
   const usuarioId = Number(req.params.usuarioId);
   const io = req.app.get('io');
+  console.log("carajo")
 
   try {
     // 🔐 Verificamos si el partido existe
