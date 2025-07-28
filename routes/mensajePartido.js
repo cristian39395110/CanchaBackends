@@ -10,13 +10,23 @@ const { Op } = require('sequelize');
 
 router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
   const { partidoId, usuarioId } = req.params;
+
   try {
     const mensajesLeidos = await MensajePartidoLeido.findAll({
-      where: { partidoId, usuarioId }
+      where: { usuarioId },
+      include: [{
+        model: MensajePartido,
+        as: 'mensajePartido',
+        where: { partidoId },
+        attributes: [] // no queremos los datos del mensaje, solo filtrar
+      }],
+      attributes: ['mensajePartidoId']
     });
-    res.json(mensajesLeidos);
+
+    const mensajeIdsLeidos = mensajesLeidos.map(m => m.mensajePartidoId);
+    res.json({ mensajeIdsLeidos });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Error al obtener mensajes leídos:', error);
     res.status(500).json({ error: 'Error al obtener mensajes leídos' });
   }
 });
