@@ -8,6 +8,18 @@ const admin = require('../firebase');
 
 const { Op } = require('sequelize');
 
+router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
+  const { partidoId, usuarioId } = req.params;
+  try {
+    const mensajesLeidos = await MensajePartidoLeido.findAll({
+      where: { partidoId, usuarioId }
+    });
+    res.json(mensajesLeidos);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener mensajes leídos' });
+  }
+});
 
 
 // ✅ POST: Enviar mensaje grupal de partido
