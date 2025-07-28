@@ -188,93 +188,73 @@ res.json({ partidosConMensajes: partidosValidos });
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 
 router.put('/marcar-leido/:partidoId/:usuarioId', async (req, res) => {
- const partidoId = Number(req.params.partidoId);
-const usuarioId = Number(req.params.usuarioId);
-
+  const partidoId = Number(req.params.partidoId);
+  const usuarioId = Number(req.params.usuarioId);
   const io = req.app.get('io');
 
   try {
-    // 🔐 Verificar si el usuario sigue en el partido o es organizador
+    // 🔐 Verificamos si el partido existe
     const partido = await Partido.findByPk(partidoId);
-    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+    if (!partido) {
+      return res.status(404).json({ error: 'Partido no encontrado' });
+    }
 
-    const esOrganizador = Number(partido.organizadorId) === Number(usuarioId);
-
+    // 🔒 Validamos si el usuario sigue en el partido o es el organizador
+    const esOrganizador = Number(partido.organizadorId) === usuarioId;
     const relacion = await UsuarioPartido.findOne({
       where: {
         partidoId,
         usuarioId,
-        estado: 'confirmado'
-      }
+        estado: 'confirmado',
+      },
     });
 
     if (!esOrganizador && !relacion) {
       return res.status(403).json({ error: 'No podés marcar mensajes como leídos. Fuiste removido.' });
     }
 
-    // ✅ Si pasa la validación, marcamos los mensajes
+    // ✅ Traemos todos los mensajes del partido que no sean del usuario
     const mensajes = await MensajePartido.findAll({
       where: {
         partidoId,
-        usuarioId: { [Op.ne]: usuarioId }
-      }
+        usuarioId: { [Op.ne]: usuarioId },
+      },
+      attributes: ['id'],
     });
 
-    const nuevosLeidos = [];
-
-    for (const mensaje of mensajes) {
-      const yaExiste = await MensajePartidoLeido.findOne({
-        where: {
-          mensajePartidoId: mensaje.id,
-          usuarioId
-        }
-      });
-
-      if (!yaExiste) {
-        nuevosLeidos.push({
-          mensajePartidoId: mensaje.id,
-          usuarioId
-        });
-      }
+    const mensajeIds = mensajes.map(m => m.id);
+    if (mensajeIds.length === 0) {
+      return res.status(200).json({ mensaje: 'No hay mensajes nuevos para marcar como leídos' });
     }
+
+    // 🔍 Filtramos los que aún no fueron marcados como leídos
+    const yaLeidos = await MensajePartidoLeido.findAll({
+      where: {
+        mensajePartidoId: mensajeIds,
+        usuarioId,
+      },
+      attributes: ['mensajePartidoId'],
+    });
+
+    const yaLeidosIds = yaLeidos.map(m => m.mensajePartidoId);
+    const nuevosLeidos = mensajeIds
+      .filter(id => !yaLeidosIds.includes(id))
+      .map(id => ({
+        mensajePartidoId: id,
+        usuarioId,
+      }));
 
     if (nuevosLeidos.length > 0) {
       await MensajePartidoLeido.bulkCreate(nuevosLeidos);
     }
 
-    // 🔔 Emitimos por socket
-    io.to(`noti-${usuarioId}`).emit('mensajes-leidos-partido', {
-      partidoId
-    });
+    // 🔔 Emitimos por WebSocket
+    io.to(`noti-${usuarioId}`).emit('mensajes-leidos-partido', { partidoId });
 
     res.status(200).json({ mensaje: 'Mensajes marcados como leídos' });
   } catch (error) {
     console.error('❌ Error al marcar como leídos (partido):', error);
-    res.status(500).json({ error: 'Error interno' });
-  }
-});
-
-// /api/mensajes-partido/leidos/:partidoId/:usuarioId
-router.get('/leidos/:partidoId/:usuarioId', async (req, res) => {
-  const { partidoId, usuarioId } = req.params;
-
-  try {
-    const leidos = await MensajePartidoLeido.findAll({
-      where: { usuarioId },
-      include: [{
-        model: MensajePartido,
-        as: 'mensajePartido',
-        where: { partidoId },
-        attributes: []
-      }],
-      attributes: ['mensajePartidoId']
-    });
-
-    const mensajeIdsLeidos = leidos.map(m => m.mensajePartidoId);
-    res.json({ mensajeIdsLeidos });
-  } catch (error) {
-    console.error('❌ Error al obtener mensajes leídos:', error);
-    res.status(500).json({ error: 'Error interno' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
