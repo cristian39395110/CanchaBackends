@@ -171,7 +171,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 
     // 2. Buscar mensajes que NO están en esa lista de leídos
 
-    /* anda perfecto este solo que no me marca en azul el sistema
+
   const mensajesNoLeidos = await MensajePartido.findAll({
   where: {
     id: { [Op.notIn]: Array.from(idsLeidos) },
@@ -182,17 +182,7 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
   },
   attributes: ['id', 'partidoId']
 });
-*/
-const mensajesNoLeidos = await MensajePartido.findAll({
-  where: {
-    id: { [Op.notIn]: Array.from(idsLeidos) },  // 🔵 Aún no leídos
-    [Op.or]: [
-      { usuarioId: { [Op.ne]: usuarioId } },    // 🔵 Enviados por otro usuario
-      { usuarioId: null }                       // 🔵 O mensajes del sistema
-    ]
-  },
-  attributes: ['id', 'partidoId']
-});
+
 
 
 
