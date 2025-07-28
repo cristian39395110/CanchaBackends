@@ -135,67 +135,51 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
 
   try {
-    // 🧠 Buscar partidos activos del usuario (confirmado u organizador), con partidoId válido
-    const relaciones = await UsuarioPartido.findAll({
-      where: {
-        usuarioId,
-        estado: { [Op.in]: ['confirmado', 'organizador'] },
-        partidoId: { [Op.ne]: null } // 🛡️ evita partidos rotos
-      },
-      attributes: ['partidoId']
+    // 1. Buscar mensajes NO leídos por este usuario
+    const mensajesLeidos = await MensajePartidoLeido.findAll({
+      where: { usuarioId },
+      attributes: ['mensajePartidoId']
     });
 
-    const partidosActivos = relaciones
-      .map(r => r.partidoId)
-      .filter(id => id !== null); // 🧹 extra por seguridad
+    const idsLeidos = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
 
-    if (partidosActivos.length === 0) {
-      return res.json({ partidosConMensajes: [] });
-    }
-
-    // 📨 Buscar mensajes de otros usuarios (no del actual), solo de partidos activos
-    const mensajes = await MensajePartido.findAll({
+    // 2. Buscar mensajes que NO están en esa lista de leídos
+    const mensajesNoLeidos = await MensajePartido.findAll({
       where: {
-        partidoId: { [Op.in]: partidosActivos },
-        usuarioId: {
-          [Op.and]: {
-            [Op.ne]: usuarioId,
-            [Op.ne]: null // 🛡️ filtramos mensajes sin autor (como del sistema)
-          }
-        }
+        id: { [Op.notIn]: Array.from(idsLeidos) },
+        usuarioId: { [Op.ne]: usuarioId }, // que no los haya escrito él
+        usuarioId: { [Op.ne]: null }       // que tengan autor
       },
       attributes: ['id', 'partidoId']
     });
 
-    const mensajeIds = mensajes.map(m => m.id);
-
-    if (mensajeIds.length === 0) {
+    if (mensajesNoLeidos.length === 0) {
       return res.json({ partidosConMensajes: [] });
     }
 
-    // ✅ Buscar cuáles de esos mensajes ya fueron leídos por el usuario
-    const mensajesLeidos = await MensajePartidoLeido.findAll({
-      where: {
-        usuarioId,
-        mensajePartidoId: { [Op.in]: mensajeIds }
-      },
-      attributes: ['mensajePartidoId']
-    });
-
-    const mensajesLeidosIds = new Set(mensajesLeidos.map(m => m.mensajePartidoId));
-
-    // 🔍 Quedarnos solo con los mensajes no leídos
-    const mensajesNoLeidos = mensajes.filter(m => !mensajesLeidosIds.has(m.id));
-
-    // 📦 Agrupar por partido
+    // 3. Filtrar por partidos donde el usuario todavía está
     const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
-    res.json({ partidosConMensajes });
+    const relaciones = await UsuarioPartido.findAll({
+      where: {
+        usuarioId,
+        estado: { [Op.in]: ['confirmado', 'organizador'] },
+        partidoId: { [Op.in]: partidosConMensajes }
+      },
+      attributes: ['partidoId']
+    });
+
+    console.log("wiiiiiiiiiiiiiiiii")
+  console.log(partidosConMensajes)
+    const partidosValidos = relaciones.map(r => r.partidoId);
+    
+    res.json({ partidosConMensajes: partidosValidos });
   } catch (error) {
     console.error('❌ Error en /mensajes-partido/no-leidos:', error);
     res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
   }
 });
+
 
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
 // PUT /api/mensajes-partido/marcar-leido/:partidoId/:usuarioId
