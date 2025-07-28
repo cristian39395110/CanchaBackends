@@ -185,14 +185,15 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
 */
 const mensajesNoLeidos = await MensajePartido.findAll({
   where: {
-    id: { [Op.notIn]: Array.from(idsLeidos) },
+    id: { [Op.notIn]: Array.from(idsLeidos) },  // 🔵 Aún no leídos
     [Op.or]: [
-      { usuarioId: { [Op.ne]: usuarioId } },
-      { usuarioId: null }
+      { usuarioId: { [Op.ne]: usuarioId } },    // 🔵 Enviados por otro usuario
+      { usuarioId: null }                       // 🔵 O mensajes del sistema
     ]
   },
   attributes: ['id', 'partidoId']
 });
+
 
 
     if (mensajesNoLeidos.length === 0) {
