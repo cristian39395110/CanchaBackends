@@ -169,9 +169,14 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
       attributes: ['partidoId']
     });
 
-    console.log("wiiiiiiiiiiiiiiiii")
-  console.log(partidosConMensajes)
-    const partidosValidos = relaciones.map(r => r.partidoId);
+   
+    const partidosValidos = relaciones
+  .map(r => r.partidoId)
+  .filter(id => id !== null); // 💣 limpieza poderosa
+   console.log("wiiiiiiiiiiiiiiiii")
+  console.log(partidosValidos)
+
+res.json({ partidosConMensajes: partidosValidos });
     
     res.json({ partidosConMensajes: partidosValidos });
   } catch (error) {
