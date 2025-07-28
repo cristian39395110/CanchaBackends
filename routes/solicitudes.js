@@ -287,7 +287,8 @@ router.post('/cancelar', async (req, res) => {
         const mensajeGrupal = await MensajePartido.create({
           partidoId: partido.id,
           usuarioId: jugador.id,
-          mensaje: `✅ ${jugador.nombre} se unió al partido.`
+          mensaje: `✅ ${jugador.nombre} se unió al partido.`,
+          tipo: 'sistema'
         });
 
         // ✅ Obtener IDs de jugadores confirmados
