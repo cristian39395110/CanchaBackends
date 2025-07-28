@@ -160,25 +160,23 @@ router.get('/no-leidos/:usuarioId', async (req, res) => {
     // 3. Filtrar por partidos donde el usuario todavía está
     const partidosConMensajes = [...new Set(mensajesNoLeidos.map(m => m.partidoId))];
 
-    const relaciones = await UsuarioPartido.findAll({
-      where: {
-        usuarioId,
-        estado: { [Op.in]: ['confirmado', 'organizador'] },
-        partidoId: { [Op.in]: partidosConMensajes }
-      },
-      attributes: ['partidoId']
-    });
+  const relaciones = await UsuarioPartido.findAll({
+  where: {
+    UsuarioId: usuarioId, // 🔁 mayúscula
+    estado: { [Op.in]: ['confirmado', 'organizador'] },
+    PartidoId: { [Op.in]: partidosConMensajes } // 🔁 mayúscula
+  },
+  attributes: ['PartidoId'] // 🔁 mayúscula
+});
 
    
-    const partidosValidos = relaciones
-  .map(r => r.partidoId)
-  .filter(id => id !== null); // 💣 limpieza poderosa
-   console.log("wiiiiiiiiiiiiiiiii")
-  console.log(partidosValidos)
+ const partidosValidos = relaciones.map(r => r.PartidoId);
+
+ console.log("wiiiiiiiii",partidosValidos)
 
 res.json({ partidosConMensajes: partidosValidos });
-    
-    res.json({ partidosConMensajes: partidosValidos });
+
+
   } catch (error) {
     console.error('❌ Error en /mensajes-partido/no-leidos:', error);
     res.status(500).json({ error: 'Error al obtener mensajes no leídos' });
