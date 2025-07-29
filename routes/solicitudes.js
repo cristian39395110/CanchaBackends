@@ -244,7 +244,7 @@ router.post('/cancelar', async (req, res) => {
 
 // POST /solicitudes/aceptar
 // routes/solicitudes.js
-// POST /solicitudes/aceptar
+// POST /solicitudes/aceptar  
     router.post('/aceptar', async (req, res) => {
       const { usuarioId, partidoId } = req.body;
 

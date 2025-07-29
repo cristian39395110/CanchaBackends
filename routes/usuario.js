@@ -244,22 +244,24 @@ if (dispositivoExistente) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
+let urlImagen = null;
 
-    // Subir imagen si viene
-    let urlImagen = null;
-    if (req.file) {
-      const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: 'usuarios' },
-          (error, result) => {
-            if (result) resolve(result);
-            else reject(error);
-          }
-        );
-        streamifier.createReadStream(req.file.buffer).pipe(stream);
-      });
-      urlImagen = result.secure_url;
-    }
+if (req.file) {
+  const result = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'usuarios' },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(req.file.buffer).pipe(stream);
+  });
+  urlImagen = result.secure_url;
+} else {
+  // 👉 Imagen por defecto si no sube nada
+  urlImagen = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
+}
 
     const nuevoUsuario = await Usuario.create({
   nombre,
