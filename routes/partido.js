@@ -441,9 +441,14 @@ router.post('/reenviar-invitacion', async (req, res) => {
   const { partidoId } = req.body;
 
   try {
-    const partido = await Partido.findByPk(partidoId, {
-      include: [{ model: Deporte }, { model: Usuario, as: 'organizador' }]
-    });
+ const partido = await Partido.findByPk(partidoId, {
+  attributes: ['id', 'latitud', 'longitud', 'sexo', 'rangoEdad', 'categorias', 'lugar', 'hora', 'fecha', 'cantidadJugadores', 'deporteId'],
+  include: [
+    { model: Deporte },
+    { model: Usuario, as: 'organizador' }
+  ]
+});
+
     
     if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
     
