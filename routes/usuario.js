@@ -498,6 +498,27 @@ router.put('/:id', autenticarToken, upload.single('fotoPerfil'), async (req, res
   }
 });
 
+router.get('/:id/ubicacion', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const usuario = await Usuario.findByPk(id, {
+      attributes: ['latitud', 'longitud']
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json({
+      latitud: usuario.latitud,
+      longitud: usuario.longitud
+    });
+  } catch (error) {
+    console.error('❌ Error al obtener ubicación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 
 router.get('/:id', async (req, res) => {
