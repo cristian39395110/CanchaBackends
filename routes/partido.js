@@ -436,6 +436,114 @@ router.post('/confirmar-jugador', async (req, res) => {
   }
 });
 
+
+router.post('/reenviar-invitacion', async (req, res) => {
+  const { partidoId } = req.body;
+
+  try {
+    const partido = await Partido.findByPk(partidoId, {
+      include: [{ model: Deporte }, { model: Usuario, as: 'organizador' }]
+    });
+    
+    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+    
+    
+    const organizadorId=partido.organizador.id
+
+      const organizador = await Usuario.findByPk(organizadorId);
+  if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
+    return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
+  }
+
+    const distanciaMaxKm = 15;
+
+    const candidatosCercanos = await UsuarioDeporte.sequelize.query(
+      `
+      SELECT ud.usuarioId
+      FROM UsuarioDeportes ud
+      JOIN Usuarios u ON ud.usuarioId = u.id
+      WHERE ud.deporteId = :deporteId
+        AND ud.usuarioId != :organizadorId
+        AND ud.usuarioId NOT IN (
+          SELECT UsuarioId FROM UsuarioPartidos WHERE PartidoId = :partidoId
+        )
+        AND u.latitud IS NOT NULL AND u.longitud IS NOT NULL
+        AND (
+          6371 * acos(
+            cos(radians(:lat)) * cos(radians(u.latitud)) *
+            cos(radians(u.longitud) - radians(:lon)) +
+            sin(radians(:lat)) * sin(radians(u.latitud))
+          )
+        ) < :distancia
+      `,
+      {
+        replacements: {
+          deporteId: partido.deporteId,
+          organizadorId: partido.organizadorId,
+          partidoId: partido.id,
+          lat: partido.latitud,
+          lon: partido.longitud,
+          distancia: distanciaMaxKm
+        },
+        type: UsuarioDeporte.sequelize.QueryTypes.SELECT
+      }
+    );
+
+    const candidatos = candidatosCercanos.map(row => row.usuarioId);
+    // ❌ Filtrar usuarios suspendidos
+const suspendidos = await Usuario.findAll({
+  where: {
+    id: { [Op.in]: candidatos },
+    suspensionHasta: { [Op.gt]: new Date() }
+  }
+});
+const suspendidosIds = suspendidos.map(u => u.id);
+const candidatosFiltrados = candidatos.filter(id => !suspendidosIds.includes(id));
+
+
+    // Filtramos bien los usuarios válidos
+   const usuariosFiltrados = await Promise.all(
+  candidatosFiltrados.map(async (usuarioId) => {
+
+        // ✅ Reforzamos que no sea el organizador
+        if (usuarioId === partido.organizadorId) return null;
+
+        const suscripcion = await Suscripcion.findOne({ where: { usuarioId } });
+        if (!suscripcion) return null;
+
+        const usuario = await Usuario.findByPk(usuarioId);
+        return usuario ? { usuario, token: suscripcion.fcmToken } : null;
+      })
+    );
+
+    const seleccionados = usuariosFiltrados.filter(Boolean).slice(0, 3);
+
+   
+
+    for (const candidato of seleccionados) {
+      if (!candidato?.usuario?.id) continue;
+
+      await UsuarioPartido.create({
+        UsuarioId: candidato.usuario.id,
+        PartidoId: partidoId,
+        estado: 'pendiente'
+      });
+
+      await enviarNotificacionesFCM(candidato.token, {
+        title: '🏟️ Nueva invitación',
+        body: `Te invitaron a un partido de ${partido.Deporte.nombre} en ${partido.lugar}. ¡Aceptá antes que otro!`,
+        url: '/invitaciones'
+      });
+    }
+
+    res.json({ mensaje: `Se enviaron ${seleccionados.length} invitaciones basadas en distancia` });
+
+  } catch (err) {
+    console.error('❌ Error al reenviar invitación:', err);
+    res.status(500).json({ error: 'Error al reenviar invitación' });
+  }
+});
+
 // 🚀 Crear partido NO PREMIUM
 router.post('/', async (req, res) => {
   const {
@@ -619,112 +727,7 @@ router.post('/ispremium', async (req, res) => {
   }
 }); // ✅ ESTA LÍNEA FALTABA (cierro el router.post)
 
-router.post('/reenviar-invitacion', async (req, res) => {
-  const { partidoId } = req.body;
 
-  try {
-    const partido = await Partido.findByPk(partidoId, {
-      include: [{ model: Deporte }, { model: Usuario, as: 'organizador' }]
-    });
-    
-    if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
-    
-    
-    const organizadorId=partido.organizador.id
-
-      const organizador = await Usuario.findByPk(organizadorId);
-  if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
-    return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
-  }
-
-    const distanciaMaxKm = 15;
-
-    const candidatosCercanos = await UsuarioDeporte.sequelize.query(
-      `
-      SELECT ud.usuarioId
-      FROM UsuarioDeportes ud
-      JOIN Usuarios u ON ud.usuarioId = u.id
-      WHERE ud.deporteId = :deporteId
-        AND ud.usuarioId != :organizadorId
-        AND ud.usuarioId NOT IN (
-          SELECT UsuarioId FROM UsuarioPartidos WHERE PartidoId = :partidoId
-        )
-        AND u.latitud IS NOT NULL AND u.longitud IS NOT NULL
-        AND (
-          6371 * acos(
-            cos(radians(:lat)) * cos(radians(u.latitud)) *
-            cos(radians(u.longitud) - radians(:lon)) +
-            sin(radians(:lat)) * sin(radians(u.latitud))
-          )
-        ) < :distancia
-      `,
-      {
-        replacements: {
-          deporteId: partido.deporteId,
-          organizadorId: partido.organizadorId,
-          partidoId: partido.id,
-          lat: partido.latitud,
-          lon: partido.longitud,
-          distancia: distanciaMaxKm
-        },
-        type: UsuarioDeporte.sequelize.QueryTypes.SELECT
-      }
-    );
-
-    const candidatos = candidatosCercanos.map(row => row.usuarioId);
-    // ❌ Filtrar usuarios suspendidos
-const suspendidos = await Usuario.findAll({
-  where: {
-    id: { [Op.in]: candidatos },
-    suspensionHasta: { [Op.gt]: new Date() }
-  }
-});
-const suspendidosIds = suspendidos.map(u => u.id);
-const candidatosFiltrados = candidatos.filter(id => !suspendidosIds.includes(id));
-
-
-    // Filtramos bien los usuarios válidos
-   const usuariosFiltrados = await Promise.all(
-  candidatosFiltrados.map(async (usuarioId) => {
-
-        // ✅ Reforzamos que no sea el organizador
-        if (usuarioId === partido.organizadorId) return null;
-
-        const suscripcion = await Suscripcion.findOne({ where: { usuarioId } });
-        if (!suscripcion) return null;
-
-        const usuario = await Usuario.findByPk(usuarioId);
-        return usuario ? { usuario, token: suscripcion.fcmToken } : null;
-      })
-    );
-
-    const seleccionados = usuariosFiltrados.filter(Boolean).slice(0, 3);
-
-   
-
-    for (const candidato of seleccionados) {
-      if (!candidato?.usuario?.id) continue;
-
-      await UsuarioPartido.create({
-        UsuarioId: candidato.usuario.id,
-        PartidoId: partidoId,
-        estado: 'pendiente'
-      });
-
-      await enviarNotificacionesFCM(candidato.token, {
-        title: '🏟️ Nueva invitación',
-        body: `Te invitaron a un partido de ${partido.Deporte.nombre} en ${partido.lugar}. ¡Aceptá antes que otro!`,
-        url: '/invitaciones'
-      });
-    }
-
-    res.json({ mensaje: `Se enviaron ${seleccionados.length} invitaciones basadas en distancia` });
-
-  } catch (err) {
-    console.error('❌ Error al reenviar invitación:', err);
-    res.status(500).json({ error: 'Error al reenviar invitación' });
-  }
-});
 
 // routes/partidos.js (o el archivo donde definas las rutas de partidos)
 router.put('/:partidoId/actualizar-cantidad', async (req, res) => {
