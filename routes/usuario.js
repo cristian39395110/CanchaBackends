@@ -19,6 +19,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const storage = multer.memoryStorage();
 const { autenticarToken } = require('../middlewares/auth'); // ajustá la ruta si está en otro archivo
 
+// Obtener un usuario por ID (con URL completa de la imagen)
+// donde sea que tengas configurado Cloudinary
 
 
 
@@ -452,11 +454,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Obtener un usuario por ID (con URL completa de la imagen)
-router.put('/:id', autenticarToken, async (req, res) => {
+
+router.put('/:id', autenticarToken, upload.single('fotoPerfil'), async (req, res) => {
   const { id } = req.params;
 
-  // ❌ Si no es el dueño, rechazar
   if (parseInt(id) !== parseInt(req.usuario.id)) {
     return res.status(403).json({ error: 'No tienes permiso para modificar este perfil.' });
   }
@@ -472,15 +473,30 @@ router.put('/:id', autenticarToken, async (req, res) => {
     usuario.sexo = sexo;
     usuario.edad = edad;
 
+    // 🔼 Si viene nueva foto, subirla a Cloudinary
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'usuarios' },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+
+      usuario.fotoPerfil = result.secure_url;
+    }
+
     await usuario.save();
 
-    res.json({ mensaje: '✅ Usuario actualizado correctamente' });
+    res.json({ mensaje: '✅ Usuario actualizado correctamente', fotoPerfil: usuario.fotoPerfil });
   } catch (error) {
     console.error('❌ Error al actualizar usuario:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
 
 
 
