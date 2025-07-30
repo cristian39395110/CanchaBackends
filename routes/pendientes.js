@@ -174,10 +174,11 @@ router.post('/rechazar', async (req, res) => {
     });
 
     if (!partido) return res.status(404).json({ error: 'Partido no encontrado' });
+  // Si el organizador NO es premium y ya usó el rechazo, no puede volver a hacerlo
+if (!partido.organizador.premium && !partido.rechazoDisponible) {
+  return res.status(400).json({ error: '❌ Ya usaste el cupo de rechazo para este partido' });
+}
 
-    if (!partido.rechazoDisponible) {
-      return res.status(400).json({ error: '❌ Ya usaste el cupo de rechazo para este partido' });
-    }
 
     // Eliminar jugador del partido
 await UsuarioPartido.update(
