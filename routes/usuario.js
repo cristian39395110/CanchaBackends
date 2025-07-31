@@ -518,6 +518,27 @@ router.get('/:id/ubicacion', async (req, res) => {
     console.error('❌ Error al obtener ubicación:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
+}); 
+
+// PUT /api/usuarios/:id/ubicacion
+router.put('/:id/ubicacion', autenticarToken, async (req, res) => {
+  if (parseInt(req.params.id) !== req.usuario.id) {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+
+  const { latitud, longitud } = req.body;
+
+  if (!latitud || !longitud) {
+    return res.status(400).json({ error: 'Latitud y longitud son requeridas' });
+  }
+
+  try {
+    await Usuario.update({ latitud, longitud }, { where: { id: req.usuario.id } });
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('❌ Error al actualizar ubicación:', error);
+    res.status(500).json({ error: 'Error al actualizar ubicación' });
+  }
 });
 
 
