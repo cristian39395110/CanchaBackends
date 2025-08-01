@@ -9,14 +9,17 @@ const admin = require('../firebase'); // Inicialización con tu firebase-admin-s
 // ✅ Guardar o actualizar FCM token
 router.post('/', async (req, res) => {
   const { fcmToken, usuarioId } = req.body;
- console.log("fcmToken")
- console.log(fcmToken)
+  console.log("📩 fcmToken recibido:", fcmToken, "usuarioId:", usuarioId);
 
   if (!fcmToken || !usuarioId) {
     return res.status(400).json({ error: 'Faltan datos: fcmToken o usuarioId' });
   }
 
   try {
+    // 💣 Previene duplicados si ya existía en otro usuario
+    await Suscripcion.destroy({ where: { fcmToken } });
+
+    // 💾 Actualizar si ya tenía entrada
     let suscripcion = await Suscripcion.findOne({ where: { usuarioId } });
 
     if (suscripcion) {
@@ -25,6 +28,7 @@ router.post('/', async (req, res) => {
       return res.status(200).json({ mensaje: 'FCM token actualizado' });
     }
 
+    // ➕ Crear si no existía
     await Suscripcion.create({ usuarioId, fcmToken });
     res.status(201).json({ mensaje: 'FCM token guardado' });
   } catch (error) {
@@ -32,6 +36,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'No se pudo guardar el token' });
   }
 });
+
 
 // ✅ Consultar si un usuario está suscripto
 router.get('/usuario/:usuarioId', async (req, res) => {
