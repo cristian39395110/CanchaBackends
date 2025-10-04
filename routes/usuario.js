@@ -37,12 +37,21 @@ cloudinary.config({
 
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,         // 465 => secure true (TLS)
+  secure: true,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USER,   // tu Gmail
+    pass: process.env.EMAIL_PASS,   // App Password (NO tu clave normal)
   },
+  connectionTimeout: 15000,
+  greetingTimeout: 10000,
+  socketTimeout: 20000,
+  pool: true,
+  maxConnections: 3,
+  maxMessages: 50,
 });
+
 function generarPasswordAleatoria(length = 8) {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let pass = '';
@@ -219,19 +228,10 @@ await usuario.save();
 
 router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   try {
-   const {
-  nombre,
-  telefono,
-  email,
-  password,
-  localidad,
-  latitud,
-  longitud,
-  sexo,
-  edad,
-   deviceId 
-} = req.body;
-
+    const {
+      nombre, telefono, email, password, localidad,
+      latitud, longitud, sexo, edad, deviceId
+    } = req.body;
 
     const existente = await Usuario.findOne({ where: { email } });
     if (existente) {
@@ -239,62 +239,71 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
     }
 
     const dispositivoExistente = await Usuario.findOne({ where: { deviceId } });
-if (dispositivoExistente) {
-  return res.status(400).json({ error: 'Ya existe una cuenta registrada desde este dispositivo.' });
-}
+    if (dispositivoExistente) {
+      return res.status(400).json({ error: 'Ya existe una cuenta registrada desde este dispositivo.' });
+    }
 
+    // Foto (tu mismo flujo)
+    let urlImagen = null;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'usuarios' },
+          (error, result) => (result ? resolve(result) : reject(error))
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+      urlImagen = result.secure_url;
+    } else {
+      urlImagen = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
-let urlImagen = null;
-
-if (req.file) {
-  const result = await new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: 'usuarios' },
-      (error, result) => {
-        if (result) resolve(result);
-        else reject(error);
-      }
-    );
-    streamifier.createReadStream(req.file.buffer).pipe(stream);
-  });
-  urlImagen = result.secure_url;
-} else {
-  // 👉 Imagen por defecto si no sube nada
-  urlImagen = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
-}
 
     const nuevoUsuario = await Usuario.create({
-  nombre,
-  telefono,
-  email,
-  password: hashedPassword,
-  localidad,
-  latitud,
-  longitud,
-  sexo,
-  edad,
-  deviceId, 
-  fotoPerfil: urlImagen,
-  verificado: false,
-  tokenVerificacion,
-});
-
-
-    const link = `${process.env.FRONTEND_URL || 'https://canchabackends-1.onrender.com'}/api/usuarios/verificar/${tokenVerificacion}`;
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Verifica tu cuenta',
-      html: `<h2>Bienvenido/a ${nombre}</h2><p>Haz clic en el siguiente enlace para verificar tu cuenta:</p><a href="${link}">${link}</a>`,
+      nombre, telefono, email,
+      password: hashedPassword,
+      localidad, latitud, longitud, sexo, edad,
+      deviceId,
+      fotoPerfil: urlImagen,
+      verificado: false,
+      tokenVerificacion,
     });
 
-    res.status(201).json({ mensaje: 'Usuario creado. Revisa tu correo para confirmar la cuenta.' });
+    // 🔗 usar BACKEND_URL (no FRONTEND_URL) porque la ruta es del backend
+    const base = process.env.BACKEND_URL || 'https://canchabackends-1.onrender.com';
+    const link = `${base}/api/usuarios/verificar/${tokenVerificacion}`;
+
+    // Enviar correo, pero NO romper si falla
+    let emailEnviado = true;
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Verifica tu cuenta',
+        html: `<h2>Bienvenido/a ${nombre}</h2>
+               <p>Haz clic en el siguiente enlace para verificar tu cuenta:</p>
+               <a href="${link}">${link}</a>`,
+      });
+    } catch (err) {
+      emailEnviado = false;
+      console.error('❌ No se pudo enviar el correo de verificación:', err);
+      // No lanzamos error para no romper el registro
+    }
+
+    // ✅ Siempre 201 si el usuario se creó
+    return res.status(201).json({
+      mensaje: emailEnviado
+        ? 'Usuario creado. Revisa tu correo para confirmar la cuenta.'
+        : 'Usuario creado. No pudimos enviar el correo, intentá reenviar desde la app.',
+      emailEnviado,
+      usuarioId: nuevoUsuario.id,
+    });
+
   } catch (error) {
     console.error('❌ Error al crear usuario:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Error interno al crear usuario.' });
   }
 });
 
