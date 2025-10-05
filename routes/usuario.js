@@ -38,11 +38,11 @@ cloudinary.config({
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,         // 465 => secure true (TLS)
-  secure: true,
+  port: 587,        // <- CAMBIO
+  secure: false,    // <- CAMBIO (usa STARTTLS)
   auth: {
-    user: process.env.EMAIL_USER,   // tu Gmail
-    pass: process.env.EMAIL_PASS,   // App Password (NO tu clave normal)
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,   // App Password 16 dígitos
   },
   connectionTimeout: 15000,
   greetingTimeout: 10000,
@@ -224,7 +224,8 @@ await usuario.save();
     res.status(500).json({ error: 'Error interno' });
   }
 });
-
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 
 router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   try {
@@ -260,7 +261,9 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
-
+    console.log("------------------------------------------------")
+console.log(email)
+    console.log("------------------------------------------------")
     const nuevoUsuario = await Usuario.create({
       nombre, telefono, email,
       password: hashedPassword,
@@ -307,6 +310,10 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
   }
 });
 
+
+
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 
 
 router.get('/buscar', async (req, res) => {
