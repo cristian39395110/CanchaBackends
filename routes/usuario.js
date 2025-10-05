@@ -36,20 +36,21 @@ cloudinary.config({
 
 
 
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,        // <- CAMBIO
-  secure: false,    // <- CAMBIO (usa STARTTLS)
+  port: 465,
+  secure: true,               // SSL directo
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,   // App Password 16 dígitos
+    user: process.env.EMAIL_USER,   // tu@gmail.com
+    pass: process.env.EMAIL_PASS,   // App Password (16)
   },
-  connectionTimeout: 15000,
-  greetingTimeout: 10000,
-  socketTimeout: 20000,
-  pool: true,
-  maxConnections: 3,
-  maxMessages: 50,
+  // claves para evitar timeouts por red/IPv6
+  family: 4,                  // 👈 fuerza IPv4
+  connectionTimeout: 60000,   // 60s
+  greetingTimeout: 30000,
+  socketTimeout: 120000,
+  // logger: true, debug: true, // (opcional) ver handshake en logs
 });
 
 function generarPasswordAleatoria(length = 8) {
