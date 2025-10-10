@@ -77,7 +77,7 @@ const ESPERA_MS = 2 * 60 * 1000;
 
 async function enviarEscalonado(partido, deporteNombre, organizadorId) {
   const { latitud, longitud, sexo, rangoEdad } = partido;
-  const distanciaKm = 13;
+  const distanciaKm = 20;
 console.log('✅ Entró a enviarEscalonado - partido ID:', partido.id);
 console.log('📍 Coordenadas recibidas:', partido.latitud, partido.longitud);
 console.log('📍 Rango edad:',rangoEdad );
@@ -256,12 +256,23 @@ const fcmTokens = suscripciones.map(s => s.fcmToken).filter(Boolean);
 
 console.log('🔑 Tokens FCM válidos:', fcmTokens);
 
+const esEncuentro = ['Trekking', 'Ciclismo'].includes(
+  String(deporteNombre).trim()
+);
 
-      const payload = {
-        title: '🎯 ¡Nuevo partido disponible!',
-        body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
-        url: '/invitaciones'
-      };
+
+const payload = esEncuentro
+  ? {
+      title: '🎯 ¡Nuevo Encuentro disponible!',
+      body: `Encuentro para hacer ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
+      url: '/invitaciones',
+    }
+  : {
+      title: '🎯 ¡Nuevo partido disponible!',
+      body: `Partido de ${deporteNombre} en ${partido.lugar} el ${partido.fecha} a las ${partido.hora}`,
+      url: '/invitaciones',
+    };
+
 
       if (fcmTokens.length === 0) {
   console.log('🚫 No hay tokens FCM válidos para esta tanda.');
