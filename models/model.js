@@ -18,7 +18,19 @@ const MensajePartido = require('./MensajePartido');
 const PublicacionLeida = require('./publicacionLeida');
 const envioNotificacion = require('./envioNotificacion');
 const MensajePartidoLeido = require('./MensajePartidoLeido');
+const Historia = require('./Historia');
+const HistoriaVisto = require('./HistoriaVisto');
 
+// === Historias (24 h) ===
+Usuario.hasMany(Historia, { foreignKey: 'usuarioId', as: 'Historias' });
+Historia.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'Usuario' });
+
+// === Vistas de historias (únicas) ===
+Historia.hasMany(HistoriaVisto, { foreignKey: 'historiaId', as: 'Vistos' });
+HistoriaVisto.belongsTo(Historia, { foreignKey: 'historiaId' });
+
+Usuario.hasMany(HistoriaVisto, { foreignKey: 'usuarioId', as: 'HistoriasVistas' });
+HistoriaVisto.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 
 MensajePartidoLeido.belongsTo(MensajePartido, {
   foreignKey: 'mensajePartidoId',
@@ -160,6 +172,8 @@ module.exports = {
   Cancha ,
   MensajePartido,
   PublicacionLeida,
+  Historia,
+  HistoriaVisto,
   MensajePartidoLeido,
   envioNotificacion
 };

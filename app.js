@@ -196,6 +196,13 @@ for (const socketId of sockets) {
   const historialdeposicionesRoutes = require('./routes/historialpuntuacion');
   const mensajePartidoRouter = require('./routes/mensajePartido');
   const envioNotificacionRouter = require('./routes/envioNotificacion');
+  const historiasRoutes = require('./routes/historias');
+
+
+
+
+  app.use('/api/historias', historiasRoutes);
+
 app.use('/api/envio-notificaciones', envioNotificacionRouter);
 
   
