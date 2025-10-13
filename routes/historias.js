@@ -7,25 +7,28 @@ const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 require('dotenv').config();
 
-// ✅ Modelos (según tu estilo actual)
+// ✅ Modelos
 const Historia = require('../models/Historia');
 const HistoriaVisto = require('../models/HistoriaVisto');
+const HistoriaComentario = require('../models/HistoriaComentario');
+const HistoriaLike = require('../models/HistoriaLike');
 const Usuario = require('../models/usuario');
+const Mensaje = require('../models/Mensaje'); // para enviar al chat
 
-// ⛑️ Si querés proteger POST con token, descomentá:
+// ⛑️ Si querés proteger con JWT, descomentá esto y poné el middleware en POST/DELETE:
 // const { autenticarToken } = require('../middlewares/auth');
 
-// 🔧 Multer igual que en /usuarios (memoria)
+// 🔧 Multer memoria
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 🔧 Cloudinary igual que en /usuarios
+// 🔧 Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key:    process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 🖼️ Helper: generar miniatura JPG para videos usando public_id (sin tocar DB)
+// 🖼️ Helper: miniatura para videos (no persiste en DB)
 const buildThumbUrl = (cloudinaryId, { w = 480, h = 848 } = {}) =>
   cloudinary.url(cloudinaryId, {
     resource_type: 'video',
@@ -38,11 +41,12 @@ const buildThumbUrl = (cloudinaryId, { w = 480, h = 848 } = {}) =>
 
 /**
  * GET /api/historias?usuarioId=123
- * Devuelve historias de las últimas 24h con:
+ * Devuelve últimas 24h con:
  * - datos del usuario
- * - contador de vistos
- * - vistoPorMi (si pasás usuarioId)
- * - thumbUrl (si el tipo es 'video')
+ * - vistos / vistoPorMi
+ * - likes / likedByMe
+ * - comentariosCount
+ * - thumbUrl si es video
  */
 router.get('/', async (req, res) => {
   try {
@@ -54,6 +58,8 @@ router.get('/', async (req, res) => {
       include: [
         { model: Usuario, as: 'Usuario', attributes: ['id', 'nombre', 'fotoPerfil'] },
         { model: HistoriaVisto, as: 'Vistos', attributes: ['usuarioId'] },
+        { model: HistoriaLike, as: 'Likes', attributes: ['usuarioId'] },
+        { model: HistoriaComentario, as: 'Comentarios', attributes: ['id'] },
       ],
       order: [['createdAt', 'DESC']],
     });
@@ -61,14 +67,17 @@ router.get('/', async (req, res) => {
     const data = historias.map(h => {
       const json = h.toJSON();
       const vistosCount = json.Vistos?.length || 0;
-      const vistoPorMi = usuarioId
-        ? (json.Vistos || []).some(v => v.usuarioId === usuarioId)
-        : false;
+      const vistoPorMi = usuarioId ? (json.Vistos || []).some(v => v.usuarioId === usuarioId) : false;
+
+      const likesCount = json.Likes?.length || 0;
+      const likedByMe = usuarioId ? (json.Likes || []).some(l => l.usuarioId === usuarioId) : false;
+
+      const comentariosCount = json.Comentarios?.length || 0;
 
       const thumbUrl =
         json.tipo === 'video' && json.cloudinaryId
-          ? buildThumbUrl(json.cloudinaryId)  // miniatura para videos
-          : json.mediaUrl;                    // imágenes usan la misma URL
+          ? buildThumbUrl(json.cloudinaryId)
+          : json.mediaUrl;
 
       return {
         id: json.id,
@@ -80,9 +89,21 @@ router.get('/', async (req, res) => {
         createdAt: json.createdAt,
         cloudinaryId: json.cloudinaryId,
         duracionSegundos: json.duracionSegundos,
+
+        // campos nuevos
+        descripcion: json.descripcion,
+        linkUrl: json.linkUrl,
+        phoneNumber: json.phoneNumber,
+
+        // contadores/flags
         vistos: vistosCount,
         vistoPorMi,
-        thumbUrl, // 👈 NUEVO
+        likes: likesCount,
+        likedByMe,
+        comentariosCount,
+
+        // ui
+        thumbUrl,
       };
     });
 
@@ -96,31 +117,29 @@ router.get('/', async (req, res) => {
 /**
  * POST /api/historias
  * Subir imagen o video(mp4). Campo: "media"
+ * Body: usuarioId, [descripcion], [linkUrl], [phoneNumber]
  */
 router.post(
   '/',
-  // autenticarToken, // ← descomentar si querés forzar login
+  // autenticarToken,
   upload.single('media'),
   async (req, res) => {
     try {
-      const { usuarioId } = req.body;
+      const { usuarioId, descripcion, linkUrl, phoneNumber } = req.body;
       const file = req.file;
 
       if (!usuarioId) return res.status(400).json({ error: 'usuarioId es requerido' });
       if (!file) return res.status(400).json({ error: 'No se envió archivo "media"' });
 
-      // Validaciones simples
       const esVideo = file.mimetype.startsWith('video/');
       const esImagen = file.mimetype.startsWith('image/');
       if (!esImagen && !(esVideo && file.mimetype === 'video/mp4')) {
         return res.status(400).json({ error: 'Formato no permitido. Solo imagen/* o video/mp4' });
       }
-      // Peso máximo 50 MB
       if (file.size > 50 * 1024 * 1024) {
         return res.status(400).json({ error: 'Archivo demasiado grande (máx 50MB)' });
       }
 
-      // 📤 Subir a Cloudinary con upload_stream (igual que en /usuarios)
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
@@ -132,30 +151,31 @@ router.post(
         streamifier.createReadStream(file.buffer).pipe(stream);
       });
 
-      // (Opcional) limitar duración del video (p. ej. máx 20s)
+      // limitar duración del video (ej 20s)
       if (esVideo && result.duration && result.duration > 20) {
-        try {
-          await cloudinary.uploader.destroy(result.public_id, { resource_type: 'video' });
-        } catch (_) {}
+        try { await cloudinary.uploader.destroy(result.public_id, { resource_type: 'video' }); } catch (_) {}
         return res.status(400).json({ error: 'Video demasiado largo (máx 20s)' });
       }
 
-      // 💾 Crear registro en DB
+      // normalizar link/teléfono
+      const safeDesc = (descripcion || '').trim().slice(0, 500) || null;
+      const safeLink = (linkUrl && /^https?:\/\//i.test(linkUrl)) ? linkUrl.trim().slice(0, 600) : null;
+      const safePhone = phoneNumber ? String(phoneNumber).trim().slice(0, 30) : null;
+
       const nueva = await Historia.create({
         usuarioId: Number(usuarioId),
         mediaUrl: result.secure_url,
         cloudinaryId: result.public_id,
         tipo: esVideo ? 'video' : 'imagen',
         duracionSegundos: esVideo && result.duration ? Math.round(result.duration) : null,
+        descripcion: safeDesc,
+        linkUrl: safeLink,
+        phoneNumber: safePhone,
       });
 
-      // 👤 Datos del usuario para el front
       const usr = await Usuario.findByPk(usuarioId, {
         attributes: ['id', 'nombre', 'fotoPerfil'],
       });
-
-      // Miniatura si es video (sin tocar DB)
-      const thumbUrl = esVideo ? buildThumbUrl(nueva.cloudinaryId) : nueva.mediaUrl;
 
       const payload = {
         id: nueva.id,
@@ -167,12 +187,19 @@ router.post(
         createdAt: nueva.createdAt,
         cloudinaryId: nueva.cloudinaryId,
         duracionSegundos: nueva.duracionSegundos,
+
+        descripcion: nueva.descripcion,
+        linkUrl: nueva.linkUrl,
+        phoneNumber: nueva.phoneNumber,
+
         vistos: 0,
-        vistoPorMi: true, // el que la sube la ve automáticamente
-        thumbUrl,         // 👈 NUEVO
+        vistoPorMi: true,
+        likes: 0,
+        likedByMe: false,
+        comentariosCount: 0,
+        thumbUrl: esVideo ? buildThumbUrl(nueva.cloudinaryId) : nueva.mediaUrl,
       };
 
-      // 🔊 Emitir por socket (si configuraste app.set('io', io))
       try {
         const io = req.app.get('io');
         if (io) io.emit('nueva-historia', { historia: payload });
@@ -188,7 +215,7 @@ router.post(
 
 /**
  * POST /api/historias/:id/visto
- * Marca vista única para el usuarioId enviado
+ * Marca visto (único) para el usuario
  */
 router.post('/:id/visto', async (req, res) => {
   try {
@@ -211,8 +238,189 @@ router.post('/:id/visto', async (req, res) => {
 });
 
 /**
+ * POST /api/historias/:id/like
+ * Toggle like (crea/borrar)
+ * Body: { usuarioId }
+ */
+router.post('/:id/like', async (req, res) => {
+  try {
+    const historiaId = Number(req.params.id);
+    const usuarioId = Number(req.body.usuarioId);
+    if (!historiaId || !usuarioId) return res.status(400).json({ error: 'Datos incompletos' });
+
+    const [row, created] = await HistoriaLike.findOrCreate({
+      where: { historiaId, usuarioId },
+      defaults: { historiaId, usuarioId },
+    });
+
+    let liked;
+    if (!created) {
+      await row.destroy();
+      liked = false;
+    } else {
+      liked = true;
+    }
+
+    const total = await HistoriaLike.count({ where: { historiaId } });
+
+    // socket al dueño
+    try {
+      const historia = await Historia.findByPk(historiaId);
+      const io = req.app.get('io');
+      if (io && historia) {
+        io.to(`usuario-${historia.usuarioId}`).emit('historia-like', {
+          historiaId,
+          liked,
+          total,
+          usuarioId,
+        });
+      }
+    } catch (_) {}
+
+    res.json({ ok: true, liked, total });
+  } catch (e) {
+    console.error('POST /historias/:id/like', e);
+    res.status(500).json({ error: 'Error al like' });
+  }
+});
+
+/**
+ * GET /api/historias/:id/likes
+ * Lista simple de quiénes dieron like (id, nombre, foto)
+ */
+router.get('/:id/likes', async (req, res) => {
+  try {
+    const historiaId = Number(req.params.id);
+    const likes = await HistoriaLike.findAll({
+      where: { historiaId },
+      include: [{ model: Usuario, attributes: ['id', 'nombre', 'fotoPerfil'] }],
+      order: [['createdAt', 'ASC']],
+    });
+    res.json(
+      likes.map(l => ({
+        usuarioId: l.usuarioId,
+        nombre: l.Usuario?.nombre,
+        fotoPerfil: l.Usuario?.fotoPerfil,
+      }))
+    );
+  } catch (e) {
+    console.error('GET /historias/:id/likes', e);
+    res.status(500).json({ error: 'Error al listar likes' });
+  }
+});
+
+/**
+ * POST /api/historias/:id/comentarios
+ * Body: { usuarioId, contenido, enviarAlChat?: boolean }
+ */
+router.post('/:id/comentarios', async (req, res) => {
+  try {
+    const historiaId = Number(req.params.id);
+    const { usuarioId, contenido, enviarAlChat } = req.body;
+
+    if (!historiaId || !usuarioId || !contenido?.trim()) {
+      return res.status(400).json({ error: 'Datos incompletos' });
+    }
+
+    const historia = await Historia.findByPk(historiaId, {
+      include: [{ model: Usuario, as: 'Usuario', attributes: ['id', 'nombre'] }],
+    });
+    if (!historia) return res.status(404).json({ error: 'Historia no encontrada' });
+
+    const coment = await HistoriaComentario.create({
+      historiaId,
+      usuarioId,
+      contenido: contenido.trim().slice(0, 600),
+    });
+
+    // socket al dueño
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`usuario-${historia.usuarioId}`).emit('historia-comentario', {
+          historiaId,
+          comentario: {
+            id: coment.id,
+            usuarioId,
+            contenido: coment.contenido,
+            createdAt: coment.createdAt,
+          },
+        });
+      }
+    } catch (_) {}
+
+    // (opcional) mandar al chat
+    if (enviarAlChat && Number(historia.usuarioId) !== Number(usuarioId)) {
+      try {
+        await Mensaje.create({
+          emisorId: usuarioId,
+          receptorId: historia.usuarioId,
+          contenido: `💬 Comentó tu historia: "${coment.contenido}"`,
+        });
+        // Si ya tenés sockets de /mensajes, se disparará tu flujo normal.
+      } catch (e) {
+        console.warn('No se pudo guardar mensaje de chat para comentario de historia:', e.message);
+      }
+    }
+
+    res.status(201).json(coment);
+  } catch (e) {
+    console.error('POST /historias/:id/comentarios', e);
+    res.status(500).json({ error: 'Error al comentar' });
+  }
+});
+
+/**
+ * GET /api/historias/:id/comentarios
+ */
+router.get('/:id/comentarios', async (req, res) => {
+  try {
+    const historiaId = Number(req.params.id);
+    const comentarios = await HistoriaComentario.findAll({
+      where: { historiaId },
+      include: [{ model: Usuario, as: 'Autor', attributes: ['id', 'nombre', 'fotoPerfil'] }],
+      order: [['createdAt', 'ASC']],
+    });
+    res.json(comentarios);
+  } catch (e) {
+    console.error('GET /historias/:id/comentarios', e);
+    res.status(500).json({ error: 'Error al listar comentarios' });
+  }
+});
+
+/**
+ * DELETE /api/historias/comentarios/:comentarioId
+ * Solo el autor del comentario o el dueño de la historia
+ * Body o query: { usuarioId }
+ */
+router.delete('/comentarios/:comentarioId', async (req, res) => {
+  try {
+    const comentarioId = Number(req.params.comentarioId);
+    const usuarioId = Number(req.body?.usuarioId || req.query?.usuarioId);
+    if (!comentarioId || !usuarioId) return res.status(400).json({ error: 'Datos incompletos' });
+
+    const coment = await HistoriaComentario.findByPk(comentarioId);
+    if (!coment) return res.status(404).json({ error: 'Comentario no encontrado' });
+
+    const historia = await Historia.findByPk(coment.historiaId);
+    if (!historia) return res.status(404).json({ error: 'Historia no encontrada' });
+
+    if (coment.usuarioId !== usuarioId && historia.usuarioId !== usuarioId) {
+      return res.status(403).json({ error: 'No autorizado para eliminar este comentario' });
+    }
+
+    await coment.destroy();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE /historias/comentarios/:comentarioId', e);
+    res.status(500).json({ error: 'Error al eliminar comentario' });
+  }
+});
+
+/**
  * DELETE /api/historias/:id
- * Elimina la historia si pertenece al usuario (por seguridad, se envía usuarioId en el body)
+ * Elimina historia (dueño solamente)
+ * Body o query: { usuarioId }
  */
 router.delete('/:id', async (req, res) => {
   try {
@@ -223,16 +431,13 @@ router.delete('/:id', async (req, res) => {
       return res.status(400).json({ error: 'historiaId y usuarioId son requeridos' });
     }
 
-    // Buscar la historia
     const historia = await Historia.findByPk(historiaId);
     if (!historia) return res.status(404).json({ error: 'Historia no encontrada' });
-
-    // Solo el dueño puede eliminarla
     if (historia.usuarioId !== usuarioId) {
       return res.status(403).json({ error: 'No autorizado para eliminar esta historia' });
     }
 
-    // 🧹 Eliminar archivo de Cloudinary (si existe)
+    // Cloudinary
     if (historia.cloudinaryId) {
       try {
         await cloudinary.uploader.destroy(historia.cloudinaryId, {
@@ -243,13 +448,16 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    // 🗑️ Eliminar de la base de datos
+    // DB: limpiar dependencias
+    await Promise.all([
+      HistoriaVisto.destroy({ where: { historiaId } }),
+      HistoriaLike.destroy({ where: { historiaId } }),
+      HistoriaComentario.destroy({ where: { historiaId } }),
+    ]);
+
     await historia.destroy();
 
-    // 🧽 Eliminar los registros de vistos (opcional)
-    await HistoriaVisto.destroy({ where: { historiaId } });
-
-    // 🔊 Emitir evento por socket (si querés)
+    // socket
     try {
       const io = req.app.get('io');
       if (io) io.emit('historia-eliminada', { id: historiaId, usuarioId });
@@ -261,6 +469,5 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar la historia' });
   }
 });
-
 
 module.exports = router;

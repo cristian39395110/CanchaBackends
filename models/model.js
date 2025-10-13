@@ -20,22 +20,29 @@ const envioNotificacion = require('./envioNotificacion');
 const MensajePartidoLeido = require('./MensajePartidoLeido');
 const Historia = require('./Historia');
 const HistoriaVisto = require('./HistoriaVisto');
+const HistoriaComentario = require('./HistoriaComentario');
+const HistoriaLike = require('./HistoriaLike');
 
 // === Historias (24 h) ===
-Usuario.hasMany(Historia, { foreignKey: 'usuarioId', as: 'Historias' });
+// Relaciones historias
 Historia.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'Usuario' });
-
-// === Vistas de historias (únicas) ===
 Historia.hasMany(HistoriaVisto, { foreignKey: 'historiaId', as: 'Vistos' });
-HistoriaVisto.belongsTo(Historia, { foreignKey: 'historiaId' });
+Historia.hasMany(HistoriaComentario, { foreignKey: 'historiaId', as: 'Comentarios' });
+Historia.hasMany(HistoriaLike, { foreignKey: 'historiaId', as: 'Likes' });
 
-Usuario.hasMany(HistoriaVisto, { foreignKey: 'usuarioId', as: 'HistoriasVistas' });
-HistoriaVisto.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+HistoriaComentario.belongsTo(Historia, { foreignKey: 'historiaId' });
+HistoriaComentario.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'Autor' });
+
+HistoriaLike.belongsTo(Historia, { foreignKey: 'historiaId' });
+HistoriaLike.belongsTo(Usuario, { foreignKey: 'usuarioId' });
+
 
 MensajePartidoLeido.belongsTo(MensajePartido, {
   foreignKey: 'mensajePartidoId',
   as: 'mensajePartido'
 });
+
+
 MensajePartidoLeido.belongsTo(Usuario, { foreignKey: 'usuarioId' });
 
 MensajePartido.hasMany(MensajePartidoLeido, {
@@ -174,6 +181,8 @@ module.exports = {
   PublicacionLeida,
   Historia,
   HistoriaVisto,
+    HistoriaComentario,
+     HistoriaLike,
   MensajePartidoLeido,
   envioNotificacion
 };
