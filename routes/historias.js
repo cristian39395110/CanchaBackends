@@ -159,7 +159,16 @@ router.post(
 
       // normalizar link/teléfono
       const safeDesc = (descripcion || '').trim().slice(0, 500) || null;
-      const safeLink = (linkUrl && /^https?:\/\//i.test(linkUrl)) ? linkUrl.trim().slice(0, 600) : null;
+       let safeLink = (linkUrl || "").trim();
+ if (safeLink) {
+   // si falta esquema (empieza con www. o dominio pelado), agregamos https://
+   if (!/^https?:\/\//i.test(safeLink)) {
+     safeLink = "https://" + safeLink;
+   }
+   safeLink = safeLink.slice(0, 600);
+ } else {
+   safeLink = null;
+ }
       const safePhone = phoneNumber ? String(phoneNumber).trim().slice(0, 30) : null;
 
       const nueva = await Historia.create({
@@ -350,18 +359,50 @@ router.post('/:id/comentarios', async (req, res) => {
     } catch (_) {}
 
     // (opcional) mandar al chat
-    if (enviarAlChat && Number(historia.usuarioId) !== Number(usuarioId)) {
-      try {
-        await Mensaje.create({
-          emisorId: usuarioId,
-          receptorId: historia.usuarioId,
-          contenido: `💬 Comentó tu historia: "${coment.contenido}"`,
-        });
-        // Si ya tenés sockets de /mensajes, se disparará tu flujo normal.
-      } catch (e) {
-        console.warn('No se pudo guardar mensaje de chat para comentario de historia:', e.message);
-      }
+ // (opcional) mandar al chat SIN tocar esquema DB
+if (enviarAlChat && Number(historia.usuarioId) !== Number(usuarioId)) {
+  try {
+    // 1) Guardás solo TEXTO en DB (como ya hacías)
+    const msg = await Mensaje.create({
+      emisorId: usuarioId,
+      receptorId: historia.usuarioId,
+      contenido: `💬 Comentó tu historia: "${coment.contenido}"`,
+    });
+
+    // 2) Emitís ENRIQUECIDO para UI en tiempo real (sin persistir adjunto)
+    const adj = req.body.adjunto || {};
+    const autorNombre = historia.Usuario?.nombre || adj.autorNombre || null;
+
+    const mediaUrl = adj.mediaUrl || historia.mediaUrl;
+    const thumbUrl =
+      adj.thumbUrl ||
+      (historia.tipo === 'video' && historia.cloudinaryId
+        ? buildThumbUrl(historia.cloudinaryId)
+        : historia.mediaUrl);
+
+    const enriched = {
+      id: msg.id,                    // id real del mensaje guardado
+      emisorId: Number(usuarioId),
+      receptorId: Number(historia.usuarioId),
+      contenido: coment.contenido,   // texto "limpio" para mostrar en la tarjeta
+      tipo: 'historia',              // 👈 clave para que el front dibuje la tarjeta
+      historiaId: historia.id,
+      mediaUrl,
+      thumbUrl,
+      autorNombre,
+      createdAt: msg.createdAt,
+      leido: false,
+    };
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`usuario-${enriched.receptorId}`).emit('mensajeNuevo', enriched);
+      io.to(`usuario-${enriched.emisorId}`).emit('mensajeNuevo', enriched);
     }
+  } catch (e) {
+    console.warn('No se pudo enviar mensaje enriquecido:', e.message);
+  }
+}
 
     res.status(201).json(coment);
   } catch (e) {
