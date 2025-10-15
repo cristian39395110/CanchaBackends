@@ -914,6 +914,28 @@ router.get('/:id/perfil', async (req, res) => {
   }
 });
 
+// routes/usuarios.js
+router.get('/:id/perfil-completo', autenticarToken, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (id !== parseInt(req.usuario.id, 10)) {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+  const usuario = await Usuario.findByPk(id, {
+    attributes: [
+      'id','nombre','email','fotoPerfil','localidad','sexo','edad',
+      // opcionales:
+      'fechaNacimiento','lugarNacimiento','nacionalidad','estadoCivil',
+      'dondeVivo','profesion','empleo','religion','musicaFavorita','institucion',
+      // flags:
+      'mostrar_edad','mostrar_sexo','mostrar_localidad',
+      'mostrar_fechaNacimiento','mostrar_lugarNacimiento','mostrar_nacionalidad',
+      'mostrar_estadoCivil','mostrar_dondeVivo','mostrar_profesion','mostrar_empleo',
+      'mostrar_religion','mostrar_musicaFavorita','mostrar_institucion',
+    ]
+  });
+  if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+  res.json(usuario);
+});
 
 
 
