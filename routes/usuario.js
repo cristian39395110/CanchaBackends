@@ -479,36 +479,91 @@ router.put('/:id', autenticarToken, upload.single('fotoPerfil'), async (req, res
     return res.status(403).json({ error: 'No tienes permiso para modificar este perfil.' });
   }
 
-  const { nombre, localidad, sexo, edad } = req.body;
-
   try {
     const usuario = await Usuario.findByPk(id);
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    usuario.nombre = nombre;
-    usuario.localidad = localidad;
-    usuario.sexo = sexo;
-    usuario.edad = edad;
+    // Helpers
+    const toBool = (v) => String(v) === 'true';
+    const toNullIfEmpty = (v) => (v === '' || v === undefined ? null : v);
 
-    // 🔼 Si viene nueva foto, subirla a Cloudinary
+    // --- Campos BÁSICOS (valores) ---
+    const { nombre, localidad, sexo, edad } = req.body;
+    if (nombre !== undefined) usuario.nombre = nombre;
+    if (localidad !== undefined) usuario.localidad = localidad;
+    if (sexo !== undefined && sexo !== '') usuario.sexo = sexo; // 'masculino' | 'femenino'
+    if (edad !== undefined && edad !== '') usuario.edad = parseInt(edad, 10);
+
+    // --- Campos OPCIONALES (valores) ---
+    const opcionales = [
+      'fechaNacimiento',  // DATEONLY (yyyy-mm-dd)
+      'lugarNacimiento',
+      'nacionalidad',
+      'estadoCivil',
+      'dondeVivo',
+      'profesion',
+      'empleo',
+      'religion',
+      'musicaFavorita',
+      'institucion',
+    ];
+    for (const key of opcionales) {
+      if (key in req.body) {
+        // fechaNacimiento acepta '' => null
+        usuario[key] = toNullIfEmpty(req.body[key]);
+      }
+    }
+
+    // --- Flags de visibilidad (básicos + opcionales) ---
+    const flags = [
+      // básicos
+      'mostrar_edad',
+      'mostrar_sexo',
+      'mostrar_localidad',
+      // opcionales
+      'mostrar_fechaNacimiento',
+      'mostrar_lugarNacimiento',
+      'mostrar_nacionalidad',
+      'mostrar_estadoCivil',
+      'mostrar_dondeVivo',
+      'mostrar_profesion',
+      'mostrar_empleo',
+      'mostrar_religion',
+      'mostrar_musicaFavorita',
+      'mostrar_institucion',
+    ];
+    for (const key of flags) {
+      if (key in req.body) {
+        usuario[key] = toBool(req.body[key]);
+      }
+    }
+
+    // --- Foto de perfil (Cloudinary) ---
     if (req.file) {
+      // si ya tenías cloudinaryId, borrá la anterior (opcional)
+      if (usuario.cloudinaryId) {
+        try { await cloudinary.uploader.destroy(usuario.cloudinaryId); } catch (e) { /* noop */ }
+      }
+
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { folder: 'usuarios' },
-          (error, result) => {
-            if (result) resolve(result);
-            else reject(error);
-          }
+          (error, result) => (result ? resolve(result) : reject(error))
         );
         streamifier.createReadStream(req.file.buffer).pipe(stream);
       });
 
       usuario.fotoPerfil = result.secure_url;
+      // guardá el public_id para borrados futuros
+      if (result.public_id) usuario.cloudinaryId = result.public_id;
     }
 
     await usuario.save();
 
-    res.json({ mensaje: '✅ Usuario actualizado correctamente', fotoPerfil: usuario.fotoPerfil });
+    res.json({
+      mensaje: '✅ Usuario actualizado correctamente',
+      fotoPerfil: usuario.fotoPerfil,
+    });
   } catch (error) {
     console.error('❌ Error al actualizar usuario:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -733,6 +788,132 @@ router.post('/limpiar-device', async (req, res) => {
     res.status(500).json({ message: 'Error al limpiar deviceId' });
   }
 });
+
+// GET /api/usuarios/:id/perfil  (perfil con privacidad aplicada)
+router.get('/:id/perfil', async (req, res) => {
+  const { id } = req.params;
+  const solicitanteId = req.query.solicitanteId;
+
+  try {
+    const usuario = await Usuario.findByPk(id, {
+      attributes: [
+        'id','nombre','email','fotoPerfil','perfilPublico','partidosJugados',
+        // valores básicos
+        'localidad','sexo','edad',
+        // valores opcionales
+        'fechaNacimiento','lugarNacimiento','nacionalidad','estadoCivil',
+        'dondeVivo','profesion','empleo','religion','musicaFavorita','institucion',
+        // flags
+        'mostrar_localidad','mostrar_sexo','mostrar_edad',
+        'mostrar_fechaNacimiento','mostrar_lugarNacimiento','mostrar_nacionalidad',
+        'mostrar_estadoCivil','mostrar_dondeVivo','mostrar_profesion','mostrar_empleo',
+        'mostrar_religion','mostrar_musicaFavorita','mostrar_institucion',
+      ],
+      include: [{
+        model: UsuarioDeporte,
+        include: [{ model: Deporte }]
+      }]
+    });
+
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const deportes = usuario.UsuarioDeportes?.map(ud => ud.Deporte?.nombre) || [];
+
+    // Estado amistad/pendiente (igual que tu /:id)
+    let esAmigo = false;
+    let haySolicitudPendiente = false;
+    if (solicitanteId && solicitanteId !== id) {
+      const amistad = await Amistad.findOne({
+        where: {
+          [Op.or]: [
+            { usuarioId: solicitanteId, amigoId: id },
+            { usuarioId: id, amigoId: solicitanteId }
+          ],
+          estado: 'aceptado'
+        }
+      });
+      if (amistad) {
+        esAmigo = true;
+      } else {
+        const pendiente = await Amistad.findOne({
+          where: {
+            [Op.or]: [
+              { usuarioId: solicitanteId, amigoId: id },
+              { usuarioId: id, amigoId: solicitanteId }
+            ],
+            estado: 'pendiente'
+          }
+        });
+        haySolicitudPendiente = !!pendiente;
+      }
+    }
+
+    const u = usuario.toJSON();
+    const esPropioPerfil = String(solicitanteId) === String(id);
+
+    if (esPropioPerfil) {
+      // Dueño del perfil → todo
+      return res.json({
+        ...u,
+        deportes,
+        esAmigo,
+        haySolicitudPendiente
+      });
+    }
+
+    // Terceros → aplicar flags
+    const safe = {
+      id: u.id,
+      nombre: u.nombre,
+      email: u.email, // si querés, podés agregar un flag para el email también
+      fotoPerfil: u.fotoPerfil,
+      perfilPublico: u.perfilPublico,
+      partidosJugados: u.partidosJugados || 0,
+
+      // básicos
+      localidad: u.mostrar_localidad ? u.localidad : null,
+      sexo: u.mostrar_sexo ? u.sexo : null,
+      edad: u.mostrar_edad ? u.edad : null,
+
+      // opcionales
+      fechaNacimiento: u.mostrar_fechaNacimiento ? u.fechaNacimiento : null,
+      lugarNacimiento: u.mostrar_lugarNacimiento ? u.lugarNacimiento : null,
+      nacionalidad: u.mostrar_nacionalidad ? u.nacionalidad : null,
+      estadoCivil: u.mostrar_estadoCivil ? u.estadoCivil : null,
+      dondeVivo: u.mostrar_dondeVivo ? u.dondeVivo : null,
+      profesion: u.mostrar_profesion ? u.profesion : null,
+      empleo: u.mostrar_empleo ? u.empleo : null,
+      religion: u.mostrar_religion ? u.religion : null,
+      musicaFavorita: u.mostrar_musicaFavorita ? u.musicaFavorita : null,
+      institucion: u.mostrar_institucion ? u.institucion : null,
+
+      // también devolvemos las flags para que el front pinte “Visible/Oculto”
+      mostrar_localidad: u.mostrar_localidad,
+      mostrar_sexo: u.mostrar_sexo,
+      mostrar_edad: u.mostrar_edad,
+      mostrar_fechaNacimiento: u.mostrar_fechaNacimiento,
+      mostrar_lugarNacimiento: u.mostrar_lugarNacimiento,
+      mostrar_nacionalidad: u.mostrar_nacionalidad,
+      mostrar_estadoCivil: u.mostrar_estadoCivil,
+      mostrar_dondeVivo: u.mostrar_dondeVivo,
+      mostrar_profesion: u.mostrar_profesion,
+      mostrar_empleo: u.mostrar_empleo,
+      mostrar_religion: u.mostrar_religion,
+      mostrar_musicaFavorita: u.mostrar_musicaFavorita,
+      mostrar_institucion: u.mostrar_institucion,
+
+      deportes,
+      esAmigo,
+      haySolicitudPendiente
+    };
+
+    res.json(safe);
+  } catch (error) {
+    console.error('❌ Error en GET /usuarios/:id/perfil:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 
 
 

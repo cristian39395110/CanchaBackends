@@ -87,6 +87,117 @@ ultimoCambioDevice: {
   type: DataTypes.DATE,
   allowNull: true,
 },
+// ===== Datos opcionales (se muestran solo si el flag correspondiente está en true) =====
+fechaNacimiento: {
+  type: DataTypes.DATEONLY,
+  allowNull: true,
+},
+lugarNacimiento: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+nacionalidad: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+estadoCivil: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+dondeVivo: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+profesion: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+empleo: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+religion: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+musicaFavorita: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+institucion: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+
+// ===== Flags de visibilidad para básicos =====
+mostrar_edad: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_sexo: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_localidad: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+
+// ===== Flags de visibilidad para opcionales =====
+mostrar_fechaNacimiento: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_lugarNacimiento: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_nacionalidad: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_estadoCivil: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_dondeVivo: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_profesion: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_empleo: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_religion: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_musicaFavorita: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+mostrar_institucion: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,
