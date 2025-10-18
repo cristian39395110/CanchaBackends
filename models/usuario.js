@@ -197,7 +197,8 @@ mostrar_institucion: {
   allowNull: false,
   defaultValue: false,
 },
-
+  codigoReferencia: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+  referidoPorId: { type: DataTypes.INTEGER, allowNull: true },
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,

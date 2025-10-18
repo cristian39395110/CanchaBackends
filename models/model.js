@@ -23,6 +23,16 @@ const HistoriaVisto = require('./HistoriaVisto');
 const HistoriaComentario = require('./HistoriaComentario');
 const HistoriaLike = require('./HistoriaLike');
 
+
+
+//---------------------------------------------------------------referidos
+Usuario.belongsTo(Usuario, { as: 'Referente', foreignKey: 'referidoPorId' });
+Usuario.hasMany(Usuario,   { as: 'Referidos', foreignKey: 'referidoPorId' });
+
+
+
+//------------------------------------------------------------------
+
 // === Historias (24 h) ===
 // Relaciones historias
 Historia.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'Usuario' });

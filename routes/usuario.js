@@ -18,6 +18,8 @@ require('dotenv').config();
 const upload = multer({ storage: multer.memoryStorage() });
 const storage = multer.memoryStorage();
 const { autenticarToken } = require('../middlewares/auth'); // ajustá la ruta si está en otro archivo
+// ✅ Ponelo UNA vez arriba del archivo (debajo de imports)
+const isTrue = v => v === '1' || v === 'true' || v === true;
 
 // Obtener un usuario por ID (con URL completa de la imagen)
 // donde sea que tengas configurado Cloudinary
@@ -168,10 +170,13 @@ router.patch('/:id/foto', autenticarToken, upload.single('foto'), async (req, re
   }
 });
 
-router.post('/:id/cambiar-password', async (req, res) => {
+router.post('/:id/cambiar-password', autenticarToken, async (req, res) => {
   const { id } = req.params;
-  const { actual, nueva } = req.body;
+  if (parseInt(id) !== parseInt(req.usuario.id)) {
+    return res.status(403).json({ error: 'No tienes permiso para cambiar esta contraseña.' });
+  }
 
+  const { actual, nueva } = req.body;
   if (!actual || !nueva) {
     return res.status(400).json({ error: 'Faltan datos: actual y nueva contraseña.' });
   }
@@ -235,6 +240,10 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       latitud, longitud, sexo, edad, deviceId
     } = req.body;
 
+    // 👇 también aceptamos "codigoRef" por compatibilidad
+    const ref = (req.body.ref || req.body.codigoRef || '').trim();
+
+    // -------- validaciones existentes --------
     const existente = await Usuario.findOne({ where: { email } });
     if (existente) {
       return res.status(400).json({ error: 'Ya existe un usuario con ese email.' });
@@ -245,7 +254,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       return res.status(400).json({ error: 'Ya existe una cuenta registrada desde este dispositivo.' });
     }
 
-    // Foto (tu mismo flujo)
+    // -------- foto (tu mismo flujo) --------
     let urlImagen = null;
     if (req.file) {
       const result = await new Promise((resolve, reject) => {
@@ -260,26 +269,48 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       urlImagen = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
     }
 
+    // -------- hash + token --------
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
-    console.log("------------------------------------------------")
-console.log(email)
-    console.log("------------------------------------------------")
+
+    // -------- resolver referente (opcional) --------
+    let referidoPorId = null;
+    if (ref) {
+      // acepta "MC00000042" o un número "42"
+      let referente = await Usuario.findOne({ where: { codigoReferencia: ref } });
+      if (!referente && /^\d+$/.test(ref)) {
+        referente = await Usuario.findByPk(Number(ref));
+      }
+      if (referente) {
+        referidoPorId = referente.id;
+      } else {
+        // si querés rechazar registro por ref inválido, cambiá a:
+        // return res.status(400).json({ error: 'Código de referido inválido' });
+        console.warn('⚠️ Código de referido inválido, se ignora:', ref);
+      }
+    }
+
+    // -------- crear usuario (GUARDAMOS referidoPorId) --------
     const nuevoUsuario = await Usuario.create({
       nombre, telefono, email,
       password: hashedPassword,
-      localidad, latitud, longitud, sexo, edad,
+      localidad,
+      latitud: latitud ?? null,
+      longitud: longitud ?? null,
+      sexo,
+      edad: parseInt(edad, 10),
       deviceId,
       fotoPerfil: urlImagen,
       verificado: false,
       tokenVerificacion,
+      referidoPorId, // 👈 clave
+      // codigoReferencia se genera por hook en el modelo si no existe
     });
 
-    // 🔗 usar BACKEND_URL (no FRONTEND_URL) porque la ruta es del backend
+    // -------- email verificación --------
     const base = process.env.BACKEND_URL || 'https://canchabackends-1.onrender.com';
     const link = `${base}/api/usuarios/verificar/${tokenVerificacion}`;
 
-    // Enviar correo, pero NO romper si falla
     let emailEnviado = true;
     try {
       await transporter.sendMail({
@@ -293,16 +324,17 @@ console.log(email)
     } catch (err) {
       emailEnviado = false;
       console.error('❌ No se pudo enviar el correo de verificación:', err);
-      // No lanzamos error para no romper el registro
     }
 
-    // ✅ Siempre 201 si el usuario se creó
+    // -------- respuesta --------
     return res.status(201).json({
       mensaje: emailEnviado
         ? 'Usuario creado. Revisa tu correo para confirmar la cuenta.'
         : 'Usuario creado. No pudimos enviar el correo, intentá reenviar desde la app.',
       emailEnviado,
       usuarioId: nuevoUsuario.id,
+      codigoReferencia: nuevoUsuario.codigoReferencia,      // útil para que el front muestre su link
+      linkReferido: `https://play.google.com/store/apps/details?id=com.canchas.app&referrer=${encodeURIComponent('ref=' + nuevoUsuario.codigoReferencia)}`
     });
 
   } catch (error) {
@@ -310,6 +342,8 @@ console.log(email)
     return res.status(500).json({ error: 'Error interno al crear usuario.' });
   }
 });
+
+
 
 
 
@@ -937,6 +971,76 @@ router.get('/:id/perfil-completo', autenticarToken, async (req, res) => {
   res.json(usuario);
 });
 
+
+// GET /api/usuarios/:id/referidos?soloVerificados=1&distinctDevice=1&limit=50&offset=0
+// ✅ GET /api/usuarios/:id/referidos  (lista con filtros consistentes)
+router.get('/:id/referidos', async (req, res) => {
+  try {
+    const { soloVerificados, distinctDevice, limit = 50, offset = 0 } = req.query;
+    const userId = parseInt(req.params.id, 10);
+
+    const where = { referidoPorId: userId };
+    if (isTrue(soloVerificados)) where.verificado = true;
+
+    let lista = await Usuario.findAll({
+      where,
+      attributes: ['id', 'nombre', 'email', 'codigoReferencia', 'deviceId', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: Number(offset),
+      raw: true
+    });
+
+    if (isTrue(distinctDevice)) {
+      const referente = await Usuario.findByPk(userId, { attributes: ['deviceId'], raw: true });
+      const deviceReferente = referente?.deviceId || null;
+
+      const vistos = new Set();
+      lista = lista.filter(r => {
+        const dev = r.deviceId || '';
+        if (!dev || dev === deviceReferente) return false;
+        if (vistos.has(dev)) return false;
+        vistos.add(dev);
+        return true;
+      });
+    }
+
+    res.json(lista);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al listar referidos' });
+  }
+});
+
+// ✅ NUEVO: GET /api/usuarios/:id/referidos/count  (para el badge)
+router.get('/:id/referidos/count', async (req, res) => {
+  try {
+    const { soloVerificados, distinctDevice } = req.query;
+    const userId = parseInt(req.params.id, 10);
+
+    const where = { referidoPorId: userId };
+    if (isTrue(soloVerificados)) where.verificado = true;
+
+    if (isTrue(distinctDevice)) {
+      const referidos = await Usuario.findAll({ where, attributes: ['deviceId'], raw: true });
+      const referente = await Usuario.findByPk(userId, { attributes: ['deviceId'], raw: true });
+      const deviceReferente = referente?.deviceId || null;
+
+      const setUnicos = new Set(
+        referidos
+          .map(r => r.deviceId)
+          .filter(d => d && d !== deviceReferente)
+      );
+      return res.json({ total: setUnicos.size });
+    }
+
+    const total = await Usuario.count({ where });
+    res.json({ total });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al contar referidos' });
+  }
+});
 
 
 module.exports = router;
