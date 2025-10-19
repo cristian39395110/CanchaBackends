@@ -46,7 +46,13 @@ rangoEdad: {
   type: DataTypes.JSON, // o TEXT si usás SQLite
   allowNull: true,
   defaultValue: []
+},
+precio: {
+  type: DataTypes.INTEGER,     // ARS por jugador (entero)
+  allowNull: true,             // null = no informado
+  validate: { min: 0 }         // 0 = Gratis
 }
+
 
   
 

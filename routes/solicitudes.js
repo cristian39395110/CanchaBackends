@@ -149,7 +149,8 @@ router.get('/:usuarioId', async (req, res) => {
       localidad: partido.localidad,
       sexo: partido.sexo || 'todos',
       rangoEdad: partido.rangoEdad || 'sin restricción',
-      estado: up.estado
+      estado: up.estado,
+      precio:partido.precio
     };
   });
 

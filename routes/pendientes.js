@@ -60,6 +60,7 @@ router.get('/aceptadas/:organizadorId', async (req, res) => {
   organizadorId: partido.organizadorId,
   latitud: partido.latitud,
   longitud: partido.longitud,
+  precio:partido.precio,
   usuariosAceptaron,
   usuariosPendientes,
 

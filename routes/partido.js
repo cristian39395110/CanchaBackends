@@ -500,7 +500,8 @@ router.post('/', async (req, res) => {
     sexo,
     rangoEdad,
     categorias,
-    ubicacionManual
+    ubicacionManual,
+    precio
   } = req.body;
 
 
@@ -563,6 +564,7 @@ const rangoEdadSanitizado = Array.isArray(rangoEdad) ? rangoEdad.filter(r => typ
 categorias: categoriasSanitizadas,
       canchaId: req.body.canchaId || null,
 canchaNombreManual: req.body.canchaNombreManual || null,
+precio:precio,
 
       ubicacionManual
     });
