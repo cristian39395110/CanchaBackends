@@ -240,11 +240,9 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       latitud, longitud, sexo, edad, deviceId
     } = req.body;
 
-    // Normalizar ref
     const rawRef = (req.body.ref || req.body.codigoRef || '').trim();
-    const ref = rawRef.toUpperCase(); // 🔹 normalizo a mayúsculas
+    const ref = rawRef.toUpperCase();
 
-    // --- validaciones existentes ---
     const existente = await Usuario.findOne({ where: { email } });
     if (existente) {
       return res.status(400).json({ error: 'Ya existe un usuario con ese email.' });
@@ -255,7 +253,6 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       return res.status(400).json({ error: 'Ya existe una cuenta registrada desde este dispositivo.' });
     }
 
-    // --- foto (tu mismo flujo) ---
     let urlImagen = null;
     if (req.file) {
       const result = await new Promise((resolve, reject) => {
@@ -270,34 +267,28 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       urlImagen = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
     }
 
-    // --- hash + token ---
     const hashedPassword = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
 
-    // --- resolver referente (opcional) ---
     let referidoPorId = null;
     if (ref) {
-      // busca por código (normalizado en mayúsculas)
       let referente = await Usuario.findOne({ where: { codigoReferencia: ref } });
-
-      // si lo pasaron como ID numérico
       if (!referente && /^\d+$/.test(ref)) {
         referente = await Usuario.findByPk(Number(ref));
       }
-
       if (referente) {
         referidoPorId = referente.id;
       } else {
-        // Si preferís abortar:
-        // return res.status(400).json({ error: 'Código de referido inválido.' });
         console.warn('⚠️ Código de referido inválido, se ignora:', ref);
       }
     }
 
-    // --- parseos seguros de números ---
-    const lat = latitud !== undefined ? parseFloat(latitud) : null;
-    const lng = longitud !== undefined ? parseFloat(longitud) : null;
+    const lat = (latitud !== undefined && latitud !== '') ? parseFloat(latitud) : null;
+    const lng = (longitud !== undefined && longitud !== '') ? parseFloat(longitud) : null;
     const edadNum = Number.isFinite(Number(edad)) ? parseInt(edad, 10) : null;
+
+    // Código temporal para cumplir NOT NULL + UNIQUE
+    const tempCodigo = `MC-PEND-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const nuevoUsuario = await Usuario.create({
       nombre,
@@ -305,19 +296,22 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       email,
       password: hashedPassword,
       localidad,
-      latitud: lat,
-      longitud: lng,
+      latitud: isNaN(lat as any) ? null : lat,
+      longitud: isNaN(lng as any) ? null : lng,
       sexo,
       edad: edadNum,
       deviceId,
       fotoPerfil: urlImagen,
       verificado: false,
       tokenVerificacion,
-      referidoPorId, // 👈 guardado acá
-      // codigoReferencia: asumimos hook en el modelo
+      referidoPorId,
+      codigoReferencia: tempCodigo,
     });
 
-    // --- email verificación ---
+    // Generar el definitivo con el ID real
+    const codigoFinal = `MC${String(nuevoUsuario.id).padStart(8, '0')}`;
+    await nuevoUsuario.update({ codigoReferencia: codigoFinal });
+
     const base = process.env.BACKEND_URL || 'https://canchabackends-1.onrender.com';
     const link = `${base}/api/usuarios/verificar/${tokenVerificacion}`;
 
@@ -342,9 +336,10 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
         : 'Usuario creado. No pudimos enviar el correo, intentá reenviar desde la app.',
       emailEnviado,
       usuarioId: nuevoUsuario.id,
-      codigoReferencia: nuevoUsuario.codigoReferencia,
-      linkReferido: `https://play.google.com/store/apps/details?id=com.canchas.app&referrer=${encodeURIComponent('ref=' + nuevoUsuario.codigoReferencia)}`
+      codigoReferencia: codigoFinal,
+      linkReferido: `https://play.google.com/store/apps/details?id=com.canchas.app&referrer=${encodeURIComponent('ref=' + codigoFinal)}`
     });
+
   } catch (error) {
     console.error('❌ Error al crear usuario:', error);
     return res.status(500).json({ error: 'Error interno al crear usuario.' });
