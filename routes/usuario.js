@@ -288,7 +288,7 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
     const edadNum = Number.isFinite(Number(edad)) ? parseInt(edad, 10) : null;
 
     // Código temporal para cumplir NOT NULL + UNIQUE
-    const tempCodigo = `MC-PEND-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+   const tempCodigo = ('TP' + Math.random().toString(36).slice(2, 10)).toUpperCase();
 
     const nuevoUsuario = await Usuario.create({
       nombre,
