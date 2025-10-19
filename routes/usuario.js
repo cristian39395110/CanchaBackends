@@ -1045,6 +1045,115 @@ router.get('/:id/referidos/count', async (req, res) => {
     res.status(500).json({ error: 'Error al contar referidos' });
   }
 });
+// --- Constantes/ayudas (dejá estas donde ya las tenías) ---
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'rv98478@gmail.com';
+const PRIZE_THRESHOLD = 40;
+const limpiar = (v) => (v || '').trim();
+
+// ✅ ÚNICO endpoint para reclamar premio (sin campo documento)
+router.post('/:id/referidos/reclamar', autenticarToken, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+
+    // 🔒 Solo el propio usuario puede reclamar
+    if (req.usuario.id !== userId) {
+      return res.status(403).json({ error: 'No autorizado para reclamar este premio.' });
+    }
+
+    // 🧍 Usuario (ya SIN campos de documento)
+    const usuario = await Usuario.findByPk(userId, {
+      attributes: ['id', 'email', 'nombre', 'deviceId', 'premioReclamado', 'codigoReferencia'],
+    });
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    if (usuario.premioReclamado) {
+      return res.status(400).json({ error: 'Ya reclamaste tu premio.' });
+    }
+
+    // 📊 Recalcular referidos válidos (verificados + 1 por device distinto al del referente)
+    const deviceReferente = limpiar(usuario.deviceId);
+    const referidos = await Usuario.findAll({
+      where: { referidoPorId: userId, verificado: true },
+      attributes: ['deviceId'],
+      raw: true,
+    });
+
+    const unicos = new Set(
+      referidos
+        .map((r) => limpiar(r.deviceId))
+        .filter((d) => d && d !== deviceReferente)
+    );
+    const totalDistinct = unicos.size;
+
+    if (totalDistinct < PRIZE_THRESHOLD) {
+      return res.status(400).json({
+        error: `Aún no alcanzaste los ${PRIZE_THRESHOLD} referidos verificados.`,
+        totalDistinct,
+      });
+    }
+
+    // 🏅 Marcar premio como reclamado (antes de enviar mails)
+    usuario.premioReclamado = true;
+    await usuario.save();
+
+    // Datos para emails
+    const nombreUsuario = usuario.nombre || `Usuario #${usuario.id}`;
+    const codigoRef = usuario.codigoReferencia || `MC${String(usuario.id).padStart(8, '0')}`;
+    const fechaAR = new Date().toLocaleString('es-AR');
+
+    // 📧 1) Email al ADMIN con nombre y correo del ganador
+    try {
+      await transporter.sendMail({
+        from: `"MatchClub Premios" <${process.env.EMAIL_USER}>`,
+        to: ADMIN_EMAIL,
+        subject: '🎉 Usuario reclamó premio de referidos',
+        html: `
+          <h2>🎁 Reclamo de premio</h2>
+          <p><b>Nombre:</b> ${nombreUsuario}</p>
+          <p><b>Email:</b> ${usuario.email}</p>
+          <p><b>Código de Referencia:</b> ${codigoRef}</p>
+          <p><b>Referidos válidos (distinct):</b> ${totalDistinct}</p>
+          <p><b>Fecha:</b> ${fechaAR}</p>
+          <hr/>
+          <p>Este usuario alcanzó ${PRIZE_THRESHOLD}+ referidos verificados y reclamó su premio.</p>
+        `,
+      });
+      console.log(`📩 Email enviado a ADMIN (${ADMIN_EMAIL}) por reclamo de ${usuario.email}`);
+    } catch (err) {
+      console.error('❌ Error al enviar correo al admin:', err);
+      // no cortamos el flujo si falla
+    }
+
+    // 📧 2) Email al USUARIO: felicitación
+    try {
+      await transporter.sendMail({
+        from: `"MatchClub Premios" <${process.env.EMAIL_USER}>`,
+        to: usuario.email,
+        subject: '🎉 ¡Felicitaciones! Registramos tu reclamo de premio',
+        html: `
+          <h2>¡Felicitaciones ${nombreUsuario}!</h2>
+          <p>Tu reclamo por el premio de referidos fue registrado correctamente.</p>
+          <p>En breve te contactaremos con los pasos siguientes para la entrega del premio.</p>
+          <p><b>Tu código de referencia:</b> ${codigoRef}</p>
+          <p><b>Referidos válidos:</b> ${totalDistinct}</p>
+          <br/>
+          <p>¡Gracias por hacer crecer la comunidad de MatchClub! 💚</p>
+        `,
+      });
+      console.log(`📩 Email de confirmación enviado a usuario (${usuario.email})`);
+    } catch (err) {
+      console.error('❌ Error al enviar correo al usuario:', err);
+    }
+
+    // ✅ Respuesta al cliente
+    return res.json({
+      mensaje: `🎉 ¡Felicitaciones ${usuario.nombre || ''}! Tu reclamo fue registrado correctamente.`,
+      totalDistinct,
+    });
+  } catch (error) {
+    console.error('❌ Error al reclamar premio:', error);
+    res.status(500).json({ error: 'Error interno al reclamar el premio.' });
+  }
+});
 
 
 module.exports = router;
