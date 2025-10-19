@@ -296,8 +296,9 @@ router.post('/', upload.single('fotoPerfil'), async (req, res) => {
       email,
       password: hashedPassword,
       localidad,
-      latitud: isNaN(lat as any) ? null : lat,
-      longitud: isNaN(lng as any) ? null : lng,
+     latitud: (lat === null || Number.isNaN(lat)) ? null : lat,
+longitud: (lng === null || Number.isNaN(lng)) ? null : lng,
+
       sexo,
       edad: edadNum,
       deviceId,
