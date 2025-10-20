@@ -1045,46 +1045,50 @@ router.get('/:id/referidos/count', async (req, res) => {
     res.status(500).json({ error: 'Error al contar referidos' });
   }
 });
+
+
+
+router.get('/:id/referidos/premios', autenticarToken, async (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (req.usuario.id !== userId) return res.status(403).json({ error: 'No autorizado' });
+
+  const usuario = await Usuario.findByPk(userId, { attributes: ['premiosReferidos'] });
+  if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const claimed = Array.isArray(usuario.premiosReferidos) ? usuario.premiosReferidos : [];
+  res.json({ claimed });
+});
 // --- Constantes/ayudas ---
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'rv98478@gmail.com';
-const TIERS_VALIDOS = [40, 100]; // podés agregar más: 200, 500, etc.
-const limpiar = (v) => (v || '').trim();
+const TIERS_VALIDOS = [40, 100];
+const limpiar = (v) => (v || '').toString().trim();
 
-// ⚠️ Asegurate de que Usuarios tenga la columna JSON con default []
-// ALTER TABLE Usuarios ADD COLUMN premiosReferidos JSON NOT NULL DEFAULT (JSON_ARRAY());
-
-// ✅ Único endpoint para reclamar premio por tier (40, 100, ...)
 router.post('/:id/referidos/reclamar', autenticarToken, async (req, res) => {
   try {
-    const userId = parseInt(req.params.id, 10);
-    const { tier } = req.body;                   // 👈 viene del front (40 o 100)
-    const tierNum = Number(tier);
+    const userId = Number(req.params.id);
+    const tierNum = Number(req.body?.tier);
 
-    // 🔒 Solo el propio usuario puede reclamar
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
     if (req.usuario.id !== userId) {
       return res.status(403).json({ error: 'No autorizado para reclamar este premio.' });
     }
-
-    // ✅ Validar tier
-    if (!TIERS_VALIDOS.includes(tierNum)) {
+    if (!Number.isInteger(tierNum) || !TIERS_VALIDOS.includes(tierNum)) {
       return res.status(400).json({ error: 'Tier inválido.' });
     }
 
-    // 🧍 Usuario (con premiosReferidos JSON [])
     const usuario = await Usuario.findByPk(userId, {
       attributes: ['id', 'email', 'nombre', 'deviceId', 'codigoReferencia', 'premiosReferidos'],
     });
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
-    // Lista de tiers ya reclamados
     const claimed = Array.isArray(usuario.premiosReferidos) ? usuario.premiosReferidos : [];
-
-    // Evitar doble reclamo del mismo tier
     if (claimed.includes(tierNum)) {
       return res.status(409).json({ error: 'Ese premio ya fue reclamado.' });
     }
 
-    // 📊 Recalcular referidos válidos (verificados + 1 por device distinto al del referente)
+    // Recalcular referidos válidos
     const deviceReferente = limpiar(usuario.deviceId);
     const referidos = await Usuario.findAll({
       where: { referidoPorId: userId, verificado: true },
@@ -1094,12 +1098,11 @@ router.post('/:id/referidos/reclamar', autenticarToken, async (req, res) => {
 
     const unicos = new Set(
       referidos
-        .map((r) => limpiar(r.deviceId))
-        .filter((d) => d && d !== deviceReferente)
+        .map(r => limpiar(r.deviceId))
+        .filter(d => d && d !== deviceReferente)
     );
     const totalDistinct = unicos.size;
 
-    // Validar umbral de este tier
     if (totalDistinct < tierNum) {
       return res.status(400).json({
         error: `Aún no alcanzaste los ${tierNum} referidos verificados.`,
@@ -1107,60 +1110,47 @@ router.post('/:id/referidos/reclamar', autenticarToken, async (req, res) => {
       });
     }
 
-    // 🏅 Marcar TIER como reclamado (antes de enviar mails)
+    // Guardar tier reclamado
     const nuevoClaimed = [...new Set([...claimed, tierNum])];
     usuario.premiosReferidos = nuevoClaimed;
     await usuario.save();
 
-    // Datos para emails
     const nombreUsuario = usuario.nombre || `Usuario #${usuario.id}`;
     const codigoRef = usuario.codigoReferencia || `MC${String(usuario.id).padStart(8, '0')}`;
     const fechaAR = new Date().toLocaleString('es-AR');
 
-    // 📧 1) Email al ADMIN
-    try {
-      await transporter.sendMail({
-        from: `"MatchClub Premios" <${process.env.EMAIL_USER}>`,
-        to: ADMIN_EMAIL,
-        subject: `🎉 Reclamo de premio (tier ${tierNum})`,
-        html: `
-          <h2>🎁 Reclamo de premio</h2>
-          <p><b>Nombre:</b> ${nombreUsuario}</p>
-          <p><b>Email:</b> ${usuario.email}</p>
-          <p><b>Código de Referencia:</b> ${codigoRef}</p>
-          <p><b>Referidos válidos (distinct):</b> ${totalDistinct}</p>
-          <p><b>Tier reclamado:</b> ${tierNum}</p>
-          <p><b>Fecha:</b> ${fechaAR}</p>
-        `,
-      });
-      console.log(`📩 Email ADMIN (${ADMIN_EMAIL}) por reclamo tier ${tierNum} de ${usuario.email}`);
-    } catch (err) {
-      console.error('❌ Error enviando correo al admin:', err);
-      // no cortamos el flujo si falla
-    }
+    // Mail admin (best-effort)
+    transporter.sendMail({
+      from: `"MatchClub Premios" <${process.env.EMAIL_USER}>`,
+      to: ADMIN_EMAIL,
+      subject: `🎉 Reclamo de premio (tier ${tierNum})`,
+      html: `
+        <h2>🎁 Reclamo de premio</h2>
+        <p><b>Nombre:</b> ${nombreUsuario}</p>
+        <p><b>Email:</b> ${usuario.email}</p>
+        <p><b>Código de Referencia:</b> ${codigoRef}</p>
+        <p><b>Referidos válidos (distinct):</b> ${totalDistinct}</p>
+        <p><b>Tier reclamado:</b> ${tierNum}</p>
+        <p><b>Fecha:</b> ${fechaAR}</p>
+      `,
+    }).catch(err => console.error('❌ Email admin falló:', err));
 
-    // 📧 2) Email al USUARIO (confirma reclamo)
-    try {
-      await transporter.sendMail({
-        from: `"MatchClub Premios" <${process.env.EMAIL_USER}>`,
-        to: usuario.email,
-        subject: `🎉 ¡Registramos tu premio (tier ${tierNum})!`,
-        html: `
-          <h2>¡Felicitaciones ${nombreUsuario}!</h2>
-          <p>Tu reclamo por el premio de <b>${tierNum}</b> referidos fue registrado correctamente.</p>
-          <p>En breve te contactaremos con los pasos siguientes para la entrega del premio.</p>
-          <p><b>Tu código de referencia:</b> ${codigoRef}</p>
-          <p><b>Referidos válidos:</b> ${totalDistinct}</p>
-          <br/>
-          <p>¡Gracias por hacer crecer la comunidad de MatchClub! 💚</p>
-        `,
-      });
-      console.log(`📩 Email de confirmación a usuario (${usuario.email}) por tier ${tierNum}`);
-    } catch (err) {
-      console.error('❌ Error enviando correo al usuario:', err);
-    }
+    // Mail usuario (best-effort)
+    transporter.sendMail({
+      from: `"MatchClub Premios" <${process.env.EMAIL_USER}>`,
+      to: usuario.email,
+      subject: `🎉 ¡Registramos tu premio (tier ${tierNum})!`,
+      html: `
+        <h2>¡Felicitaciones ${nombreUsuario}!</h2>
+        <p>Tu reclamo por el premio de <b>${tierNum}</b> referidos fue registrado correctamente.</p>
+        <p>En breve te contactaremos con los pasos siguientes para la entrega del premio.</p>
+        <p><b>Tu código de referencia:</b> ${codigoRef}</p>
+        <p><b>Referidos válidos:</b> ${totalDistinct}</p>
+        <br/>
+        <p>¡Gracias por hacer crecer la comunidad de MatchClub! 💚</p>
+      `,
+    }).catch(err => console.error('❌ Email usuario falló:', err));
 
-    // ✅ Respuesta
     return res.json({
       mensaje: `🎉 ¡Premio de ${tierNum} referidos reclamado!`,
       totalDistinct,
@@ -1173,3 +1163,5 @@ router.post('/:id/referidos/reclamar', autenticarToken, async (req, res) => {
 });
 
 module.exports = router;
+
+
