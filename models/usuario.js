@@ -197,13 +197,19 @@ mostrar_institucion: {
   allowNull: false,
   defaultValue: false,
 },
+premiosReferidos: {
+  type: DataTypes.JSON,     // array de números: [40, 100]
+  allowNull: false,
+  defaultValue: []
+},
+
   codigoReferencia: { type: DataTypes.STRING(20), allowNull: false, unique: true },
   referidoPorId: { type: DataTypes.INTEGER, allowNull: true },
 
       perfilPublico: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
-  } // opcional para mapa
+  } // opcional para mapaw
 });
 
 module.exports = Usuario;
