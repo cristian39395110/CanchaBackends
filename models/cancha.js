@@ -11,14 +11,14 @@ const Cancha = sequelize.define('Cancha', {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  latitud: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  longitud: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
+   latitud: { 
+    type: DataTypes.DECIMAL(10, 7), 
+    allowNull: true 
+  },  // opcional para mapa
+  longitud: { 
+    type: DataTypes.DECIMAL(10, 7),
+     allowNull: true 
+    },
   deportes: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -34,6 +34,44 @@ const Cancha = sequelize.define('Cancha', {
   whatsapp: {
     type: DataTypes.STRING,
     allowNull: true,
+  },
+
+  // 🔒 Nuevos campos para QR y control
+  qrSecret: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  radioGeofence: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100, // metros
+  },
+  verificada: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  propietarioUsuarioId: {
+    type: DataTypes.INTEGER,
+    allowNull: true, // FK hacia Usuario
+  },
+  esAsociada: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  puntosBase: {
+    type: DataTypes.INTEGER,
+    defaultValue: 5,
+  },
+  puntosAsociada: {
+    type: DataTypes.INTEGER,
+    defaultValue: 20,
+  },
+  minutosAnticipoCheckin: {
+    type: DataTypes.INTEGER,
+    defaultValue: 30, // minutos antes del partido
+  },
+  minutosGraciaCheckin: {
+    type: DataTypes.INTEGER,
+    defaultValue: 60, // minutos después del partido
   },
 });
 

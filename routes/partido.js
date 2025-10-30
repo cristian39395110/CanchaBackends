@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 // en el endpoint (./) puse  latitud y lkongitud harckodeado;
 // en   isPremium (./isPremium)  lo mismo
@@ -485,6 +486,8 @@ router.post('/reenviar-invitacion', async (req, res) => {
 
 
 // 🚀 Crear partido NO PREMIUM
+const { v4: uuidv4 } = require('uuid');
+
 router.post('/', async (req, res) => {
   const {
     deporteId,
@@ -501,20 +504,16 @@ router.post('/', async (req, res) => {
     rangoEdad,
     categorias,
     ubicacionManual,
-    precio
+    precio,
+    esPrivado
   } = req.body;
 
 
-const fechaAjustada = new Date(fecha); // ya viene con la hora correcta
-const fechaHoy = new Date().toISOString().split('T')[0];
-console.log("fechaHoy");
-console.log(fechaHoy);
-
-console.log("fechaaaaaa");
-console.log(fecha);
-
-
-
+  // antes de crear el partido:
+let tokenPrivadoGenerado = null;
+if (esPrivado === true) {
+  tokenPrivadoGenerado = crypto.randomBytes(12).toString('hex'); // ej "a3fd9c1e7b2f4d..."
+}
 
   if (!deporteId || !cantidadJugadores || !lugar || !fecha || !hora || !organizadorId || !nombre) {
     return res.status(400).json({ error: 'Faltan datos obligatorios para crear el partido.' });
@@ -523,86 +522,122 @@ console.log(fecha);
   try {
     const organizador = await Usuario.findByPk(organizadorId);
 
-    if (organizador?.suspensionHasta && new Date(organizador.suspensionHasta) > new Date()) {
-      return res.status(403).json({ error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.' });
+    // suspensiones
+    if (
+      organizador?.suspensionHasta &&
+      new Date(organizador.suspensionHasta) > new Date()
+    ) {
+      return res.status(403).json({
+        error: '⛔ Estás suspendido por baja calificación. No podés crear partidos temporalmente.'
+      });
     }
-if (!organizador?.premium) {
-  if (cantidadJugadores > 12) {
-    return res.status(403).json({ error: 'Como usuario no premium, solo podés ingresar hasta 12 jugadores.' });
-  }
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+    // límites no premium
+    if (!organizador?.premium) {
+      if (cantidadJugadores > 12) {
+        return res.status(403).json({
+          error: 'Como usuario no premium, solo podés ingresar hasta 12 jugadores.'
+        });
+      }
 
-  const partidosHoy = await Partido.count({
-    where: {
-      organizadorId,
-      fecha: fecha
+      const partidosHoy = await Partido.count({
+        where: {
+          organizadorId,
+          fecha // mismo día
+        }
+      });
+
+      if (partidosHoy >= 1) {
+        return res.status(403).json({
+          error: 'Solo podés crear 1 partidos por día siendo usuario no premium.'
+        });
+      }
     }
-  });
 
-  if (partidosHoy >= 1) {
-    return res.status(403).json({ error: 'Solo podés crear 1 partidos por día siendo usuario no premium.' });
-  }
-}
+    // limpiar arrays
+    const categoriasSanitizadas = Array.isArray(categorias)
+      ? categorias.filter(c => typeof c === 'string')
+      : [];
 
-const categoriasSanitizadas = Array.isArray(categorias) ? categorias.filter(c => typeof c === 'string') : [];
-const rangoEdadSanitizado = Array.isArray(rangoEdad) ? rangoEdad.filter(r => typeof r === 'string') : [];
+    const rangoEdadSanitizado = Array.isArray(rangoEdad)
+      ? rangoEdad.filter(r => typeof r === 'string')
+      : [];
+
+    // crear partido
     const partido = await Partido.create({
       deporteId,
       cantidadJugadores,
-      lugar,
-      fecha: fechaAjustada,
+      lugar, // referencia / dirección específica dentro del lugar
+      fecha: new Date(fecha),
       hora,
-      nombre,
+      nombre, // nombre del complejo / potrero
       organizadorId,
       localidad: localidad || '',
       latitud: latitud || null,
       longitud: longitud || null,
       sexo,
       rangoEdad: rangoEdadSanitizado,
-categorias: categoriasSanitizadas,
+      categorias: categoriasSanitizadas,
       canchaId: req.body.canchaId || null,
-canchaNombreManual: req.body.canchaNombreManual || null,
-precio:precio,
-
-      ubicacionManual
+      precio: precio || null,
+      ubicacionManual,
+      esPrivado: esPrivado === true,
+      tokenPrivado: tokenPrivadoGenerado 
     });
-// Crear relación del organizador al partido (pero con estado distinto)
-await UsuarioPartido.create({
-  UsuarioId: organizadorId,
-  PartidoId: partido.id,
-  estado: 'organizador' // para distinguirlo de 'confirmado'
-});
 
-    const deporte = await Deporte.findByPk(deporteId);
+    // el organizador ya figura en el partido
+    await UsuarioPartido.create({
+      UsuarioId: organizadorId,
+      PartidoId: partido.id,
+      estado: 'organizador'
+    });
 
-    try {
-      await enviarEscalonado(partido, deporte?.nombre || 'deporte', organizadorId);
-      console.log('📩 Envío escalonado ejecutado correctamente');
-    } catch (err) {
-      console.error('❌ Error durante el envío escalonado:', err);
+    // mensaje inicial del partido
+    await MensajePartido.create({
+      partidoId: partido.id,
+      usuarioId: organizadorId,
+      mensaje: `📢 El organizador ${organizador?.nombre || 'desconocido'} ha creado el partido.`
+    });
+
+    // si el partido NO es privado → mandar invitaciones auto
+    if (!esPrivado) {
+      const deporte = await Deporte.findByPk(deporteId);
+
+      try {
+        await enviarEscalonado(
+          partido,
+          deporte?.nombre || 'deporte',
+          organizadorId
+        );
+        console.log('📩 Envío escalonado ejecutado correctamente');
+      } catch (err) {
+        console.error('❌ Error durante el envío escalonado:', err);
+      }
+    } else {
+      console.log('🔒 Partido privado: no se envían invitaciones automáticas.');
     }
 
-   await MensajePartido.create({
-  partidoId: partido.id,
-  usuarioId: req.body.organizadorId,
-  mensaje: `📢 El organizador ${organizador?.nombre || 'desconocido'} ha creado el partido.`,
+    // generar link de invitación para compartir
+    // ejemplo simple: /unirse/:partidoId
+    let linkInvitacion = null;
+if (esPrivado === true) {
+  linkInvitacion = `/unirse/${partido.tokenPrivado}`;
+}
+
+return res.status(201).json({
+  mensaje: '✅ Partido creado correctamente',
+  partido,
+  redirect: '/aceptaciones',
+  linkInvitacion // puede ser null si es público
 });
-
-console.log(`🎉 Partido creado por ${organizador?.nombre} (premium: ${organizador?.premium})`);
-
-    res.status(201).json({
-    mensaje: '✅ Partido creado correctamente',
-
-      partido
-    });
-
   } catch (error) {
     console.error('❌ Error creando partido :', error);
-    res.status(500).json({ error: 'Error al crear el partido o enviar notificaciones.' });
+    return res.status(500).json({
+      error: 'Error al crear el partido o enviar notificaciones.'
+    });
   }
 });
+
 
 
 // 👑 Crear partido PREMIUM
@@ -690,6 +725,166 @@ router.put('/:partidoId/actualizar-cantidad', async (req, res) => {
   }
 });
 
+// GET /api/partidos/:partidoId/invite-link
+// GET /api/partidos/:partidoId/invite-link
+router.get('/:partidoId/invite-link', async (req, res) => {
+  try {
+    const { partidoId } = req.params;
+
+    // Buscamos el partido en la base
+    const partido = await Partido.findByPk(partidoId);
+    if (!partido) {
+      return res.status(404).json({ ok: false, error: 'Partido no encontrado' });
+    }
+
+    // IMPORTANTE:
+    // acá usá el nombre REAL de la columna donde guardás "07b4951ad974b897eedfc58b"
+    // Ejemplos comunes: partido.tokenPrivado / partido.linkPrivado / partido.inviteToken / partido.codigoUnirse
+    const token = partido.tokenPrivado; // <-- CAMBIAR ESTO AL NOMBRE REAL DE TU CAMPO
+
+    if (!token) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Este partido no tiene un token privado asignado todavía'
+      });
+    }
+
+    // armamos la URL que tus amigos van a abrir
+    // ejemplo final: /unirse/07b4951ad974b897eedfc58b
+    const invitePath = `/unirse/${token}`;
+
+    return res.json({
+      ok: true,
+      inviteLink: invitePath,
+    });
+  } catch (error) {
+    console.error('Error al obtener invite-link:', error);
+    return res.status(500).json({
+      ok: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+// POST /api/partidos/unirse-con-token
+// POST /api/partidos/unirse-con-token
+router.post('/unirse-con-token', async (req, res) => {
+  console.log('>>> /unirse-con-token BODY:', req.body);
+
+  try {
+    const { usuarioId, token } = req.body;
+
+    console.log('usuarioId =', usuarioId);
+    console.log('token     =', token);
+
+    if (!usuarioId || !token) {
+      console.log('Falta usuarioId o token');
+      return res.status(400).json({ ok: false, error: 'Falta usuarioId o token' });
+    }
+
+    // 1. Buscar el partido por tokenPrivado
+    const partido = await Partido.findOne({
+      where: { tokenPrivado: token }
+    });
+
+    console.log('partido encontrado =>', partido ? partido.id : null);
+
+    if (!partido) {
+      return res.status(404).json({ ok: false, error: 'Partido no encontrado para ese link' });
+    }
+
+    // sanity check: si el partido no es privado, ni deberías usar esta ruta
+    if (partido.esPrivado !== true) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Este partido no requiere token (no es privado).'
+      });
+    }
+
+    // 2. Si el que entra es el organizador, devolver ok directo
+    if (Number(partido.organizadorId) === Number(usuarioId)) {
+      console.log('es organizador, devuelvo ok sin crear solicitud');
+      return res.json({
+        ok: true,
+        partidoId: partido.id,
+        yaOrganizador: true,
+      });
+    }
+
+    // 3. Contar cuántos jugadores CONFIRMADOS ya hay en este partido
+    //    Sólo cuentan las personas que van seguro.
+    const confirmadosCount = await UsuarioPartido.count({
+      where: {
+        PartidoId: partido.id,
+        estado: 'confirmado' // <- ajustá si usás otro string tipo 'aceptado'
+      }
+    });
+
+    console.log('confirmadosCount =', confirmadosCount);
+    console.log('cupo max (partido.cantidadJugadores) =', partido.cantidadJugadores);
+
+    // 4. Si ya se alcanzó el cupo, rechazamos la unión
+    if (
+      typeof partido.cantidadJugadores === 'number' &&
+      partido.cantidadJugadores > 0 &&
+      confirmadosCount >= partido.cantidadJugadores
+    ) {
+      console.log('❌ Partido lleno, no se puede unir');
+      return res.status(403).json({
+        ok: false,
+        error: 'El partido ya está completo.'
+      });
+    }
+
+    // 5. Buscar si el usuario YA tiene una entrada en UsuarioPartido para este partido
+    let solicitud = await UsuarioPartido.findOne({
+      where: {
+        UsuarioId: usuarioId,
+        PartidoId: partido.id
+      }
+    });
+
+    console.log('solicitud previa =>', solicitud ? solicitud.estado : 'ninguna');
+
+    // 6. Si no tiene, lo creamos en "pendiente"
+    if (!solicitud) {
+      console.log('creando solicitud pendiente...');
+      solicitud = await UsuarioPartido.create({
+        UsuarioId: usuarioId,
+        PartidoId: partido.id,
+        estado: 'pendiente',
+      });
+    } else {
+      // ya existe
+      // edge case: si alguien estaba "rechazado" o "cancelado" y vuelve a entrar con el link
+      // y todavía hay lugar => lo pasamos otra vez a "pendiente"
+      if (solicitud.estado !== 'pendiente' && solicitud.estado !== 'confirmado') {
+        console.log('actualizando solicitud existente a pendiente...');
+        solicitud.estado = 'pendiente';
+        await solicitud.save();
+      }
+      // si ya estaba "confirmado", lo dejamos confirmado
+      // si ya estaba "pendiente", lo dejamos igual
+    }
+
+    console.log('OK ✅ unión registrada/actualizada');
+    return res.json({
+      ok: true,
+      partidoId: partido.id,
+      estado: solicitud.estado,
+      cupoUsado: confirmadosCount,
+      cupoMax: partido.cantidadJugadores
+    });
+
+  } catch (err) {
+    console.error('*** ERROR en /unirse-con-token ***');
+    console.error(err);
+    return res.status(500).json({
+      ok: false,
+      error: 'Error interno al unirse con token'
+    });
+  }
+});
 
 
 module.exports = router;

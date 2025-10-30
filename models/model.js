@@ -22,8 +22,40 @@ const Historia = require('./Historia');
 const HistoriaVisto = require('./HistoriaVisto');
 const HistoriaComentario = require('./HistoriaComentario');
 const HistoriaLike = require('./HistoriaLike');
+const QREmision = require('./QREmision');
+const QRCheckin = require('./QRCheckin');
+const Concurso = require('./Concurso');
+const VotoPremio = require('./VotoPremio');
+const SorteoHistorico = require('./SorteoHistorico');
 
 
+
+// Relaciones opcionales (para debug/admin, no necesarias en frontend público)
+SorteoHistorico.belongsTo(Concurso, { foreignKey: 'concursoId', as: 'concurso' });
+SorteoHistorico.belongsTo(Usuario, { foreignKey: 'creadoPorId', as: 'creador' });
+//---------qr--------------------------------------
+// Cancha ↔ Usuario (dueño de la cancha)
+Cancha.belongsTo(Usuario, { foreignKey: 'propietarioUsuarioId', as: 'propietario' });
+Usuario.hasMany(Cancha,   { foreignKey: 'propietarioUsuarioId', as: 'canchas' });
+  
+// QREmision ↔ Cancha (QR del día por cancha)
+  QREmision.belongsTo(Cancha, { foreignKey: 'canchaId' });
+Cancha.hasMany(QREmision,   { foreignKey: 'canchaId' });
+
+// QRCheckin ↔ Emision/Usuario/Cancha/Partido (registro de check-in)
+QRCheckin.belongsTo(QREmision, { foreignKey: 'emisionId' });
+QRCheckin.belongsTo(Usuario,   { foreignKey: 'usuarioId' });
+QRCheckin.belongsTo(Cancha,    { foreignKey: 'canchaId' });
+QRCheckin.belongsTo(Partido,   { foreignKey: 'partidoId' });
+
+// (Opcionales pero recomendados para consultas rápidas)
+Usuario.hasMany(QRCheckin, { foreignKey: 'usuarioId' });
+Cancha.hasMany(QRCheckin,  { foreignKey: 'canchaId' });
+Partido.hasMany(QRCheckin, { foreignKey: 'partidoId' });
+
+
+
+//---------fin--------------------------------------
 
 //---------------------------------------------------------------referidos
 Usuario.belongsTo(Usuario, { as: 'Referente', foreignKey: 'referidoPorId' });
@@ -194,5 +226,11 @@ module.exports = {
     HistoriaComentario,
      HistoriaLike,
   MensajePartidoLeido,
-  envioNotificacion
+  envioNotificacion,
+    QREmision,
+  QRCheckin,
+    Concurso,
+    VotoPremio,
+    SorteoHistorico
+
 };

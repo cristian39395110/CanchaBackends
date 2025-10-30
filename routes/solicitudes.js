@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Partido, Usuario, Deporte, UsuarioPartido, UsuarioDeporte ,Mensaje,Suscripcion,MensajePartido} = require('../models/model');
+const { Partido, Usuario, Deporte, UsuarioPartido,Cancha, UsuarioDeporte ,Mensaje,Suscripcion,MensajePartido} = require('../models/model');
 const admin = require('firebase-admin');
 
 const { Sequelize, Op } = require('sequelize');
@@ -84,30 +84,29 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 //routes solicitudes.js
+// IMPORTANTEEEE arriba en tus imports asegurate de tener Cancha también:
+
+
 router.get('/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
   const { estado } = req.query;
 
   try {
-    // Traemos la ubicación del usuario (lat/lng)
     const usuario = await Usuario.findByPk(usuarioId);
     if (!usuario || !usuario.latitud || !usuario.longitud) {
       return res.status(400).json({ error: 'Usuario sin ubicación registrada' });
     }
 
-    // Deportes del usuario (para filtrar por intereses)
     const usuarioDeportes = await UsuarioDeporte.findAll({
       where: { usuarioId },
       attributes: ['deporteId'],
     });
-
     const deportesIds = usuarioDeportes.map(d => d.deporteId);
 
-    // Traemos todos los partidos a los que fue invitado ese usuario
     const usuarioPartidos = await UsuarioPartido.findAll({
       where: {
         UsuarioId: usuarioId,
-        ...(estado ? { estado } : {}),
+        ...(estado ? { estado } : {}), // pendiente | confirmado | rechazada
       },
       include: [
         {
@@ -115,6 +114,17 @@ router.get('/:usuarioId', async (req, res) => {
           include: [
             { model: Deporte, attributes: ['id', 'nombre'] },
             { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] },
+            {
+              model: Cancha,
+              attributes: [
+                'id',
+                'nombre',
+                'esAsociada',
+                'puntosBase',
+                'puntosAsociada',
+                'propietarioUsuarioId',
+              ],
+            },
           ]
         }
       ],
@@ -122,45 +132,221 @@ router.get('/:usuarioId', async (req, res) => {
     });
 
     const resultado = usuarioPartidos
-  .filter(up => {
-    const partido = up.Partido;
-    const mismoDeporte = deportesIds.includes(partido.deporteId);
-    const distancia = calcularDistanciaKm(
-      Number(usuario.latitud),
-      Number(usuario.longitud),
-      Number(partido.latitud),
-      Number(partido.longitud)
-    );
-    return mismoDeporte && distancia <= 15;
-  })
-  .map(up => {
-    const partido = up.Partido;
-    return {
-      id: partido.id,
-      fecha: partido.fecha,
-      hora: partido.hora,
-      lugar: partido.lugar,
-      nombreCancha: partido.nombre,
-      cantidadJugadores: partido.cantidadJugadores,
-      deporte: partido.Deporte?.nombre || 'Desconocido',
-      organizador: partido.organizador?.nombre || 'Desconocido',
-      latitud: partido.latitud,
-      longitud: partido.longitud,
-      localidad: partido.localidad,
-      sexo: partido.sexo || 'todos',
-      rangoEdad: partido.rangoEdad || 'sin restricción',
-      estado: up.estado,
-      precio:partido.precio
-    };
-  });
+      .filter(up => {
+        const partido = up.Partido;
+        if (!partido) return false;
 
-    res.json(resultado);
+        if (partido.esPrivado === true) {
+          return true;
+        }
+
+        if (!partido.latitud || !partido.longitud) return false;
+
+        const distancia = calcularDistanciaKm(
+          Number(usuario.latitud),
+          Number(usuario.longitud),
+          Number(partido.latitud),
+          Number(partido.longitud)
+        );
+
+        const mismoDeporte = deportesIds.includes(partido.deporteId);
+
+        return (
+          partido.esPrivado === false &&
+          mismoDeporte &&
+          distancia <= 15
+        );
+      })
+      .map(up => {
+        const partido = up.Partido;
+        const cancha = partido.Cancha || {};
+
+        const puntosBasePartido = cancha.esAsociada
+          ? Number(cancha.puntosAsociada || 0)
+          : Number(cancha.puntosBase || 0);
+
+        const organizadorEsPropietario =
+          cancha.propietarioUsuarioId &&
+          String(partido.organizadorId) === String(cancha.propietarioUsuarioId);
+
+        const puntosParaMostrar = organizadorEsPropietario
+          ? puntosBasePartido * 2
+          : puntosBasePartido;
+
+        const esDoble = !!organizadorEsPropietario;
+
+        return {
+          id: partido.id,
+          fecha: partido.fecha,
+          hora: partido.hora,
+          lugar: partido.lugar,
+          nombreCancha: partido.nombre,
+          canchaNombreReal: cancha.nombre || '',
+          cantidadJugadores: partido.cantidadJugadores,
+          deporte: partido.Deporte?.nombre || 'Desconocido',
+          organizador: partido.organizador?.nombre || 'Desconocido',
+          organizadorId: partido.organizador?.id || partido.organizadorId || null,
+          latitud: partido.latitud,
+          longitud: partido.longitud,
+          localidad: partido.localidad,
+          sexo: partido.sexo || 'todos',
+          rangoEdad: partido.rangoEdad || 'sin restricción',
+          estado: up.estado,
+          precio: partido.precio,
+          esPrivado: partido.esPrivado === true,
+
+          puntosCheckin: puntosParaMostrar,
+          esDoble: esDoble,
+        };
+      });
+
+    return res.json(resultado);
+
   } catch (error) {
     console.error('❌ Error al obtener solicitudes:', error);
-    res.status(500).json({ error: 'Error al obtener solicitudes' });
+    return res.status(500).json({ error: 'Error al obtener solicitudes' });
   }
 });
 
+
+/* Verificar mañanaaaa para que se muestren los puntos y estrellas en invitaciones 
+router.get('/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+  const { estado } = req.query;
+
+  try {
+    // 1. Ubicación del usuario (para distancia en partidos públicos)
+    const usuario = await Usuario.findByPk(usuarioId);
+    if (!usuario || !usuario.latitud || !usuario.longitud) {
+      return res.status(400).json({ error: 'Usuario sin ubicación registrada' });
+    }
+
+    // 2. Deportes del usuario (para filtrar partidos públicos por interés)
+    const usuarioDeportes = await UsuarioDeporte.findAll({
+      where: { usuarioId },
+      attributes: ['deporteId'],
+    });
+    const deportesIds = usuarioDeportes.map(d => d.deporteId);
+
+    // 3. Partidos donde este usuario ya figura en UsuarioPartido
+    const usuarioPartidos = await UsuarioPartido.findAll({
+      where: {
+        UsuarioId: usuarioId,
+        ...(estado ? { estado } : {}), // ej: ?estado=pendiente | confirmado
+      },
+      include: [
+        {
+          model: Partido,
+          include: [
+            { model: Deporte, attributes: ['id', 'nombre'] },
+            { model: Usuario, as: 'organizador', attributes: ['id', 'nombre'] },
+            {
+              // 👇 necesitamos la cancha para saber puntos del check-in
+              model: Cancha,
+              attributes: [
+                'id',
+                'nombre',
+                'esAsociada',
+                'puntosBase',
+                'puntosAsociada',
+              ],
+            },
+          ],
+        }
+      ],
+      order: [['Partido', 'fecha', 'ASC']]
+    });
+
+    // 4. Armamos resultado aplicando reglas de partidos privados / públicos
+    const resultado = usuarioPartidos
+      .filter(up => {
+        const partido = up.Partido;
+        if (!partido) return false;
+
+        // Si es privado → siempre lo muestro (ya está invitado)
+        if (partido.esPrivado === true) {
+          return true;
+        }
+
+        // Si es público → filtro por deporte + distancia ≤ 15km
+        if (!partido.latitud || !partido.longitud) {
+          return false;
+        }
+
+        const distancia = calcularDistanciaKm(
+          Number(usuario.latitud),
+          Number(usuario.longitud),
+          Number(partido.latitud),
+          Number(partido.longitud)
+        );
+
+        const mismoDeporte = deportesIds.includes(partido.deporteId);
+
+        return (
+          partido.esPrivado === false &&
+          mismoDeporte &&
+          distancia <= 15
+        );
+      })
+      .map(up => {
+        const partido = up.Partido;
+
+        // --- ⚽ info cancha para puntos ---
+        // si por alguna razón no vino la cancha (null), evitamos romper
+        const cancha = partido.Cancha || {};
+
+        // lógica misma que usás en /qr/emision
+        const puntosBasePartido = cancha.esAsociada
+          ? Number(cancha.puntosAsociada || 0)
+          : Number(cancha.puntosBase || 0);
+
+        // si el user ES el organizador => duplica
+        const esOrganizador = String(partido.organizadorId) === String(usuarioId);
+        const puntosParaEsteJugador = esOrganizador
+          ? puntosBasePartido * 2
+          : puntosBasePartido;
+
+        return {
+          id: partido.id,
+
+          fecha: partido.fecha,
+          hora: partido.hora,
+
+          lugar: partido.lugar,
+          nombreCancha: partido.nombre, // ojo: esto parece ser "partido.nombre", no "cancha.nombre"
+          canchaNombreReal: cancha.nombre || null, // opcional por si querés después
+
+          cantidadJugadores: partido.cantidadJugadores,
+          deporte: partido.Deporte?.nombre || 'Desconocido',
+
+          organizador: partido.organizador?.nombre || 'Desconocido',
+          organizadorId: partido.organizador?.id || partido.organizadorId || null,
+
+          latitud: partido.latitud,
+          longitud: partido.longitud,
+          localidad: partido.localidad,
+
+          sexo: partido.sexo || 'todos',
+          rangoEdad: partido.rangoEdad || 'sin restricción',
+
+          estado: up.estado, // 'pendiente' / 'confirmado' / etc.
+          precio: partido.precio,
+          esPrivado: partido.esPrivado === true,
+
+          // ⭐ NUEVO:
+          puntosCheckin: puntosParaEsteJugador, // ej 10 o 20
+          esOrganizador: esOrganizador,        // true / false
+        };
+      });
+
+    return res.json(resultado);
+
+  } catch (error) {
+    console.error('❌ Error al obtener solicitudes:', error);
+    return res.status(500).json({ error: 'Error al obtener solicitudes' });
+  }
+});
+*/
 
 // POST /api/solicitudes/cancelar
 router.post('/cancelar', async (req, res) => {

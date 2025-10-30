@@ -38,10 +38,7 @@ rangoEdad: {
   type: DataTypes.BOOLEAN,
   defaultValue: false,
 },
-  canchaNombreManual: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
+  
   categorias: {
   type: DataTypes.JSON, // o TEXT si usás SQLite
   allowNull: true,
@@ -51,7 +48,20 @@ precio: {
   type: DataTypes.INTEGER,     // ARS por jugador (entero)
   allowNull: true,             // null = no informado
   validate: { min: 0 }         // 0 = Gratis
-}
+},
+
+// esto agregue en partidos
+esPrivado: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false,
+},
+tokenPrivado: {
+  type: DataTypes.STRING,
+  allowNull: true,
+  unique: true
+},
+
+
 
 
   

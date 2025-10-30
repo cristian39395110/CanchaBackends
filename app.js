@@ -197,19 +197,22 @@ for (const socketId of sockets) {
   const mensajePartidoRouter = require('./routes/mensajePartido');
   const envioNotificacionRouter = require('./routes/envioNotificacion');
   const historiasRoutes = require('./routes/historias');
+  const qrRoutes = require('./routes/qr')
+  const premioRoutes = require('./routes/premio');
+    const concursoRoutes = require('./routes/concursos');
 
 
 
+app.use('/api/concursos', concursoRoutes);
 
-  app.use('/api/historias', historiasRoutes);
 
+
+app.use('/api/premio', premioRoutes);
+app.use('/api/qr', qrRoutes);
+app.use('/api/historias', historiasRoutes);
 app.use('/api/envio-notificaciones', envioNotificacionRouter);
-
-  
-
-
-  app.use('/api/mensajes-partido', mensajePartidoRouter);
-  app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
+app.use('/api/mensajes-partido', mensajePartidoRouter);
+app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
 
   app.use('/api/canchas', canchasRoutes);
   app.use('/api/puntuacion', puntuacionRoutes);
@@ -273,19 +276,38 @@ app.post('/api/test-fcm', async (req, res) => {
   }
 });
 
+
+/*
   // Iniciar servidor
-  //sequelize.sync({ alter: true })
+  sequelize.sync({ alter: true })
   
 
   sequelize.sync().then(() => {
   console.log('✅ Base de datos sincronizada (sin alter)');
   server.listen(3000, '0.0.0.0', () => {
+
     console.log('✅ Servidor con Socket.io corriendo en puerto 3000');
   });
 });
 
+*/
+sequelize
+  .sync({
+    force: false,  // nunca borrar tablas
+    alter: false,  // nunca tratar de ajustar columnas automáticamente
+  })
+  .then(() => {
+    console.log('✅ DB conectada sin tocar estructura');
+    server.listen(3000, '0.0.0.0', () => {
+      console.log('✅ Servidor listo en puerto 3000');
+    });
+  })
+  .catch(err => {
+    console.error('❌ Error al sincronizar sequelize:', err);
+  });
 
-  /*
+/*
+  
   sequelize.sync({ alter: true }).then(() => {
     console.log('Base de datos sincronizada');
     server.listen(3000, '0.0.0.0', () => {

@@ -30,19 +30,26 @@ const Usuario = sequelize.define('Usuario', {
     allowNull: false,
     unique: false
   },
+   fotoPerfil: {
+    type: DataTypes.STRING(255), // podés usar TEXT si querés URLs largas
+    allowNull: true,             // compatible con datos existentes
+  },
    premium: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
-  puntuacion: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 10
-  },
-  fotoPerfil: {
-  type: DataTypes.STRING,
-  allowNull: true
-  },
+  // models/usuario.js (o la migración)
+puntuacion: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  defaultValue: 0,
+},
+puntosHistorico: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  defaultValue: 0,
+},
+
   cloudinaryId: {
   type: DataTypes.STRING,
   allowNull: true
@@ -197,6 +204,7 @@ mostrar_institucion: {
   allowNull: false,
   defaultValue: false,
 },
+
 premiosReferidos: {
   type: DataTypes.JSON,     // array de números: [40, 100]
   allowNull: false,
