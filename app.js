@@ -232,6 +232,25 @@ app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
   app.use('/api/fcm', fcmRouter);
 
 
+  // negociooooooooooooooooooooooooooooooooo
+
+const uUsuariosNegocioRoutes = require('./routes/uUsuariosNegocio');
+app.use('/api/uusuarios', uUsuariosNegocioRoutes);
+
+
+
+
+
+
+
+
+
+
+
+
+  //---------------------------
+
+
   // 📤 Ruta de test para enviar notificación FCM
 app.post('/api/test-fcm', async (req, res) => {
   const { token } = req.body;
