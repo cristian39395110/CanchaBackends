@@ -235,7 +235,7 @@ app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
 
 
   // negociooooooooooooooooooooooooooooooooo
-/*
+
 const uUsuariosNegocioRoutes = require('./routes/uUsuariosNegocio');
 app.use('/api/Negociousuarios', uUsuariosNegocioRoutes);
 
