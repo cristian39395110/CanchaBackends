@@ -243,7 +243,7 @@ app.use('/api/Negociousuarios', uUsuariosNegocioRoutes);
 
     const puntosRoutes = require('./routes/upuntos');
 
-app.use('/api/    puntosNegocio', puntosRoutes);
+app.use('/api/puntosNegocio', puntosRoutes);
 
 
 
