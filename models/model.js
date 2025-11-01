@@ -27,6 +27,8 @@ const QRCheckin = require('./QRCheckin');
 const Concurso = require('./Concurso');
 const VotoPremio = require('./VotoPremio');
 const SorteoHistorico = require('./SorteoHistorico');
+const Unegocio = require('./uNegocio');
+
 
 
 
@@ -231,6 +233,7 @@ module.exports = {
   QRCheckin,
     Concurso,
     VotoPremio,
-    SorteoHistorico
+    SorteoHistorico,
+    Unegocio
 
 };
