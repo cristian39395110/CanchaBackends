@@ -203,6 +203,8 @@ for (const socketId of sockets) {
 
 
 
+
+
 app.use('/api/concursos', concursoRoutes);
 
 
@@ -233,16 +235,18 @@ app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
 
 
   // negociooooooooooooooooooooooooooooooooo
-
+/*
 const uUsuariosNegocioRoutes = require('./routes/uUsuariosNegocio');
 app.use('/api/uusuarios', uUsuariosNegocioRoutes);
 
 
 
+    const puntosRoutes = require('./routes/upuntos');
+
+app.use('/api/upuntos', puntosRoutes);
 
 
-
-
+*/
 
 
 
