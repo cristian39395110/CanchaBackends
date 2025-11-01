@@ -27,10 +27,44 @@ const QRCheckin = require('./QRCheckin');
 const Concurso = require('./Concurso');
 const VotoPremio = require('./VotoPremio');
 const SorteoHistorico = require('./SorteoHistorico');
+
+
+
+
+/* ===========================
+   NUEVO MÓDULO: NEGOCIOS Y PUNTOS
+   =========================== */
+
+const uUsuarioNegocio = require('./uUsuariosNegocio');
+const uNegocio = require('./uNegocio');
+const uQRCompraNegocio = require('./uQRCompraNegocio');
+const uCheckinNegocio = require('./uCheckinNegocio');
+const uConcursoNegocio = require('./uConcursosNegocio');
 const Unegocio = require('./uNegocio');
 
 
+/* ===========================
+   RELACIONES
+   =========================== */
 
+// Negocios ↔ UsuariosNegocio (dueño)
+uNegocio.belongsTo(uUsuarioNegocio, { foreignKey: 'ownerId', as: 'duenio' });
+
+// QR ↔ Negocio
+uQRCompraNegocio.belongsTo(uNegocio, { foreignKey: 'negocioId' });
+
+// Checkin ↔ Usuario / Negocio / QR
+uCheckinNegocio.belongsTo(uUsuarioNegocio, { foreignKey: 'usuarioNegocioId' });
+uCheckinNegocio.belongsTo(uNegocio, { foreignKey: 'negocioId' });
+uCheckinNegocio.belongsTo(uQRCompraNegocio, { foreignKey: 'qrId' });
+
+// Concursos ↔ Negocio (si querés que cada negocio tenga su concurso)
+uConcursoNegocio.belongsTo(uNegocio, { foreignKey: 'negocioId', as: 'negocio' });
+uNegocio.hasMany(uConcursoNegocio, { foreignKey: 'negocioId', as: 'concursos' });
+
+/* ===========================
+   fin negocio
+   =========================== */
 
 // Relaciones opcionales (para debug/admin, no necesarias en frontend público)
 SorteoHistorico.belongsTo(Concurso, { foreignKey: 'concursoId', as: 'concurso' });
@@ -234,6 +268,10 @@ module.exports = {
     Concurso,
     VotoPremio,
     SorteoHistorico,
-    Unegocio
+     uUsuarioNegocio,
+  uNegocio,
+  uQRCompraNegocio,
+  uCheckinNegocio,
+  uConcursoNegocio
 
 };
