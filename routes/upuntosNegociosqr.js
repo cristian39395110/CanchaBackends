@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { Op, fn, col } = require('sequelize');
 
-const { autenticarToken } = require('../middlewares/autenticarToken');
+const { autenticarToken } = require('../middlewares/auth'); 
 
 const {
   uQRCompraNegocio,
