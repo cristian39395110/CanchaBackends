@@ -54,7 +54,7 @@ const uUsuariosNegocio = sequelize.define('uUsuariosNegocio', {
   esAdmin: {
   type: DataTypes.BOOLEAN,
   defaultValue: false,
-},
+},  
 
 }, {
   tableName: 'uUsuariosNegocio', // opcional, para que no cambie el nombre

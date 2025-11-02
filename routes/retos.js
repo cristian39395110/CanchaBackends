@@ -45,12 +45,18 @@ router.post('/crear', autenticarToken, soloAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
+    // 👇 buscamos la última versión que haya en la tabla
+    const ultimaVersion = await Reto.max('version'); // puede devolver null
+    const nuevaVersion = (ultimaVersion || 0) + 1;
+
     const nuevo = await Reto.create({
       titulo,
       descripcion,
       puntos,
+      tipo: 'general',   // lo que vos pusiste
       fechaInicio,
       fechaFin,
+      version: nuevaVersion, // 👈 acá la magia
     });
 
     res.json(nuevo);
@@ -139,5 +145,38 @@ router.patch('/usuarios-premium/:id', autenticarToken, soloAdmin, async (req, re
     res.status(500).json({ error: 'No se pudo actualizar el usuario' });
   }
 });
+
+
+/**
+ * ===========================================================
+ * GET /api/retos/meta
+ * → Devuelve la versión más reciente de retos para mostrar banner
+ * ===========================================================
+ */
+/**
+ * ===========================================================
+ * GET /api/retos/meta
+ * → Devuelve la versión más reciente de los retos para mostrar banner
+ * ===========================================================
+ */
+router.get('/meta', autenticarToken, async (req, res) => {
+  try {
+    const ultimo = await Reto.findOne({
+      order: [['updatedAt', 'DESC']],
+      attributes: ['version'],
+    });
+
+    const version = ultimo ? Number(ultimo.version) : 1;
+
+    res.json({
+      version,
+      hayNuevos: true,
+    });
+  } catch (err) {
+    console.error('Error en GET /api/retos/meta:', err);
+    res.status(500).json({ error: 'No se pudo obtener meta de retos' });
+  }
+});
+
 
 module.exports = router;
