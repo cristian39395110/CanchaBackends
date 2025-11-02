@@ -1,35 +1,25 @@
 const jwt = require('jsonwebtoken');
-const { uUsuarioNegocio } = require('../models/model');
+const { uUsuariosNegocio } = require('../models/model');
 
-/**
- * Middleware para autenticar usuarios de negocio
- */
-async function autenticarTokenNegocio(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Falta token' });
-  }
+function autenticarTokenNegocio(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.sendStatus(401);
 
-  const token = authHeader.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ error: 'Token inválido' });
-  }
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+    if (err) return res.sendStatus(403);
 
-  try {
-    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    try {
+      // Buscamos el usuario de negocio
+      const negocio = await uUsuariosNegocio.findByPk(decoded.id);
+      if (!negocio) return res.sendStatus(401);
 
-    // Buscar en tabla uUsuariosNegocio
-    const negocioUser = await uUsuarioNegocio.findByPk(decoded.id);
-    if (!negocioUser) {
-      return res.status(401).json({ error: 'Usuario negocio no encontrado' });
+      req.negocio = negocio; // similar a req.usuario
+      next();
+    } catch (e) {
+      console.error('❌ Error en autenticarTokenNegocio:', e);
+      res.sendStatus(500);
     }
-
-    req.negocio = negocioUser;
-    next();
-  } catch (err) {
-    console.error('❌ Error en autenticarTokenNegocio:', err);
-    return res.status(403).json({ error: 'Token no válido' });
-  }
+  });
 }
 
 module.exports = { autenticarTokenNegocio };
