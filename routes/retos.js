@@ -1,25 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const { autenticarToken } = require('../middlewares/auth'); 
-const { Reto, uUsuariosNegocio } = require('../models/model');
 
-/**
- * ✅ Middleware para asegurar que sea admin
- */
-function soloAdmin(req, res, next) {
-  if (!req.usuario || !req.usuario.esAdmin) {
-    return res.status(403).json({ error: 'Solo administradores pueden acceder.' });
-  }
-  next();
-}
+const { Reto, uUsuariosNegocio } = require('../models/model');
+// 👇 usamos los nuevos
+const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
+const { soloAdminNegocio } = require('../middlewares/soloAdminNegocio');
 
 /**
  * ===========================================================
  * GET /api/retos
- * → Devuelve todos los retos (visibles para admin o usuarios)
+ * → Devuelve todos los retos (cualquiera logueado de negocio)
  * ===========================================================
  */
-router.get('/', autenticarToken, async (req, res) => {
+router.get('/', autenticarTokenNegocio, async (req, res) => {
   try {
     const retos = await Reto.findAll({
       order: [['createdAt', 'DESC']],
@@ -34,29 +27,29 @@ router.get('/', autenticarToken, async (req, res) => {
 /**
  * ===========================================================
  * POST /api/retos/crear
- * → Crear nuevo reto (solo admin)
+ * → Crear nuevo reto (solo admin de negocios)
  * body: { titulo, descripcion, puntos, fechaInicio, fechaFin }
  * ===========================================================
  */
-router.post('/crear', autenticarToken, soloAdmin, async (req, res) => {
+router.post('/crear', autenticarTokenNegocio, soloAdminNegocio, async (req, res) => {
   try {
     const { titulo, descripcion, puntos, fechaInicio, fechaFin } = req.body;
     if (!titulo || !descripcion || !puntos) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    // 👇 buscamos la última versión que haya en la tabla
-    const ultimaVersion = await Reto.max('version'); // puede devolver null
+    // última versión
+    const ultimaVersion = await Reto.max('version');
     const nuevaVersion = (ultimaVersion || 0) + 1;
 
     const nuevo = await Reto.create({
       titulo,
       descripcion,
       puntos,
-      tipo: 'general',   // lo que vos pusiste
+      tipo: 'general',
       fechaInicio,
       fechaFin,
-      version: nuevaVersion, // 👈 acá la magia
+      version: nuevaVersion,
     });
 
     res.json(nuevo);
@@ -68,11 +61,10 @@ router.post('/crear', autenticarToken, soloAdmin, async (req, res) => {
 
 /**
  * ===========================================================
- * PUT /api/retos/:id
- * → Editar reto existente (solo admin)
+ * PUT /api/retos/:id  (solo admin negocio)
  * ===========================================================
  */
-router.put('/:id', autenticarToken, soloAdmin, async (req, res) => {
+router.put('/:id', autenticarTokenNegocio, soloAdminNegocio, async (req, res) => {
   const { id } = req.params;
   try {
     const reto = await Reto.findByPk(id);
@@ -88,11 +80,10 @@ router.put('/:id', autenticarToken, soloAdmin, async (req, res) => {
 
 /**
  * ===========================================================
- * DELETE /api/retos/:id
- * → Eliminar reto (solo admin)
+ * DELETE /api/retos/:id  (solo admin negocio)
  * ===========================================================
  */
-router.delete('/:id', autenticarToken, soloAdmin, async (req, res) => {
+router.delete('/:id', autenticarTokenNegocio, soloAdminNegocio, async (req, res) => {
   const { id } = req.params;
   try {
     const reto = await Reto.findByPk(id);
@@ -108,11 +99,10 @@ router.delete('/:id', autenticarToken, soloAdmin, async (req, res) => {
 
 /**
  * ===========================================================
- * GET /api/retos/usuarios-premium
- * → Listar todos los usuarios y su estado premium
+ * GET /api/retos/usuarios-premium   (solo admin negocio)
  * ===========================================================
  */
-router.get('/usuarios-premium', autenticarToken, soloAdmin, async (req, res) => {
+router.get('/usuarios-premium', autenticarTokenNegocio, soloAdminNegocio, async (req, res) => {
   try {
     const lista = await uUsuariosNegocio.findAll({
       attributes: ['id', 'nombre', 'email', 'puntos', 'esPremium', 'esAdmin'],
@@ -127,11 +117,10 @@ router.get('/usuarios-premium', autenticarToken, soloAdmin, async (req, res) => 
 
 /**
  * ===========================================================
- * PATCH /api/retos/usuarios-premium/:id
- * → Cambiar estado premium de un usuario
+ * PATCH /api/retos/usuarios-premium/:id  (solo admin negocio)
  * ===========================================================
  */
-router.patch('/usuarios-premium/:id', autenticarToken, soloAdmin, async (req, res) => {
+router.patch('/usuarios-premium/:id', autenticarTokenNegocio, soloAdminNegocio, async (req, res) => {
   const { id } = req.params;
   const { esPremium } = req.body;
   try {
@@ -146,20 +135,14 @@ router.patch('/usuarios-premium/:id', autenticarToken, soloAdmin, async (req, re
   }
 });
 
-
 /**
  * ===========================================================
  * GET /api/retos/meta
- * → Devuelve la versión más reciente de retos para mostrar banner
+ * → Esto sí lo dejamos PÚBLICO porque el frontend lo llama apenas carga
+ *   y no siempre hay token.
  * ===========================================================
  */
-/**
- * ===========================================================
- * GET /api/retos/meta
- * → Devuelve la versión más reciente de los retos para mostrar banner
- * ===========================================================
- */
-router.get('/meta', autenticarToken, async (req, res) => {
+router.get('/meta', async (req, res) => {
   try {
     const ultimo = await Reto.findOne({
       order: [['updatedAt', 'DESC']],
@@ -177,6 +160,5 @@ router.get('/meta', autenticarToken, async (req, res) => {
     res.status(500).json({ error: 'No se pudo obtener meta de retos' });
   }
 });
-
 
 module.exports = router;
