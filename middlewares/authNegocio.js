@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { uUsuariosNegocio } = require('../models/model');
+const { uUsuarioNegocio } = require('../models/model');
 
 /**
  * Middleware para autenticar usuarios de negocio
@@ -19,7 +19,7 @@ async function autenticarTokenNegocio(req, res, next) {
     const decoded = jwt.verify(token, process.env.SECRET_KEY);
 
     // Buscar en tabla uUsuariosNegocio
-    const negocioUser = await uUsuariosNegocio.findByPk(decoded.id);
+    const negocioUser = await uUsuarioNegocio.findByPk(decoded.id);
     if (!negocioUser) {
       return res.status(401).json({ error: 'Usuario negocio no encontrado' });
     }

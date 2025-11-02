@@ -3,7 +3,7 @@ const router = express.Router();
 
 const { Reto, uUsuariosNegocio } = require('../models/model');
 // 👇 usamos los nuevos
-const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
+const { autenticarTokenNegocio } = require('../middlewares/authNegocios');
 const { soloAdminNegocio } = require('../middlewares/soloAdminNegocio');
 
 /**
