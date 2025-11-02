@@ -49,6 +49,13 @@ const uUsuariosNegocio = sequelize.define('uUsuariosNegocio', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+
+// agregar esto a la base de dato 
+  esAdmin: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false,
+},
+
 }, {
   tableName: 'uUsuariosNegocio', // opcional, para que no cambie el nombre
 });

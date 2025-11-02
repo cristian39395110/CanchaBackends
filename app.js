@@ -240,6 +240,15 @@ const uUsuariosNegocioRoutes = require('./routes/uUsuariosNegocio');
 app.use('/api/Negociousuarios', uUsuariosNegocioRoutes);
 
 
+const puntosNegociosqrRoutes = require('./routes/upuntosNegociosqr');
+app.use('/api/puntosnegociosqr', puntosNegociosqrRoutes);
+
+const retosRoutes = require('./routes/retos');
+app.use('/api/retos', retosRoutes);
+
+
+
+
 
     const puntosRoutes = require('./routes/upuntos');
 
