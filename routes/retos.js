@@ -12,14 +12,16 @@ const { soloAdminNegocio } = require('../middlewares/soloAdminNegocio');
  * → Devuelve todos los retos (cualquiera logueado de negocio)
  * ===========================================================
  */
-router.get('/', autenticarTokenNegocio, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const retos = await Reto.findAll({
-      order: [['createdAt', 'DESC']],
+      attributes: ['id','titulo','descripcion','puntos','activo'],
+      order: [['createdAt','DESC']],
+      limit: 100,
     });
     res.json(retos);
   } catch (err) {
-    console.error('Error en GET /api/retos:', err);
+    console.error('❌ GET /api/retos:', err?.message, err?.stack);
     res.status(500).json({ error: 'No se pudieron cargar los retos' });
   }
 });

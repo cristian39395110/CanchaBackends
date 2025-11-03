@@ -1,27 +1,30 @@
+// middlewares/authNegocio.js
 const jwt = require('jsonwebtoken');
-const { uUsuariosNegocio } = require('../models/model');
 
 function autenticarTokenNegocio(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.sendStatus(401);
+  if (!token) return res.status(401).json({ error: 'Falta token' });
 
-  // 👇 Usa el mismo SECRET_KEY que el login
   const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';
 
-  jwt.verify(token, SECRET_KEY, async (err, decoded) => {
-    if (err) return res.sendStatus(403);
-
-    try {
-      const negocio = await uUsuariosNegocio.findByPk(decoded.id);
-      if (!negocio) return res.sendStatus(401);
-
-      req.negocio = negocio; // igual que req.usuario
-      next();
-    } catch (e) {
-      console.error('❌ Error en autenticarTokenNegocio:', e);
-      res.sendStatus(500);
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    if (decoded.rol !== 'negocio') {
+      return res.status(403).json({ error: 'Rol inválido' });
     }
-  });
+
+    // 👇 queda disponible en req.negocio
+    req.negocio = {
+      id: decoded.id,
+      esAdmin: !!decoded.esAdmin,
+      esPremium: !!decoded.esPremium,
+      email: decoded.email,
+      nombre: decoded.nombre,
+    };
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
 }
 
 module.exports = { autenticarTokenNegocio };

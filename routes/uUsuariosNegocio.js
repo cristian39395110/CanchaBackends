@@ -95,37 +95,55 @@ router.get('/verificar/:token', async (req, res) => {
 /* ===============================
    🔐 Login con token JWT
    =============================== */
+// routes/usuariosNegocio.js  (dentro de /login)
 router.post('/login', async (req, res) => {
   try {
     const { email, password, deviceId } = req.body;
 
     const usuario = await uUsuarioNegocio.findOne({ where: { email } });
     if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
-
-    if (!usuario.verificado)
-      return res.status(403).json({ message: 'Verificá tu correo antes de iniciar sesión' });
+    if (!usuario.verificado) return res.status(403).json({ message: 'Verificá tu correo antes de iniciar sesión' });
 
     const valido = await bcrypt.compare(password, usuario.password);
     if (!valido) return res.status(401).json({ message: 'Contraseña incorrecta' });
 
-    // Control de deviceId como hacés en la app grande
+    // deviceId (igual que ya tenías)
     if (usuario.deviceId && usuario.deviceId !== deviceId) {
       return res.status(403).json({ message: 'Este correo ya está vinculado a otro celular.' });
     }
-
     if (!usuario.deviceId && deviceId) {
       usuario.deviceId = deviceId;
       await usuario.save();
     }
 
-    const token = jwt.sign({ id: usuario.id }, SECRET_KEY, { expiresIn: '12h' });
+    // 👇 payload con flags y rol
+    const payload = {
+      id: usuario.id,
+      rol: 'negocio',
+      esAdmin: !!usuario.esAdmin,
+      esPremium: !!usuario.esPremium,
+      email: usuario.email,
+      nombre: usuario.nombre,
+    };
 
-    res.json({ token, usuarioId: usuario.id });
+    const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '12h' });
+
+    // 👇 devolvé también los flags por comodidad del FE
+    res.json({
+      token,
+      usuarioId: usuario.id,
+      esAdmin: !!usuario.esAdmin,
+      esPremium: !!usuario.esPremium,
+      nombre: usuario.nombre,
+      email: usuario.email,
+    });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error al iniciar sesión' });
   }
 });
+
 
 /* ===============================
    🙋 Obtener usuario autenticado
