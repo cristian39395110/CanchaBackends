@@ -81,32 +81,77 @@ function buildTimeWindow(partido, cancha) {
  *  - Que estén en ventana horaria según parámetros de cancha
  *  - Si hay varios, elige el más cercano a 'ahora' (por |inicio - now|)
  */
-async function findMatchingPartidoForNow(canchaId) {
+// firma nueva
+// Selector robusto: cancha + ventana + confirmación
+async function findMatchingPartidoForNow(
+  canchaId,
+  { usuarioId = null, partidoIdPreferido = null } = {}
+) {
   const hoy = todayDateOnlyTZ();
-console.log(hoy,"fecha")
-  // Traemos los partidos de HOY en esa cancha
+
+  // 1) Traer partidos de HOY en esa cancha
   const partidos = await Partido.findAll({
     where: { canchaId, fecha: hoy },
     order: [['hora', 'ASC']],
   });
+  if (!partidos.length) {
+    return { ok: false, error: 'SIN_PARTIDOS_HOY' };
+  }
 
-  if (!partidos.length) return null;
-
-  const now = new Date();
-  // Filtramos por ventana horaria
+  // 2) Filtrar por ventana horaria
   const cancha = await Cancha.findByPk(canchaId);
+  const now = new Date();
   const candidatos = [];
   for (const p of partidos) {
     const { desde, hasta, inicio } = buildTimeWindow(p, cancha);
     if (now >= desde && now <= hasta) {
-      candidatos.push({ partido: p, inicio });
+      candidatos.push({ partido: p, inicio, desde, hasta });
     }
   }
-  if (!candidatos.length) return null;
+  if (!candidatos.length) {
+    return { ok: false, error: 'FUERA_DE_VENTANA' };
+  }
 
-  // Elegimos el más cercano al "ahora"
+  // 3) Si viene un partido preferido y está en ventana, priorizarlo
+  if (partidoIdPreferido) {
+    const hit = candidatos.find(c => Number(c.partido.id) === Number(partidoIdPreferido));
+    if (hit) return { ok: true, partido: hit.partido, ventana: { desde: hit.desde, hasta: hit.hasta } };
+  }
+
+  // 4) Si tenemos usuarioId: quedarse solo con los que esté CONFIRMADO
+  if (usuarioId) {
+    const confirmados = [];
+    for (const c of candidatos) {
+      const up = await UsuarioPartido.findOne({
+        where: { UsuarioId: usuarioId, PartidoId: c.partido.id, estado: 'confirmado' },
+        attributes: ['UsuarioId'],
+      });
+      if (up) confirmados.push(c);
+    }
+
+    if (confirmados.length === 0) {
+      return { ok: false, error: 'NO_PERMITIDO' }; // no está confirmado en ningún partido activo
+    }
+
+    if (confirmados.length === 1) {
+      const c = confirmados[0];
+      return { ok: true, partido: c.partido, ventana: { desde: c.desde, hasta: c.hasta } };
+    }
+
+    // 4.b Varios confirmados a la vez: elegir el más cercano a "ahora"
+    confirmados.sort((a, b) => Math.abs(a.inicio - now) - Math.abs(b.inicio - now));
+    const c = confirmados[0];
+    return { ok: true, partido: c.partido, ventana: { desde: c.desde, hasta: c.hasta } };
+  }
+
+  // 5) Sin usuarioId (fallback): si hay uno, usar; si hay varios, elegir el más cercano
+  if (candidatos.length === 1) {
+    const c = candidatos[0];
+    return { ok: true, partido: c.partido, ventana: { desde: c.desde, hasta: c.hasta } };
+  }
   candidatos.sort((a, b) => Math.abs(a.inicio - now) - Math.abs(b.inicio - now));
-  return candidatos[0].partido;
+  const c = candidatos[0];
+  return { ok: true, partido: c.partido, ventana: { desde: c.desde, hasta: c.hasta } };
 }
 
 /**
@@ -119,45 +164,51 @@ console.log(hoy,"fecha")
  *  - Distancia <= radioGeofence
  *  - Registra QRCheckin y suma puntos al usuario
  */
-async function validarYRegistrarCheckin({ emision, usuarioId, lat, lng, deviceId }) {
-  
+// ✅ validarYRegistrarCheckin: Política B (check-in por partido)
+async function validarYRegistrarCheckin({ emision, usuarioId, lat, lng, deviceId, partidoId = null }) {
   try {
     const cancha = await Cancha.findByPk(emision.canchaId);
     if (!cancha) {
       return { ok: false, error: 'CANCHA_NO_ENCONTRADA', mensaje: 'La cancha no existe.' };
     }
 
-    // Partido actual en esa cancha (ventana)
-    const partido = await findMatchingPartidoForNow(cancha.id);
-    if (!partido) {
-      return {
-        ok: false,
-        error: 'FUERA_DE_VENTANA',
-        mensaje: 'No hay un partido activo en esta cancha en este momento.'
-      };
+    // 1) Resolver partido en esta cancha y ventana (con desambiguación)
+    const match = await findMatchingPartidoForNow(cancha.id, {
+      usuarioId,
+      partidoIdPreferido: partidoId ?? null, // si viene del frontend, mejor
+    });
+
+    if (!match) {
+      return { ok: false, error: 'FUERA_DE_VENTANA', mensaje: 'No hay un partido activo en esta cancha en este momento.' };
+    }
+    if (match.ok === false) {
+      // Ambigüedad o fuera de ventana (según imple de findMatchingPartidoForNow)
+      if (match.error === 'VARIOS_PARTIDOS_EN_VENTANA' || match.error === 'VARIOS_PARTIDOS_CONFIRMADOS_EN_VENTANA') {
+        return {
+          ok: false,
+          error: match.error,
+          mensaje: 'Hay más de un partido activo. Elegí uno.',
+          candidatos: match.candidatos || []
+        };
+      }
+      if (match.error === 'FUERA_DE_VENTANA') {
+        return { ok: false, error: 'FUERA_DE_VENTANA', mensaje: 'No hay un partido activo en este momento.' };
+      }
+      return { ok: false, error: match.error || 'SIN_PARTIDO', mensaje: 'No se pudo identificar el partido.' };
     }
 
-    // ¿Usuario aceptado en el partido?
+    const partido = match.partido ?? match; // por si tu función sigue devolviendo el partido directo
+
+    // 2) Confirmación del usuario en ese partido
     const up = await UsuarioPartido.findOne({
-      where: {
-        UsuarioId: usuarioId,   // ⚠️ usa tus nombres de columnas: 'UsuarioId' y 'PartidoId'
-        PartidoId: partido.id,
-        estado: 'confirmado',     // ajustá si tu campo usa otro nombre/valor
-      }
+      where: { UsuarioId: usuarioId, PartidoId: partido.id, estado: 'confirmado' }
     });
     if (!up) {
-      return {
-        ok: false,
-        error: 'NO_PERMITIDO',
-        mensaje: 'No estás confirmado en este partido (no podés hacer check-in).'
-      };
+      return { ok: false, error: 'NO_PERMITIDO', mensaje: 'No estás confirmado en este partido (no podés hacer check-in).' };
     }
 
-    // Geofence
-    const distancia = haversineMeters(
-      Number(lat), Number(lng),
-      Number(cancha.latitud), Number(cancha.longitud)
-    );
+    // 3) Geofence
+    const distancia = haversineMeters(Number(lat), Number(lng), Number(cancha.latitud), Number(cancha.longitud));
     if (distancia == null) {
       return { ok: false, error: 'SIN_UBICACION', mensaje: 'Falta ubicación para validar el check-in.' };
     }
@@ -166,118 +217,89 @@ async function validarYRegistrarCheckin({ emision, usuarioId, lat, lng, deviceId
       return {
         ok: false,
         error: 'FUERA_GEOFENCE',
-        mensaje: `Estás a ${distancia} m. Acercate a la cancha para completar el check-in (radio ${radio} m).`,
-        distancia
+        mensaje: `Estás a ${Math.round(distancia)} m. Acercate a la cancha (radio ${radio} m).`,
+        distancia: Math.round(distancia),
       };
     }
 
-    // Duplicado aprobado
-    const dup = await QRCheckin.findOne({
-      where: { usuarioId, partidoId: partido.id, resultado: 'aprobado' }
-    });
+    // 4) Duplicado por partido
+    const dup = await QRCheckin.findOne({ where: { usuarioId, partidoId: partido.id, resultado: 'aprobado' } });
     if (dup) {
-      return {
-        ok: false,
-        error: 'DUPLICADO',
-        mensaje: 'Ya registraste tu check-in para este partido.',
-        checkinId: dup.id
-      };
+      return { ok: false, error: 'DUPLICADO', mensaje: 'Ya registraste tu check-in para este partido.', checkinId: dup.id };
     }
 
-    // Registrar aprobado
-    const puntos = Number(emision.puntosOtorga ?? 0);
-    // ...después de todas tus validaciones y ANTES de crear el QRCheckin:
+    // 4.b (opcional) Anti-abuso por establecimiento+ventana
+    // const { desde, hasta } = buildTimeWindow(partido, cancha);
+    // const dupCancha = await QRCheckin.findOne({
+    //   where: {
+    //     usuarioId,
+    //     canchaId: cancha.id,
+    //     resultado: 'aprobado',
+    //     createdAt: { [Op.between]: [desde, hasta] },
+    //   }
+    // });
+    // if (dupCancha) {
+    //   return { ok: false, error: 'YA_CHECKEADO_EN_CANCHA', mensaje: 'Ya hiciste check-in en este establecimiento en esta ventana.' };
+    // }
 
-/// ... dentro de validarYRegistrarCheckin(), después de las validaciones y ANTES de crear el QRCheckin:
+    // 5) Sanidad de vínculo partido-cancha
+    if (!partido.canchaId || Number(partido.canchaId) !== Number(cancha.id)) {
+      return { ok: false, error: 'PARTIDO_SIN_CANCHA', mensaje: 'El partido no está vinculado correctamente a la cancha.' };
+    }
 
-// ⚠️ asegurate que Partido tenga canchaId (tu findMatchingPartidoForNow(cancha.id) ya lo garantiza, pero validamos igual)
-if (!partido.canchaId || Number(partido.canchaId) !== Number(cancha.id)) {
-  return {
-    ok: false,
-    error: 'PARTIDO_SIN_CANCHA',
-    mensaje: 'El partido no está vinculado correctamente a la cancha.'
-  };
-}
+    // 6) Regla x2 (corregida): organizador + dueño + premium (del jugador)
+    const jugador = await Usuario.findByPk(usuarioId, { attributes: ['id', 'premium'] });
+    const esPremium = Boolean(jugador?.premium);
+    const esOrganizadorDelPartido = Number(partido.organizadorId) === Number(usuarioId);
+    const esPropietarioDeLaCancha = Number(cancha.propietarioUsuarioId) === Number(usuarioId);
 
-// Traigo al jugador para ver si es premium
-// Traigo al jugador y chequeo premium
-const jugador = await Usuario.findByPk(usuarioId, { attributes: ['id', 'premium'] });
-const esPremium = Boolean(jugador?.premium);
+    const puntosBase = Number(emision.puntosOtorga ?? 0);
+    const multiplicador = (esOrganizadorDelPartido && esPropietarioDeLaCancha && esPremium) ? 2 : 1;
+    const puntosFinales = puntosBase * multiplicador;
 
+    // 7) Registrar aprobado
+    const check = await QRCheckin.create({
+      usuarioId,
+      partidoId: partido.id,
+      canchaId: cancha.id,
+      emisionId: emision.id,
+      deviceId: deviceId ?? null,
+      lat: lat ?? null,
+      lng: lng ?? null,
+      distancia: Math.round(distancia),
+      resultado: 'aprobado',
+      motivoDenegado: null,
+      puntosOtorgados: puntosFinales,
+    });
 
-// Reglas para x2: debe ser organizador + propietario de la cancha + premium
-const esOrganizadorDelPartido = Number(partido.organizadorId) ;
-const esPropietarioDeLaCancha = Number(cancha.propietarioUsuarioId) === esOrganizadorDelPartido;
+    // 8) Sumar puntos al usuario (ciclo + histórico)
+    if (puntosFinales > 0) {
+      await Usuario.increment(
+        { puntuacion: puntosFinales, puntosHistorico: puntosFinales },
+        { where: { id: usuarioId } }
+      );
+    }
 
-console.log(esPropietarioDeLaCancha,"esPropietarioDeLaCancha")
-
-console.log(esOrganizadorDelPartido,"esOrganizadorDelPartido")
-// Base: lo que ya definiste en la Emisión (que ahora viene de cancha.puntosAsociada)
-const puntosBase = Number(emision.puntosOtorga ?? 0);
-
-// x2 SOLO si cumple las 3 condiciones
-const multiplicador = (esOrganizadorDelPartido && esPropietarioDeLaCancha && esPremium) ? 2 : 1;
-const puntosFinales = puntosBase * multiplicador;
-
-console.log(multiplicador,"multiplicador")
-console.log(puntosFinales,"puntosFinales")
-console.log(puntosBase,"puntosBase")
-
-// Registrar el check-in con los puntos calculados
-const check = await QRCheckin.create({
-  usuarioId,
-  partidoId: partido.id,
-  canchaId: cancha.id,
-  emisionId: emision.id,
-  deviceId: deviceId ?? null,
-  lat: lat ?? null,
-  lng: lng ?? null,
-  distancia,
-  resultado: 'aprobado',
-  motivoDenegado: null,
-  puntosOtorgados: puntosFinales,
-  // si tenés columna opcional:
-  // esDoble: multiplicador === 2
-});
-
-// Sumar puntos al usuario (ciclo + histórico)
-if (puntosFinales > 0) {
-  await Usuario.increment(
-    { puntuacion: puntosFinales, puntosHistorico: puntosFinales },
-    { where: { id: usuarioId } }
-  );
-}
-
-// Respuesta
-return {
-  ok: true,
-  mensaje: `Check-in OK: +${puntosFinales} puntos${multiplicador === 2 ? ' (x2: organizador + dueño + premium)' : ''}`,
-  puntos: puntosFinales,
-  puntosBase,
-  multiplicador,
-  esDoble: multiplicador === 2,
-  checkinId: check.id,
-  partidoId: partido.id,
-  canchaId: cancha.id,
-  distancia
-};
-
-
-return {
-  ok: true,
-  mensaje: `Check-in OK: +${puntosFinales} puntos${multiplicador === 2 ? ' (x2 dueño premium)' : ''}`,
-  puntos: puntosFinales,
-  checkinId: check.id,
-  partidoId: partido.id,
-  canchaId: cancha.id,
-  distancia
-};
+    // 9) Respuesta OK
+    return {
+      ok: true,
+      mensaje: `Check-in OK: +${puntosFinales} puntos${multiplicador === 2 ? ' (x2: organizador + dueño + premium)' : ''}`,
+      puntos: puntosFinales,
+      puntosBase,
+      multiplicador,
+      esDoble: multiplicador === 2,
+      checkinId: check.id,
+      partidoId: partido.id,
+      canchaId: cancha.id,
+      distancia: Math.round(distancia),
+    };
 
   } catch (e) {
     console.error('validarYRegistrarCheckin()', e);
     return { ok: false, error: 'ERROR_INTERNO', mensaje: 'Error al registrar el check-in.' };
   }
 }
+
 
 /* ===========================
    Endpoints

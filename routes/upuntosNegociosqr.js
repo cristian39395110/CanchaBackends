@@ -3,14 +3,15 @@ const express = require('express');
 const router = express.Router();
 const { Op, fn, col } = require('sequelize');
 
-const { autenticarToken } = require('../middlewares/auth'); 
+
+const { autenticarTokenNegocio } = require('../middlewares/authNegocio'); 
 
 const {
   uQRCompraNegocio,
   uCheckinNegocio,
   uNegocio,
   uUsuarioNegocio,
-  Reto,
+  Reto, 
   UsuarioRetoCumplido,
   // Usuario, // si después querés sumar puntos al usuario-app
 } = require('../models/model');
@@ -27,7 +28,7 @@ function generarCodigoQR() {
    1) GET /api/puntosnegociosqr/historial
    → historial del usuario logueado (para PuntosPage.tsx)
    =========================================================== */
-router.get('/historial', autenticarToken, async (req, res) => {
+router.get('/historial', autenticarTokenNegocio, async (req, res) => {
   const usuarioNegocioId = req.usuario.id; // viene del token
 
   try {
@@ -63,7 +64,7 @@ router.get('/historial', autenticarToken, async (req, res) => {
    2) POST /api/puntosnegociosqr/emitir
    → el negocio genera un QR para dar puntos
    =========================================================== */
-router.post('/emitir', autenticarToken, async (req, res) => {
+router.post('/emitir', autenticarTokenNegocio, async (req, res) => {
   try {
     const { negocioId, puntosOtorga = 10, minutosValidez } = req.body;
 
@@ -104,7 +105,7 @@ router.post('/emitir', autenticarToken, async (req, res) => {
    → verifica retos
    body: { qr, negocioId, lat, lng }
    =========================================================== */
-router.post('/canjear', autenticarToken, async (req, res) => {
+router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
   const usuarioNegocioId = req.usuario.id;
   const { qr, negocioId, lat, lng } = req.body;
 
@@ -211,7 +212,7 @@ router.post('/canjear', autenticarToken, async (req, res) => {
    4) GET /api/puntosnegociosqr/mis-puntos
    → suma de puntos del usuario (por checkins)
    =========================================================== */
-router.get('/mis-puntos', autenticarToken, async (req, res) => {
+router.get('/mis-puntos', autenticarTokenNegocio, async (req, res) => {
   const usuarioNegocioId = req.usuario.id;
   try {
     const total = await uCheckinNegocio.findOne({
@@ -236,7 +237,7 @@ router.get('/mis-puntos', autenticarToken, async (req, res) => {
    5) GET /api/puntosnegociosqr/mis-checkins
    → historial crudo (por si lo querés en admin)
    =========================================================== */
-router.get('/mis-checkins', autenticarToken, async (req, res) => {
+router.get('/mis-checkins', autenticarTokenNegocio, async (req, res) => {
   const usuarioNegocioId = req.usuario.id;
   try {
     const checkins = await uCheckinNegocio.findAll({
@@ -255,7 +256,7 @@ router.get('/mis-checkins', autenticarToken, async (req, res) => {
    6) GET /api/puntosnegociosqr/negocio/:negocioId/checkins
    → para que el dueño vea quién canjeó
    =========================================================== */
-router.get('/negocio/:negocioId/checkins', autenticarToken, async (req, res) => {
+router.get('/negocio/:negocioId/checkins', autenticarTokenNegocio, async (req, res) => {
   const { negocioId } = req.params;
 
   try {
@@ -276,7 +277,7 @@ router.get('/negocio/:negocioId/checkins', autenticarToken, async (req, res) => 
 
 
 
-router.get('/ranking', autenticarToken, async (req, res) => {
+router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
   try {
     const filas = await uCheckinNegocio.findAll({
       attributes: [
