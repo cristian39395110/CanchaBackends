@@ -253,19 +253,39 @@ async function validarYRegistrarCheckin({ emision, usuarioId, lat, lng, deviceId
     // }
 
     // 5) Sanidad de vínculo partido-cancha
-    if (!partido.canchaId || Number(partido.canchaId) !== Number(cancha.id)) {
-      return { ok: false, error: 'PARTIDO_SIN_CANCHA', mensaje: 'El partido no está vinculado correctamente a la cancha.' };
-    }
+  
 
     // 6) Regla x2 (corregida): organizador + dueño + premium (del jugador)
-    const jugador = await Usuario.findByPk(usuarioId, { attributes: ['id', 'premium'] });
-    const esPremium = Boolean(jugador?.premium);
-    const esOrganizadorDelPartido = Number(partido.organizadorId) === Number(usuarioId);
-    const esPropietarioDeLaCancha = Number(cancha.propietarioUsuarioId) === Number(usuarioId);
+// 5) Sanidad de vínculo partido-cancha (ajustado)
+if (partido.canchaId != null && Number(partido.canchaId) !== Number(cancha.id)) {
+  return { ok: false, error: 'PARTIDO_SIN_CANCHA', mensaje: 'El partido no está vinculado correctamente a la cancha.' };
+}
 
-    const puntosBase = Number(emision.puntosOtorga ?? 0);
-    const multiplicador = (esOrganizadorDelPartido && esPropietarioDeLaCancha && esPremium) ? 2 : 1;
-    const puntosFinales = puntosBase * multiplicador;
+// 6) Regla de puntos
+// Base: si el partido NO tiene canchaId => 0 puntos (check-in aprobado con 0)
+//       si tiene canchaId => usás la emision del día (copiada desde cancha.puntosAsociada)
+const tieneCanchaEnPartido = partido.canchaId != null;
+const puntosBase = tieneCanchaEnPartido ? Number(emision.puntosOtorga ?? 0) : 0;
+
+// Datos para x2: sobre el ORGANIZADOR (no el jugador que escanea)
+const organizador = await Usuario.findByPk(partido.organizadorId, { attributes: ['id', 'premium'] });
+const organizadorEsPremium = Boolean(organizador?.premium);
+
+// Dueño del establecimiento
+const propietarioId = Number(cancha.propietarioUsuarioId);
+const organizadorId = Number(partido.organizadorId);
+
+// x2 si: organizador premium + partido con canchaId + organizador == dueño de la cancha
+const aplicaX2 = (organizadorEsPremium && tieneCanchaEnPartido && organizadorId === propietarioId);
+
+// multiplicador final
+const multiplicador = aplicaX2 ? 2 : 1;
+const puntosFinales = puntosBase * multiplicador;
+
+console.log('[PTS] base=', puntosBase, 'orgPremium=', organizadorEsPremium,
+            'tieneCanchaEnPartido=', tieneCanchaEnPartido,
+            'orgId=', organizadorId, 'propId=', propietarioId,
+            'x2=', multiplicador === 2);
 
     // 7) Registrar aprobado
     const check = await QRCheckin.create({
