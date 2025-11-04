@@ -58,21 +58,31 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
 }
 
 // Combina fecha (YYYY-MM-DD) y hora (HH:mm:ss) a Date local (server)
-function combineDateTime(dateOnly, timeStr) {
-  // Generamos 'YYYY-MM-DDTHH:mm:ss' y dejamos que el server lo interprete en su TZ
-  return new Date(`${dateOnly}T${timeStr}`);
+// Reemplazá tu combineDateTime por este:
+function combineDateTimeARG(dateOnly, timeStr) {
+  const [Y, M, D] = String(dateOnly).split('-').map(Number);
+  const [h, m, s = '0'] = String(timeStr).split(':');
+  const hh = Number(h), mm = Number(m), ss = Number(s);
+
+  // Creamos un UTC corrido para representar hora local AR (-03:00)
+  // Local AR = UTC + (-3h) => UTC = Local + 3h
+  const utcMs = Date.UTC(Y, M - 1, D, hh + 3, mm, ss);
+  return new Date(utcMs);
 }
 
-// Obtiene ventana horaria [desde, hasta] en base a partido + params de cancha
 function buildTimeWindow(partido, cancha) {
-  const inicio = combineDateTime(partido.fecha, partido.hora);
-  const anticipoMin = Number(cancha.minutosAnticipoCheckin ?? 30);
-  const graciaMin = Number(cancha.minutosGraciaCheckin ?? 60);
+  const inicio = combineDateTimeARG(partido.fecha, partido.hora);
 
-  const desde = new Date(inicio.getTime() - anticipoMin * 60 * 1000);
-  const hasta = new Date(inicio.getTime() + graciaMin * 60 * 1000);
+
+  const anticipoMin = Number(cancha?.minutosAnticipoCheckin ?? 30);
+  const graciaMin   = Number(cancha?.minutosGraciaCheckin ?? 60);
+  const desde = new Date(inicio.getTime() - anticipoMin * 60_000);
+  const hasta = new Date(inicio.getTime() + graciaMin   * 60_000);
+
+    console.log('[TW]', partido.id, partido.fecha, partido.hora, '→ inicio:', inicio.toISOString());
   return { desde, hasta, inicio };
 }
+
 
 /**
  * Busca el partido "válido ahora" en esa cancha.
