@@ -361,7 +361,7 @@ app.post('/api/test-fcm', async (req, res) => {
 sequelize
   .sync({
     force: false,  // nunca borrar tablas
-    alter: false,  // nunca tratar de ajustar columnas automáticamente
+    alter: true,  // nunca tratar de ajustar columnas automáticamente
   })
   .then(() => {
     console.log('✅ DB conectada sin tocar estructura');
