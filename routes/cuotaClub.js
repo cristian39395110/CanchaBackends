@@ -21,7 +21,7 @@ function calcularEstadoPremium(usuario) {
 }
 
 // ================== GET /api/cuota-club/estado-club ==================
-router.get('/estado-club', autenticarToken, async (req, res) => {
+router.get('/', autenticarToken, async (req, res) => {
   try {
     const usuarioId = req.usuario.id || req.usuarioId;
 
