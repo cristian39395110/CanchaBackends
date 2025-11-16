@@ -25,6 +25,8 @@ router.get('/', autenticarToken, async (req, res) => {
   try {
     const usuarioId = req.usuario.id || req.usuarioId;
 
+    console.log(usuarioId,"usuarioIdusuarioIdusuarioIdusuarioIdusuarioId")
+
     const usuario = await Usuario.findByPk(usuarioId);
     if (!usuario) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
