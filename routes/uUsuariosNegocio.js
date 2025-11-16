@@ -150,7 +150,11 @@ router.post('/login', async (req, res) => {
    =============================== */
 router.get('/yo', async (req, res) => {
   try {
+
+
     const header = req.headers['authorization'];
+ 
+
     if (!header) return res.status(401).json({ message: 'Token requerido' });
 
     const token = header.split(' ')[1];

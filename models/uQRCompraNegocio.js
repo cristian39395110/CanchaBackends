@@ -26,6 +26,11 @@ const uQRCompraNegocio = sequelize.define('QRCompraNegocio', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+    modo: {
+    type: DataTypes.ENUM('compra', 'dia'),
+    defaultValue: 'dia', // 👈 Por defecto QR reutilizable diario
+  },
 });
+
 
 module.exports = uQRCompraNegocio;

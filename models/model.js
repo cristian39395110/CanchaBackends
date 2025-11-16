@@ -27,13 +27,16 @@ const QRCheckin = require('./QRCheckin');
 const Concurso = require('./Concurso');
 const VotoPremio = require('./VotoPremio');
 const SorteoHistorico = require('./SorteoHistorico');
+// ... tus requires existentes
+const SorteoConfig = require('./SorteoConfig'); // <-- NUEVO
 
+const Ganador = require('./uGanador');
+const RetoParticipante = require('./RetoParticipante');
+const RetoGanador = require('./RetoGanador');
+const RetoPremio = require('./RetoPremio');
+const RetoGanadorHist = require('./RetoGanadorHist');
+const RetoGanadorHistDet = require('./RetoGanadorHistDet');
 
-
-
-/* ===========================
-   NUEVO MÓDULO: NEGOCIOS Y PUNTOS
-   =========================== */
 
    
 
@@ -42,12 +45,87 @@ const uNegocio = require('./uNegocio');
 const uQRCompraNegocio = require('./uQRCompraNegocio');
 const uCheckinNegocio = require('./uCheckinNegocio');
 const uConcursoNegocio = require('./uConcursosNegocio');
-const Unegocio = require('./uNegocio');
+
+const uPromoNegocio = require('./uPromoNegocio');
+
+
+
+const PremiumOrden = require('./PremiumOrden');
+
+
+//------------------------------------------------
+//MercadoPago
+//--------------------------------------------
+Usuario.hasMany(PremiumOrden, {
+  foreignKey: 'usuarioId',
+  as: 'ordenesPremium',
+});
+PremiumOrden.belongsTo(Usuario, {
+  foreignKey: 'usuarioId',
+  as: 'usuario',
+});
+
+
+/* ===========================
+   Promos negocio
+   =========================== */
+
+
+
+
+
+// Un negocio tiene muchas promos
+uNegocio.hasMany(uPromoNegocio, {
+  foreignKey: 'negocioId',
+  as: 'uPromoNegocios', // mantiene lo que usás en /cerca
+});
+
+// Cada promo pertenece a un negocio
+uPromoNegocio.belongsTo(uNegocio, {
+  foreignKey: 'negocioId',
+  as: 'negocio', // 👈 alias en minúscula
+});
+
 /* ===========================
    RETOS
    =========================== */
 const Reto = require('./Reto');
 const UsuarioRetoCumplido = require('./UsuarioRetoCumplido');
+
+
+
+
+// Relaciones
+RetoParticipante.belongsTo(Reto, { foreignKey: 'retoId' });
+RetoGanador.belongsTo(Reto, { foreignKey: 'retoId' });
+RetoPremio.belongsTo(Reto, { foreignKey: 'retoId' });
+RetoGanadorHist.belongsTo(Reto, { foreignKey: 'retoId' });
+RetoGanadorHistDet.belongsTo(RetoGanadorHist, { foreignKey: 'histId' });
+
+// Relaciones con usuarios
+RetoParticipante.belongsTo(uUsuarioNegocio, { foreignKey: 'usuarioId' });
+RetoGanador.belongsTo(uUsuarioNegocio, { foreignKey: 'usuarioId' });
+RetoGanadorHistDet.belongsTo(uUsuarioNegocio, { foreignKey: 'usuarioId' });
+
+RetoGanadorHist.hasMany(RetoGanadorHistDet, { foreignKey: 'histId', as: 'detalles' });
+
+
+
+// 🔧 CLAVE: alias estable para el usuario
+RetoGanadorHistDet.belongsTo(uUsuarioNegocio, { foreignKey: 'usuarioId', as: 'usuario' });
+
+// (opcional, pero ayuda)
+Reto.hasMany(RetoGanadorHist, { foreignKey: 'retoId' });
+RetoGanadorHist.belongsTo(Reto, { foreignKey: 'retoId' });
+
+
+
+
+/* ===========================
+   NUEVO MÓDULO: NEGOCIOS Y PUNTOS
+   =========================== */
+
+
 
 
 
@@ -79,6 +157,7 @@ uQRCompraNegocio.belongsTo(uNegocio, { foreignKey: 'negocioId' });
 uCheckinNegocio.belongsTo(uUsuarioNegocio, { foreignKey: 'usuarioNegocioId' });
 uCheckinNegocio.belongsTo(uNegocio, { foreignKey: 'negocioId' });
 uCheckinNegocio.belongsTo(uQRCompraNegocio, { foreignKey: 'qrId' });
+
 
 
 // inversas (las que te faltaban)
@@ -303,6 +382,15 @@ module.exports = {
   uCheckinNegocio,
   uConcursoNegocio,
     Reto,
-  UsuarioRetoCumplido
+  UsuarioRetoCumplido,
+  RetoGanadorHist,
+RetoGanadorHistDet,
+RetoPremio,
+RetoGanador,
+  SorteoConfig,
+RetoParticipante,
+Ganador,
+uPromoNegocio,
+PremiumOrden
 
 };

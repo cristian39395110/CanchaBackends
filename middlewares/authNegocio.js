@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 
 function autenticarTokenNegocio(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
+ 
   if (!token) return res.status(401).json({ error: 'Falta token' });
 
   const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';

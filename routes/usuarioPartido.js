@@ -1,6 +1,7 @@
   const express = require('express');
   const router = express.Router();
   const { UsuarioPartido, Partido } = require('../models');
+  
 
   // Aceptar o rechazar una invitación
 

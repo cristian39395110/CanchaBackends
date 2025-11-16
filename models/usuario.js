@@ -217,7 +217,18 @@ premiosReferidos: {
       perfilPublico: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
-  } // opcional para mapaw
+  } ,// opcional para mapaw
+
+
+    // ⭐️ NUEVOS CAMPOS PARA PLAN DE ESTABLECIMIENTOS (CLUBES)
+  esPremiumEstablecimiento: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  premiumEstablecimientoVenceEl: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  }
 });
 
 module.exports = Usuario;

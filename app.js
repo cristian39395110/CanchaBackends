@@ -233,19 +233,49 @@ app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
   app.use('/api/premium', verificarBloqueo,premiumRouter);
   app.use('/api/fcm', fcmRouter);
 
+  //---------------------------Mercado Pago MatchClub--------------------------
 
-  // negociooooooooooooooooooooooooooooooooo
+  const cuotaClubRoutes = require('./routes/cuotaClub');
+app.use('/api/cuota-club', cuotaClubRoutes);
+
+//------------------------------Fin mercado Pago
+//------------------------------------------------------------
+// Empieza los endpoint del Negocio
+//-----------------------------------------------------------
+
+
+
+//______________________________-----------------------------
+
 
 const uUsuariosNegocioRoutes = require('./routes/uUsuariosNegocio');
-app.use('/api/Negociousuarios', uUsuariosNegocioRoutes);
+app.use('/api/loginusuario', uUsuariosNegocioRoutes);
+
+
+
+
+const promoNegocioRoutes = require('./routes/promoNegocio');
+app.use('/api/promoNegocio', promoNegocioRoutes);
+
+
+
+//______________________________-----------------------------
 
 
 const puntosNegociosqrRoutes = require('./routes/upuntosNegociosqr');
 app.use('/api/puntosnegociosqr', puntosNegociosqrRoutes);
 
+//______________________________-----------------------------
+
+
+const ganadorRoutes = require('./routes/uganador');
+app.use('/api/ganador', ganadorRoutes);
+
+
+//______________________________-----------------------------
 const retosRoutes = require('./routes/retos');
 app.use('/api/retos', retosRoutes);
-
+  
 
 
 
@@ -257,10 +287,15 @@ app.use('/api/puntosNegocio', puntosRoutes);
 
 
 
+const negociosRankingRoutes = require('./routes/negociosranking');
+app.use('/api/negocio', negociosRankingRoutes);
 
 
 
 
+
+//------------------------------------------------------------------
+//Fin de Negocio 
   //---------------------------
 
 

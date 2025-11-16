@@ -42,6 +42,11 @@ const uNegocio = sequelize.define('Negocio', {
     type: DataTypes.INTEGER,
     allowNull: true, // FK hacia UsuariosNegocio
   },
+  puntosMes: {
+  type: DataTypes.INTEGER,
+  defaultValue: 0,
+},
+
 });
 
 module.exports = uNegocio;
