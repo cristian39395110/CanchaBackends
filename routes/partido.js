@@ -488,6 +488,15 @@ router.post('/reenviar-invitacion', async (req, res) => {
 // 🚀 Crear partido NO PREMIUM
 const { v4: uuidv4 } = require('uuid');
 
+
+function tienePlanEstablecimientoVigente(usuario) {
+  if (!usuario.esPremiumEstablecimiento || !usuario.premiumEstablecimientoVenceEl) {
+    return false;
+  }
+  const hoy = new Date();
+  return new Date(usuario.premiumEstablecimientoVenceEl) > hoy;
+}
+
 router.post('/', async (req, res) => {
   const {
     deporteId,
@@ -520,7 +529,21 @@ if (esPrivado === true) {
   }
 
   try {
-    const organizador = await Usuario.findByPk(organizadorId);
+const organizador = await Usuario.findByPk(organizadorId);
+if (!organizador) {
+  return res.status(404).json({ error: 'Organizador no encontrado.' });
+}
+
+// ⚠️ si viene con canchaId => lo tomamos como partido de club / establecimiento
+const esPartidoDeClub = !!req.body.canchaId;
+
+if (esPartidoDeClub) {
+  if (!tienePlanEstablecimientoVigente(organizador)) {
+    return res.status(403).json({
+      error: 'Tu plan de establecimiento no está activo. Renovalo para crear partidos desde tu club.'
+    });
+  }
+}
 
     // suspensiones
     if (

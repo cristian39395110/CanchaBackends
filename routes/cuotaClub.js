@@ -52,7 +52,7 @@ router.post('/orden-club', autenticarToken, async (req, res) => {
     }
 
     // 💰 precio del plan mensual (ajustá esto)
-    const monto = 15000;
+    const monto = 15;
 
     // 1) Crear orden en BD
     const orden = await PremiumOrden.create({

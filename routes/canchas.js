@@ -108,19 +108,45 @@ router.get('/asociadas', autenticarToken, async (req, res) => {
   }
 });
 
+function tienePlanEstablecimientoVigente(usuario) {
+  if (!usuario?.esPremiumEstablecimiento || !usuario?.premiumEstablecimientoVenceEl) {
+    return false;
+  }
+  return new Date(usuario.premiumEstablecimientoVenceEl) > new Date();
+}
 
-module.exports = router;
 router.get('/', async (req, res) => {
   try {
     const { deporte } = req.query;
 
-    let where = {};
+    const where = {};
     if (deporte) {
       where.deportes = { [Op.like]: `%${deporte}%` };
     }
 
-    const canchas = await Cancha.findAll({ where });
-    res.json(canchas);
+    // 👇 Traemos la cancha con el dueño ("propietario")
+    const canchas = await Cancha.findAll({
+      where,
+      include: [
+        {
+          model: Usuario,
+          as: 'propietario',
+          attributes: [
+            'id',
+            'nombre',
+            'esPremiumEstablecimiento',
+            'premiumEstablecimientoVenceEl'
+          ]
+        }
+      ]
+    });
+
+    // 👇 Solo dejamos las que tengan plan vigente
+    const filtradas = canchas.filter((c) =>
+      c.propietario && tienePlanEstablecimientoVigente(c.propietario)
+    );
+
+    res.json(filtradas);
   } catch (error) {
     console.error('❌ Error al obtener canchas:', error);
     res.status(500).json({ error: 'Error al obtener canchas' });
