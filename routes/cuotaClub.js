@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const { mpClient, Preference, Payment } = require('../config/mercadopago');
-const { Usuario, PremiumOrden } = require('../models/model');
+const { Usuario, PremiumOrden,Cancha } = require('../models/model');
 const { autenticarToken } = require('../middlewares/auth'); // ajustá el path si tu middleware está en otro archivo
 
 // ===== Helper: calcular estado premium =====
