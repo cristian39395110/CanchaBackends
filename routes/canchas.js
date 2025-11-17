@@ -115,6 +115,75 @@ function tienePlanEstablecimientoVigente(usuario) {
   return new Date(usuario.premiumEstablecimientoVenceEl) > new Date();
 }
 
+
+router.post('/alta-club', autenticarToken, async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id || req.usuarioId;
+
+    const usuario = await Usuario.findByPk(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Verificar que tenga plan de establecimiento activo
+    if (!tienePlanEstablecimientoVigente(usuario)) {
+      return res.status(403).json({
+        error: 'Tu plan de establecimiento no está activo. Renovalo para dar de alta tu club.',
+      });
+    }
+
+    const {
+      nombre,
+      direccion,
+      localidad,
+      telefono,
+      whatsapp,
+      deportes,
+      latitud,
+      longitud,
+      radioGeofence,
+      puntosBase,
+      puntosAsociada,
+    } = req.body;
+
+    if (!nombre || !direccion || !localidad || !deportes) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios.' });
+    }
+
+    if (!latitud || !longitud) {
+      return res
+        .status(400)
+        .json({ error: 'Debés marcar la ubicación del club en el mapa.' });
+    }
+
+    const cancha = await Cancha.create({
+      nombre,
+      direccion,
+      deportes,
+      telefono,
+      whatsapp,
+      latitud,
+      longitud,
+      propietarioUsuarioId: usuarioId,
+      esAsociada: true, // la tomamos como cancha asociada
+      radioGeofence: radioGeofence || 100,
+      puntosBase: puntosBase || 5,
+      puntosAsociada: puntosAsociada || 20,
+      // podés dejar verificada en false y después aprobarla desde un panel admin
+      verificada: false,
+    });
+
+    return res.status(201).json({
+      mensaje: 'Cancha / club creado correctamente.',
+      cancha,
+    });
+  } catch (error) {
+    console.error('❌ Error en /api/canchas/alta-club:', error);
+    res.status(500).json({ error: 'Error al dar de alta el club.' });
+  }
+});
+
+
 router.get('/', async (req, res) => {
   try {
     const { deporte } = req.query;
