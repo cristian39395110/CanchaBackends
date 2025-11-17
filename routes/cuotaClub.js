@@ -21,22 +21,34 @@ function calcularEstadoPremium(usuario) {
 }
 
 // ================== GET /api/cuota-club/estado-club ==================
+// ================== GET /api/cuota-club ==================
 router.get('/', autenticarToken, async (req, res) => {
   try {
     const usuarioId = req.usuario.id || req.usuarioId;
-
-    console.log(usuarioId, 'usuarioId /cuota-club');
+    console.log(usuarioId, "usuarioId /cuota-club");
 
     const usuario = await Usuario.findByPk(usuarioId);
     if (!usuario) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    const estado = calcularEstadoPremium(usuario);
+    // 1) Estado base (solo mira fechas y flag premium)
+    let estado = calcularEstadoPremium(usuario);
+
+    // 2) Si es premium vigente, ver si tiene canchas cargadas
+    if (estado === 'premiumConEstablecimientoVigente') {
+      const cantidadCanchas = await Cancha.count({
+        where: { propietarioUsuarioId: usuarioId },
+      });
+
+      if (cantidadCanchas === 0) {
+        estado = 'premiumSinEstablecimiento';
+      }
+    }
 
     return res.json({ estado });
   } catch (error) {
-    console.error('Error /cuota-club/estado-club:', error);
+    console.error('Error /cuota-club:', error);
     res.status(500).json({ error: 'Error al obtener el estado.' });
   }
 });
