@@ -130,38 +130,46 @@ router.post('/orden-club', autenticarToken, async (req, res) => {
 // ================== POST /api/cuota-club/webhook-mp ==================
 router.post('/webhook-mp', async (req, res) => {
   try {
+    console.log('🟨 Webhook recibido:', req.query);
+
     const topic = req.query.topic || req.query.type;
     const paymentId = req.query['data.id'] || req.query.id;
 
     if (topic !== 'payment') {
+      console.log('🟫 Webhook ignorado: topic no es payment');
       return res.sendStatus(200);
     }
 
-    // Obtener info del pago con el SDK nuevo
     const paymentClient = new Payment(mpClient);
     const info = await paymentClient.get({ id: paymentId });
 
+    console.log('🟩 Pago obtenido:', info.id, 'Estado:', info.status);
+
     const ordenId = info.external_reference;
     if (!ordenId) {
-      console.warn('Pago sin external_reference, ignorando');
+      console.warn('⚠️ Pago sin external_reference:', info);
       return res.sendStatus(200);
     }
 
+    console.log('🟦 Buscando orden:', ordenId);
     const orden = await PremiumOrden.findByPk(ordenId);
+
     if (!orden) {
-      console.warn('No se encontró PremiumOrden para id:', ordenId);
+      console.warn('⚠️ Orden no encontrada en BD:', ordenId);
       return res.sendStatus(200);
     }
 
+    console.log('🟦 Actualizando orden:', ordenId);
     await orden.update({
       mpPaymentId: String(paymentId),
       mpPayload: info,
     });
 
     if (info.status === 'approved') {
+      console.log('🟩 Pago APROBADO. Orden:', ordenId);
       const ahora = new Date();
       const vence = new Date();
-      vence.setMonth(vence.getMonth() + 1); // +1 mes
+      vence.setMonth(vence.getMonth() + 1);
 
       await orden.update({
         estado: 'pagada',
@@ -170,23 +178,24 @@ router.post('/webhook-mp', async (req, res) => {
 
       const usuario = await Usuario.findByPk(orden.usuarioId);
       if (usuario) {
+        console.log('🟦 Activando premium al usuario:', usuario.id);
         await usuario.update({
           esPremiumEstablecimiento: true,
           premiumEstablecimientoVenceEl: vence,
         });
       }
     } else {
-      await orden.update({
-        estado: 'rechazada',
-      });
+      console.log('🟥 Pago RECHAZADO. Orden:', ordenId);
+      await orden.update({ estado: 'rechazada' });
     }
 
     return res.sendStatus(200);
+
   } catch (error) {
-    console.error('Error en webhook MP:', error);
-    // siempre devolvemos 200 para que MP no reintente infinito
+    console.error('🟥 ERROR webhook MP:', error);
     return res.sendStatus(200);
   }
 });
+
 
 module.exports = router;
