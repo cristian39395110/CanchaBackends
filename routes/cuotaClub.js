@@ -25,7 +25,7 @@ router.get('/', autenticarToken, async (req, res) => {
   try {
     const usuarioId = req.usuario.id || req.usuarioId;
 
-    console.log(usuarioId,"usuarioIdusuarioIdusuarioIdusuarioIdusuarioId")
+    console.log(usuarioId, 'usuarioId /cuota-club');
 
     const usuario = await Usuario.findByPk(usuarioId);
     if (!usuario) {
@@ -41,6 +41,28 @@ router.get('/', autenticarToken, async (req, res) => {
   }
 });
 
+// ================== GET /api/cuota-club/precio-plan ==================
+router.get('/precio-plan', autenticarToken, async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id || req.usuarioId;
+
+    const usuario = await Usuario.findByPk(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // 💰 Tomar el valor desde la BD (campo nuevo precioPlanClub)
+    const precio = usuario.precioPlanClub
+      ? Number(usuario.precioPlanClub)
+      : Number(process.env.PRECIO_PLAN_CLUB || 15000); // fallback si está null
+
+    return res.json({ precio });
+  } catch (error) {
+    console.error('Error /cuota-club/precio-plan:', error);
+    return res.status(500).json({ error: 'No se pudo obtener el precio.' });
+  }
+});
+
 // ================== POST /api/cuota-club/orden-club ==================
 router.post('/orden-club', autenticarToken, async (req, res) => {
   try {
@@ -51,10 +73,12 @@ router.post('/orden-club', autenticarToken, async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    // 💰 precio del plan mensual (ajustá esto)
-    const monto = 15;
+    // 💰 1) Tomar el valor desde la BD (campo nuevo precioPlanClub)
+    const monto = usuario.precioPlanClub
+      ? Number(usuario.precioPlanClub)
+      : Number(process.env.PRECIO_PLAN_CLUB || 15000); // fallback
 
-    // 1) Crear orden en BD
+    // 2) Crear orden en BD
     const orden = await PremiumOrden.create({
       usuarioId,
       monto,
@@ -62,13 +86,13 @@ router.post('/orden-club', autenticarToken, async (req, res) => {
       tipoPlan: 'establecimiento_premium',
     });
 
-    // 2) Armar preferencia de Mercado Pago
+    // 3) Armar preferencia de Mercado Pago
     const preference = {
       items: [
         {
           title: 'Plan Establecimientos MatchClub',
           quantity: 1,
-          unit_price: Number(monto),
+          unit_price: monto,
           currency_id: 'ARS',
         },
       ],
@@ -86,7 +110,7 @@ router.post('/orden-club', autenticarToken, async (req, res) => {
       // 👆 asegurate que BACKEND_URL coincida con la URL pública del backend
     };
 
-    // 3) Crear preferencia con el SDK nuevo
+    // 4) Crear preferencia con el SDK nuevo
     const prefClient = new Preference(mpClient);
     const mpResp = await prefClient.create({ body: preference });
 
@@ -94,8 +118,8 @@ router.post('/orden-club', autenticarToken, async (req, res) => {
     await orden.update({ mpPreferenceId: mpResp.id });
 
     return res.json({
-      initPoint: mpResp.init_point,
-      sandboxInitPoint: mpResp.sandbox_init_point,
+      initPoint: mpResp.init_point, // 👈 solo este, nada de sandbox en prod
+      precio: monto,
     });
   } catch (error) {
     console.error('Error /cuota-club/orden-club:', error);

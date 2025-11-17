@@ -228,6 +228,11 @@ premiosReferidos: {
   premiumEstablecimientoVenceEl: {
     type: DataTypes.DATE,
     allowNull: true,
+  },
+  
+  precioPlanClub: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,            // null => usa precio default
   }
 });
 
