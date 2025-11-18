@@ -171,35 +171,36 @@ router.post('/webhook-mp', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    console.log('🟦 Actualizando orden:', ordenId);
-    await orden.update({
-      mpPaymentId: String(paymentId),
-      mpPayload: info,
+  console.log('🟦 Actualizando orden:', ordenId);
+await orden.update({
+  mpPaymentId: String(paymentId),
+  mpPayload: info,
+});
+if (info.status === 'approved') {
+  console.log('🟩 Pago APROBADO. Orden:', ordenId);
+  const ahora = new Date();
+  const vence = new Date();
+  vence.setMonth(vence.getMonth() + 1);
+
+  await orden.update({
+    estado: 'pagada',
+    fechaPago: ahora,
+  });
+
+  const usuario = await Usuario.findByPk(orden.usuarioId);
+  if (usuario) {
+    console.log('🟦 Activando premium al usuario:', usuario.id);
+    await usuario.update({
+      esPremiumEstablecimiento: true,
+      premiumEstablecimientoVenceEl: vence,
+      precioPlanClub: orden.monto   // 🔥 ESTE ES EL QUE FALTA
     });
-
-    if (info.status === 'approved') {
-      console.log('🟩 Pago APROBADO. Orden:', ordenId);
-      const ahora = new Date();
-      const vence = new Date();
-      vence.setMonth(vence.getMonth() + 1);
-
-      await orden.update({
-        estado: 'pagada',
-        fechaPago: ahora,
-      });
-
-      const usuario = await Usuario.findByPk(orden.usuarioId);
-      if (usuario) {
-        console.log('🟦 Activando premium al usuario:', usuario.id);
-        await usuario.update({
-          esPremiumEstablecimiento: true,
-          premiumEstablecimientoVenceEl: vence,
-        });
-      }
-    } else {
-      console.log('🟥 Pago RECHAZADO. Orden:', ordenId);
-      await orden.update({ estado: 'rechazada' });
-    }
+  }
+}
+else {
+  console.log('🟥 Pago RECHAZADO. Orden:', ordenId);
+  await orden.update({ estado: 'rechazada' });
+}
 
     return res.sendStatus(200);
 
