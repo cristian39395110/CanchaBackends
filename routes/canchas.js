@@ -38,7 +38,7 @@ router.get('/mias', autenticarToken, async (req, res) => {
   try {
     const canchas = await Cancha.findAll({
       where: { propietarioUsuarioId: req.usuario.id },
-      attributes: ['id', 'nombre', 'direccion', 'deportes'] // lo que quieras mostrar
+      attributes: ['id', 'nombre', 'direccion', 'deportes','localidad'] // lo que quieras mostrar
     });
     return res.json(canchas);
   } catch (e) {
