@@ -32,6 +32,38 @@ const upload = multer({ storage });
 
 // GET /api/canchas/asociadas?deporte=padel&radioKm=20
 // ✅ Devuelve todas las canchas a ≤ 20 km del usuario
+// 👇 Agregar AL FINAL del archivo routes/canchas.js
+router.get('/:id', autenticarToken, async (req, res) => {
+  try {
+    const canchaId = Number(req.params.id);
+
+    if (!Number.isFinite(canchaId)) {
+      return res.status(400).json({ error: 'ID de cancha inválido.' });
+    }
+
+    // Solo puede ver canchas que sean suyas
+    const cancha = await Cancha.findOne({
+      where: {
+        id: canchaId,
+        propietarioUsuarioId: req.usuario.id,
+      },
+    });
+
+    if (!cancha) {
+      return res.status(404).json({
+        error: 'Cancha no encontrada o no pertenece a este usuario.',
+      });
+    }
+
+    return res.json(cancha);
+  } catch (error) {
+    console.error('❌ Error en GET /api/canchas/:id', error);
+    return res.status(500).json({ error: 'Error al obtener la cancha.' });
+  }
+});
+
+
+
 router.get('/asociadas', autenticarToken, async (req, res) => {
   try {
     const { radioKm, deporte } = req.query;
