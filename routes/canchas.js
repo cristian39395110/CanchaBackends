@@ -64,6 +64,138 @@ router.get('/:id', autenticarToken, async (req, res) => {
 
 
 
+router.put('/:id', autenticarToken, upload.single('foto'), async (req, res) => {
+  try {
+    const canchaId = Number(req.params.id);
+
+    if (!Number.isFinite(canchaId)) {
+      return res.status(400).json({ error: 'ID de cancha inválido.' });
+    }
+
+    // 1) Buscar cancha del usuario
+    const cancha = await Cancha.findOne({
+      where: {
+        id: canchaId,
+        propietarioUsuarioId: req.usuario.id,
+      },
+    });
+
+    if (!cancha) {
+      return res.status(404).json({
+        error: 'Cancha no encontrada o no pertenece a este usuario.',
+      });
+    }
+
+    const {
+      nombre,
+      direccion,
+      localidad,            // aunque no está en la tabla Cancha, te puede servir a futuro
+      telefono,
+      whatsapp,
+      deportes,
+      latitud,
+      longitud,
+      radioGeofence,
+      puntosBase,
+      puntosAsociada,
+    } = req.body;
+
+    // Validaciones básicas
+    if (!nombre || !direccion || !deportes) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios (nombre, dirección, deportes).' });
+    }
+
+    if (!latitud || !longitud) {
+      return res.status(400).json({ error: 'Debés marcar la ubicación del club en el mapa.' });
+    }
+
+    // 2) Recalcular puntos según deportes (igual que en POST /)
+    const nombresDeportes = (deportes || '')
+      .split(',')
+      .map(d => d.trim())
+      .filter(Boolean);
+
+    const PUNTOS_POR_CATEGORIA = {
+      barato: 10,
+      estandar: 20,
+      caro: 30,
+    };
+
+    let nuevosPuntosBase = 5;
+    let nuevosPuntosAsociada = 20;
+    let nuevoRadio = 100;
+
+    if (nombresDeportes.length > 0) {
+      const deportesBD = await Deporte.findAll({
+        where: { nombre: { [Op.in]: nombresDeportes } },
+      });
+
+      const categorias = deportesBD.map(d => d.categoria); // 'barato', 'estandar', 'caro'
+      let categoriaDominante = 'barato';
+
+      if (categorias.includes('caro')) {
+        categoriaDominante = 'caro';
+      } else if (categorias.includes('estandar')) {
+        categoriaDominante = 'estandar';
+      }
+
+      const puntos = PUNTOS_POR_CATEGORIA[categoriaDominante] || 10;
+      nuevosPuntosBase = puntos;
+      nuevosPuntosAsociada = puntos;
+    }
+
+    // Si mandaste radio/puntos desde el frontend, puedes respetarlo o priorizar el cálculo
+    nuevoRadio = radioGeofence ? Number(radioGeofence) : 100;
+
+    // 3) Armar objeto de actualización
+    const updates = {
+      nombre,
+      direccion,
+      deportes,
+      telefono: telefono || null,
+      whatsapp: whatsapp || null,
+      latitud,
+      longitud,
+      radioGeofence: nuevoRadio,
+      puntosBase: nuevosPuntosBase,
+      puntosAsociada: nuevosPuntosAsociada,
+      // verificada: false  // si querés que al editar se vuelva a revisar, etc.
+    };
+
+    // 4) Si viene nueva foto, subir a Cloudinary
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'canchas' },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+
+      updates.foto = result.secure_url;
+      // si más adelante guardás cloudinaryId, acá también lo actualizarías
+    }
+
+    // 5) Guardar cambios
+    await cancha.update(updates);
+
+    return res.json({
+      mensaje: 'Cancha actualizada correctamente.',
+      cancha,
+    });
+  } catch (error) {
+    console.error('❌ Error en PUT /api/canchas/:id', error);
+    return res.status(500).json({ error: 'Error al actualizar la cancha.' });
+  }
+});
+
+
+
+
 router.get('/asociadas', autenticarToken, async (req, res) => {
   try {
     const { radioKm, deporte } = req.query;
