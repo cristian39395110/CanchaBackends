@@ -33,6 +33,20 @@ const upload = multer({ storage });
 // GET /api/canchas/asociadas?deporte=padel&radioKm=20
 // ✅ Devuelve todas las canchas a ≤ 20 km del usuario
 // 👇 Agregar AL FINAL del archivo routes/canchas.js
+
+router.get('/mias', autenticarToken, async (req, res) => {
+  try {
+    const canchas = await Cancha.findAll({
+      where: { propietarioUsuarioId: req.usuario.id },
+      attributes: ['id', 'nombre', 'direccion', 'deportes'] // lo que quieras mostrar
+    });
+    return res.json(canchas);
+  } catch (e) {
+    console.error('GET /api/canchas/mias', e);
+    return res.status(500).json({ error: 'Error al obtener tus establecimientos' });
+  }
+});
+
 router.get('/:id', autenticarToken, async (req, res) => {
   try {
     const canchaId = Number(req.params.id);
@@ -539,33 +553,7 @@ router.post('/', upload.single('foto'), async (req, res) => {
 
 
 // GET /api/canchas/mias  → lista de establecimientos del propietario autenticado
-router.get('/detalle/:id', autenticarToken, async (req, res) => {
-  try {
-    const canchaId = Number(req.params.id);
 
-    if (!Number.isFinite(canchaId)) {
-      return res.status(400).json({ error: 'ID de cancha inválido.' });
-    }
-
-    const cancha = await Cancha.findOne({
-      where: {
-        id: canchaId,
-        propietarioUsuarioId: req.usuario.id,
-      },
-    });
-
-    if (!cancha) {
-      return res.status(404).json({
-        error: 'Cancha no encontrada o no pertenece a este usuario.',
-      });
-    }
-
-    return res.json(cancha);
-  } catch (error) {
-    console.error('❌ Error en GET /api/canchas/detalle/:id', error);
-    return res.status(500).json({ error: 'Error al obtener la cancha.' });
-  }
-});
 
 module.exports = router;
 
