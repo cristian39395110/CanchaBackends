@@ -12,6 +12,11 @@ const Deporte = sequelize.define('Deporte', {
     type: DataTypes.STRING, // Solo guardamos el nombre del archivo
     allowNull: true,
   },
+    categoria: {
+    type: DataTypes.ENUM('barato', 'estandar', 'caro'),
+    allowNull: false,
+    defaultValue: 'estandar'
+  }
 });
 
 module.exports = Deporte;
