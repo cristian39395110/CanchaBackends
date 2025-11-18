@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Cancha,Usuario } = require('../models/model');
+const { Cancha,Usuario,Deporte } = require('../models/model');
 const multer = require('multer');
 const { v2: cloudinary } = require('cloudinary');
 const streamifier = require('streamifier');
