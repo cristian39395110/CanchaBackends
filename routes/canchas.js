@@ -165,6 +165,7 @@ router.put('/:id', autenticarToken, upload.single('foto'), async (req, res) => {
     const updates = {
       nombre,
       direccion,
+      localidad,
       deportes,
       telefono: telefono || null,
       whatsapp: whatsapp || null,
@@ -471,7 +472,7 @@ router.get('/', async (req, res) => {
 
 
 router.post('/', upload.single('foto'), async (req, res) => {
-  const { nombre, direccion, latitud, longitud, deportes, telefono, whatsapp } = req.body;
+  const { nombre, direccion,localidad, latitud, longitud, deportes, telefono, whatsapp } = req.body;
 
   try {
     // 1) Parsear deportes desde el string "Padel, Tenis, Zumba"
@@ -513,6 +514,7 @@ router.post('/', upload.single('foto'), async (req, res) => {
       direccion,
       latitud,
       longitud,
+      localidad,
       deportes,
       telefono,
       whatsapp,
