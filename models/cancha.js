@@ -11,6 +11,10 @@ const Cancha = sequelize.define('Cancha', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+   localidad: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
    latitud: { 
     type: DataTypes.DECIMAL(10, 7), 
     allowNull: true 
