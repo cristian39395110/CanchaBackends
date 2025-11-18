@@ -223,55 +223,85 @@ router.get('/', async (req, res) => {
 });
 
 // ✅ POST /api/canchas — crear nueva cancha (solo admin)
+const PUNTOS_POR_CATEGORIA = {
+  barato: 10,
+  estandar: 20,
+  caro: 30,
+};
+
 router.post('/', upload.single('foto'), async (req, res) => {
   const { nombre, direccion, latitud, longitud, deportes, telefono, whatsapp } = req.body;
 
   try {
-    let fotoUrl = null;
+    // 1) Parsear deportes desde el string "Padel, Tenis, Zumba"
+    const nombresDeportes = (deportes || '')
+      .split(',')
+      .map(d => d.trim())
+      .filter(Boolean);
 
-    if (req.file) {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: 'canchas' },
-        (error, result) => {
-          if (error) {
-            console.error('❌ Error al subir imagen:', error);
-            return res.status(500).json({ error: 'Error al subir imagen' });
-          }
+    // Valores por defecto
+    let puntosBase = 5;
+    let puntosAsociada = 20;
+    const radioGeofence = 100; // lo define el sistema, no el club
 
-          fotoUrl = result.secure_url;
-
-          Cancha.create({
-            nombre,
-            direccion,
-            latitud,
-            longitud,
-            deportes,
-            telefono,
-            whatsapp,
-            foto: fotoUrl,
-          })
-            .then((nuevaCancha) => res.json(nuevaCancha))
-            .catch((err) => {
-              console.error('❌ Error al guardar cancha:', err);
-              res.status(500).json({ error: 'Error al guardar la cancha' });
-            });
-        }
-      );
-
-      streamifier.createReadStream(req.file.buffer).pipe(stream);
-    } else {
-      const nuevaCancha = await Cancha.create({
-        nombre,
-        direccion,
-        latitud,
-        longitud,
-        deportes,
-        telefono,
-        whatsapp,
-        foto: null,
+    // 2) Buscar deportes en la BD y calcular la categoría dominante
+    if (nombresDeportes.length > 0) {
+      const deportesBD = await Deporte.findAll({
+        where: {
+          nombre: { [Op.in]: nombresDeportes },
+        },
       });
-      res.json(nuevaCancha);
+
+      const categorias = deportesBD.map(d => d.categoria); // 'barato', 'estandar', 'caro'
+      let categoriaDominante = 'barato';
+
+      if (categorias.includes('caro')) {
+        categoriaDominante = 'caro';
+      } else if (categorias.includes('estandar')) {
+        categoriaDominante = 'estandar';
+      }
+
+      const puntos = PUNTOS_POR_CATEGORIA[categoriaDominante] || 10;
+      puntosBase = puntos;
+      puntosAsociada = puntos;
     }
+
+    // 3) Armar el objeto base de la cancha
+    const canchaData = {
+      nombre,
+      direccion,
+      latitud,
+      longitud,
+      deportes,
+      telefono,
+      whatsapp,
+      foto: null,
+      radioGeofence,
+      puntosBase,
+      puntosAsociada,
+      // propietarioUsuarioId: req.usuario?.id  // si usás el usuario dueño
+    };
+
+    // 4) Subir foto si viene archivo
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'canchas' },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+
+      canchaData.foto = result.secure_url;
+    }
+
+    // 5) Crear la cancha con todos los datos + puntos ya calculados
+    const nuevaCancha = await Cancha.create(canchaData);
+    res.json(nuevaCancha);
   } catch (error) {
     console.error('❌ Error en POST cancha:', error);
     res.status(500).json({ error: 'Error al crear la cancha' });
