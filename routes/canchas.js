@@ -116,72 +116,139 @@ function tienePlanEstablecimientoVigente(usuario) {
 }
 
 
-router.post('/alta-club', autenticarToken, async (req, res) => {
-  try {
-    const usuarioId = req.usuario.id || req.usuarioId;
+// arriba del archivo (ya lo tenés)
+const PUNTOS_POR_CATEGORIA = {
+  barato: 10,
+  estandar: 20,
+  caro: 30,
+};
 
-    const usuario = await Usuario.findByPk(usuarioId);
-    if (!usuario) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+// 🔥 Alta de club / establecimiento (el que usa el frontend AltaClubPage)
+router.post(
+  '/alta-club',
+  autenticarToken,
+  upload.single('foto'),
+  async (req, res) => {
+    try {
+      const usuarioId = req.usuario.id || req.usuarioId;
 
-    // Verificar que tenga plan de establecimiento activo
-    if (!tienePlanEstablecimientoVigente(usuario)) {
-      return res.status(403).json({
-        error: 'Tu plan de establecimiento no está activo. Renovalo para dar de alta tu club.',
+      const usuario = await Usuario.findByPk(usuarioId);
+      if (!usuario) {
+        return res.status(404).json({ error: 'Usuario no encontrado' });
+      }
+
+      // Verificar plan de establecimiento
+      if (!tienePlanEstablecimientoVigente(usuario)) {
+        return res.status(403).json({
+          error:
+            'Tu plan de establecimiento no está activo. Renovalo para dar de alta tu club.',
+        });
+      }
+
+      const {
+        nombre,
+        direccion,
+        localidad,
+        latitud,
+        longitud,
+        deportes,
+        telefono,
+        whatsapp,
+      } = req.body;
+
+      // Validaciones básicas
+      if (!nombre || !direccion || !localidad || !deportes) {
+        return res.status(400).json({ error: 'Faltan datos obligatorios.' });
+      }
+
+      if (!latitud || !longitud) {
+        return res
+          .status(400)
+          .json({ error: 'Debés marcar la ubicación del club en el mapa.' });
+      }
+
+      // 1) Parsear deportes desde el string "Padel, Tenis, Zumba"
+      const nombresDeportes = (deportes || '')
+        .split(',')
+        .map((d) => d.trim())
+        .filter(Boolean);
+
+      // Valores por defecto
+      let puntosBase = 5;
+      let puntosAsociada = 20;
+      const radioGeofence = 100; // lo define el sistema
+
+      // 2) Buscar deportes en la BD y calcular la categoría dominante
+      if (nombresDeportes.length > 0) {
+        const deportesBD = await Deporte.findAll({
+          where: {
+            nombre: { [Op.in]: nombresDeportes },
+          },
+        });
+
+        const categorias = deportesBD.map((d) => d.categoria); // 'barato', 'estandar', 'caro'
+        let categoriaDominante = 'barato';
+
+        if (categorias.includes('caro')) {
+          categoriaDominante = 'caro';
+        } else if (categorias.includes('estandar')) {
+          categoriaDominante = 'estandar';
+        }
+
+        const puntos = PUNTOS_POR_CATEGORIA[categoriaDominante] || 10;
+        puntosBase = puntos;
+        puntosAsociada = puntos;
+      }
+
+      // 3) Armar el objeto base de la cancha
+      const canchaData = {
+        nombre,
+        direccion,
+        localidad,
+        latitud,
+        longitud,
+        deportes,
+        telefono,
+        whatsapp,
+        foto: null,
+        radioGeofence,
+        puntosBase,
+        puntosAsociada,
+        propietarioUsuarioId: usuarioId,
+        esAsociada: true,
+        verificada: false, // después la podés aprobar desde admin
+      };
+
+      // 4) Subir foto si viene archivo
+      if (req.file) {
+        const result = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: 'canchas' },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+
+          streamifier.createReadStream(req.file.buffer).pipe(stream);
+        });
+
+        canchaData.foto = result.secure_url;
+      }
+
+      // 5) Crear la cancha con todos los datos + puntos ya calculados
+      const nuevaCancha = await Cancha.create(canchaData);
+
+      return res.status(201).json({
+        mensaje: 'Cancha / club creado correctamente.',
+        cancha: nuevaCancha,
       });
+    } catch (error) {
+      console.error('❌ Error en /api/canchas/alta-club:', error);
+      res.status(500).json({ error: 'Error al dar de alta el club.' });
     }
-
-    const {
-      nombre,
-      direccion,
-      localidad,
-      telefono,
-      whatsapp,
-      deportes,
-      latitud,
-      longitud,
-      radioGeofence,
-      puntosBase,
-      puntosAsociada,
-    } = req.body;
-
-    if (!nombre || !direccion || !localidad || !deportes) {
-      return res.status(400).json({ error: 'Faltan datos obligatorios.' });
-    }
-
-    if (!latitud || !longitud) {
-      return res
-        .status(400)
-        .json({ error: 'Debés marcar la ubicación del club en el mapa.' });
-    }
-
-    const cancha = await Cancha.create({
-      nombre,
-      direccion,
-      deportes,
-      telefono,
-      whatsapp,
-      latitud,
-      longitud,
-      propietarioUsuarioId: usuarioId,
-      esAsociada: true, // la tomamos como cancha asociada
-      radioGeofence: radioGeofence || 100,
-      puntosBase: puntosBase || 5,
-      puntosAsociada: puntosAsociada || 20,
-      // podés dejar verificada en false y después aprobarla desde un panel admin
-      verificada: false,
-    });
-
-    return res.status(201).json({
-      mensaje: 'Cancha / club creado correctamente.',
-      cancha,
-    });
-  } catch (error) {
-    console.error('❌ Error en /api/canchas/alta-club:', error);
-    res.status(500).json({ error: 'Error al dar de alta el club.' });
   }
-});
+);
 
 
 router.get('/', async (req, res) => {
@@ -223,11 +290,7 @@ router.get('/', async (req, res) => {
 });
 
 // ✅ POST /api/canchas — crear nueva cancha (solo admin)
-const PUNTOS_POR_CATEGORIA = {
-  barato: 10,
-  estandar: 20,
-  caro: 30,
-};
+
 
 router.post('/', upload.single('foto'), async (req, res) => {
   const { nombre, direccion, latitud, longitud, deportes, telefono, whatsapp } = req.body;
