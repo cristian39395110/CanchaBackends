@@ -7,7 +7,6 @@ const nodemailer = require('nodemailer');
 const {uUsuarioNegocio} = require('../models/model');
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
 
-uUsuariosNegocio
 const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';
 // routes/usuariosNegocio.js (o como se llame tu router de negocio)
 
