@@ -259,21 +259,19 @@ router.patch('/:id/activar', autenticarTokenNegocio, soloAdminNegocio, async (re
   const t = await Reto.sequelize.transaction();
 
   try {
-    // Desactivar todos
     await Reto.update({ activo: false }, { where: {}, transaction: t });
-    // Activar el que nos pasan
     const [count] = await Reto.update({ activo: true }, { where: { id }, transaction: t });
-
     await t.commit();
 
     if (!count) return res.status(404).json({ error: 'Reto no encontrado' });
     res.json({ ok: true });
   } catch (err) {
     await t.rollback();
-    console.error('❌ PATCH /api/retos/:id/activar:', err?.message, err?.stack);
-    res.status(500).json({ error: 'No se pudo activar el reto' });
+    console.error('❌ PATCH /api/retos/:id/activar-exclusivo:', err?.message, err?.stack);
+    res.status(500).json({ error: 'No se pudo activar el reto de forma exclusiva' });
   }
 });
+
 
 
 // ===========================================================
