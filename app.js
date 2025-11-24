@@ -239,18 +239,28 @@ app.use('/api/historialpuntuacion', historialdeposicionesRoutes);
 app.use('/api/cuota-club', cuotaClubRoutes);
 
 //------------------------------Fin mercado Pago
+
+
+
+
+
+
 //------------------------------------------------------------
+// Empieza los endpoint del Negocio
+//-----------------------------------------------------------//------------------------------------------------------------
+// Empieza los endpoint del Negocio
+//-----------------------------------------------------------//------------------------------------------------------------
 // Empieza los endpoint del Negocio
 //-----------------------------------------------------------
 
 
 
-//______________________________-----------------------------
-
-
 const uUsuariosNegocioRoutes = require('./routes/uUsuariosNegocio');
 app.use('/api/loginusuario', uUsuariosNegocioRoutes);
 
+
+const NegocioRoutes = require('./routes/negocios');
+app.use('/api/negocios', NegocioRoutes);
 
 
 
@@ -278,12 +288,28 @@ app.use('/api/retos', retosRoutes);
   
 
 
+const partnersRoutes = require('./routes/partners');
+app.use('/api/partners', partnersRoutes);
+
 
 
     const puntosRoutes = require('./routes/upuntos');
 
 app.use('/api/puntosNegocio', puntosRoutes);
 
+
+
+  const publicidadRoutes = require('./routes/upublicidadNegocio');
+
+app.use('/api/publicidad-negocio', publicidadRoutes);
+
+
+
+
+
+  const planRoutes = require('./routes/planesNegocio');
+
+app.use("/api/planes-negocio", planRoutes);
 
 
 

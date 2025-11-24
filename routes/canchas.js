@@ -211,6 +211,23 @@ router.put('/:id', autenticarToken, upload.single('foto'), async (req, res) => {
 
 
 
+
+function tienePlanEstablecimientoVigente(usuario) {
+  if (!usuario?.esPremiumEstablecimiento || !usuario?.premiumEstablecimientoVenceEl) {
+    return false;
+  }
+  return new Date(usuario.premiumEstablecimientoVenceEl) > new Date();
+}
+
+
+// arriba del archivo (ya lo tenés)
+const PUNTOS_POR_CATEGORIA = {
+  barato: 10,
+  estandar: 20,
+  caro: 30,
+};
+
+
 router.get('/asociadas', autenticarToken, async (req, res) => {
   try {
     const { radioKm, deporte } = req.query;
@@ -265,6 +282,7 @@ router.get('/asociadas', autenticarToken, async (req, res) => {
         'id',
         'nombre',
         'direccion',
+        'localidad',
         'latitud',
         'longitud',
         'deportes',
@@ -286,21 +304,6 @@ router.get('/asociadas', autenticarToken, async (req, res) => {
       .json({ error: 'Error al listar canchas cercanas' });
   }
 });
-
-function tienePlanEstablecimientoVigente(usuario) {
-  if (!usuario?.esPremiumEstablecimiento || !usuario?.premiumEstablecimientoVenceEl) {
-    return false;
-  }
-  return new Date(usuario.premiumEstablecimientoVenceEl) > new Date();
-}
-
-
-// arriba del archivo (ya lo tenés)
-const PUNTOS_POR_CATEGORIA = {
-  barato: 10,
-  estandar: 20,
-  caro: 30,
-};
 
 // 🔥 Alta de club / establecimiento (el que usa el frontend AltaClubPage)
 router.post(

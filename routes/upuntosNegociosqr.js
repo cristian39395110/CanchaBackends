@@ -13,6 +13,7 @@ const {
   uUsuarioNegocio,
   Reto, 
   UsuarioRetoCumplido,
+  
   // Usuario, // si después querés sumar puntos al usuario-app
 } = require('../models/model');
 
@@ -33,21 +34,22 @@ router.get('/historial', autenticarTokenNegocio, async (req, res) => {
   const usuarioNegocioId = req.negocio.id;
 
   try {
+    // ✅ 1) Historial de checkins en negocios
     const checkins = await uCheckinNegocio.findAll({
       where: { usuarioNegocioId },
       include: [
         {
-          model: uNegocio,                 // no pongas "as"
-          // alias efectivo = "Negocio"
+          model: uNegocio,
           attributes: ['id','nombre','provincia','localidad','latitud','longitud'],
         },
       ],
       order: [['fecha', 'DESC']],
     });
 
-    const respuesta = checkins.map((c) => ({
+    const historialCheckins = checkins.map((c) => ({
       id: c.id,
-      negocioId: c.Negocio?.id ?? c.negocioId,   // 👈 usar c.Negocio
+      tipo: 'negocio',
+      negocioId: c.Negocio?.id ?? c.negocioId,
       negocioNombre: c.Negocio?.nombre ?? 'Negocio',
       puntosGanados: c.puntosGanados,
       fecha: c.fecha,
@@ -57,12 +59,47 @@ router.get('/historial', autenticarTokenNegocio, async (req, res) => {
       negocioProvincia: c.Negocio?.provincia ?? null,
     }));
 
-    res.json(respuesta);
+    // ✅ 2) Historial de retos cobrados
+    const retos = await UsuarioRetoCumplido.findAll({
+      where: { usuarioId: usuarioNegocioId },
+      include: [
+        {
+          model: Reto,
+          as: 'reto',
+          attributes: ['id', 'titulo'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const historialRetos = retos.map((r) => ({
+      id: 1000000 + r.id, // para que no choque con ids de checkins
+      tipo: 'reto',
+      negocioId: null,
+      negocioNombre: r.reto?.titulo
+        ? `Reto: ${r.reto.titulo}`
+        : 'Reto saludable',
+      puntosGanados:
+        r.puntosOtorgados ?? r.puntosGanados ?? 0,
+      fecha: r.createdAt,
+      lat: null,
+      lng: null,
+      negocioLocalidad: null,
+      negocioProvincia: null,
+    }));
+
+    // ✅ 3) Unir y ordenar por fecha
+    const combinado = [...historialCheckins, ...historialRetos].sort(
+      (a, b) => new Date(b.fecha) - new Date(a.fecha)
+    );
+
+    res.json(combinado);
   } catch (error) {
     console.error('Error en /historial:', error);
     res.status(500).json({ error: 'No se pudo obtener el historial.' });
   }
 });
+
 
 /* ===========================================================
    2) POST /api/puntosnegociosqr/emitir

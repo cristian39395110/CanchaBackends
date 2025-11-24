@@ -37,9 +37,14 @@ function distanciaKm(lat1, lon1, lat2, lon2) {
 // ===============================================
 router.get('/vigentes', async (req, res) => {
   try {
-    const lat = parseFloat(String(req.query.lat));
-    const lng = parseFloat(String(req.query.lng));
-    const radioKm = parseFloat(String(req.query.radio || '3')) || 3;
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+
+    // soportamos radio y radioKm
+    const radioKm =
+      Number(req.query.radio) ||
+      Number(req.query.radioKm) ||
+      3;
 
     const rubro =
       req.query.rubro && req.query.rubro !== 'todos'
@@ -50,39 +55,38 @@ router.get('/vigentes', async (req, res) => {
       return res.status(400).json({ error: 'lat/lng inválidos' });
     }
 
-    const ahora = new Date();
+    const now = new Date();
 
-    const promos = await uPromoNegocio.findAll({
-      where: {
-        visibilidad: 'publica',
-        desde: { [Op.lte]: ahora },
-        hasta: { [Op.gte]: ahora },
-      },
+    const whereNegocio = {
+      activo: true,
+      latitud: { [Op.ne]: null },
+      longitud: { [Op.ne]: null },
+    };
+
+    if (rubro) {
+      whereNegocio.rubro = rubro;
+    }
+
+    const negocios = await uNegocio.findAll({
+      where: whereNegocio,
       include: [
         {
-          model: uNegocio,
-          as: 'negocio',
+          model: uPromoNegocio,
+          as: 'uPromoNegocios',   // 👈 alias CORRECTO
+          where: {
+            activa: true,
+            visibilidad: 'publica',
+            desde: { [Op.lte]: now },
+            hasta: { [Op.gte]: now },
+          },
           required: true,
-          attributes: ['id', 'nombre', 'rubro', 'latitud', 'longitud'],
-          ...(rubro
-            ? {
-                where: { rubro },
-              }
-            : {}),
         },
-      ],
-      order: [
-        ['prioridad', 'DESC'],
-        ['desde', 'ASC'],
       ],
     });
 
-    const negociosMap = new Map();
+    const resultado = [];
 
-    for (const promo of promos) {
-      const negocio = promo.negocio;
-      if (!negocio) continue;
-
+    for (const negocio of negocios) {
       const nLat = Number(negocio.latitud);
       const nLng = Number(negocio.longitud);
       if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) continue;
@@ -90,33 +94,39 @@ router.get('/vigentes', async (req, res) => {
       const dKm = distanciaKm(lat, lng, nLat, nLng);
       if (dKm > radioKm) continue;
 
-      if (!negociosMap.has(negocio.id)) {
-        negociosMap.set(negocio.id, {
-          negocioId: negocio.id,
-          nombre: negocio.nombre,
-          rubro: negocio.rubro,
-          lat: nLat,
-          lng: nLng,
-          distancia: dKm,
-          totalOfertas: 0,
-          promosResumen: [],
-        });
-      }
+      // 👇 OJO: ahora las promos vienen en negocio.uPromoNegocios
+      const promos = (negocio.uPromoNegocios || []).slice();
 
-      const item = negociosMap.get(negocio.id);
-      item.totalOfertas += 1;
-      item.promosResumen.push({
-        id: promo.id,
-        titulo: promo.titulo,
-        tipo: promo.tipo,
-        porcentajePuntos: promo.porcentajePuntos,
-        porcentajeDescuento: promo.porcentajeDescuento,
+      // ordenamos por prioridad y fecha de fin
+      promos.sort((a, b) => {
+        const pa = a.prioridad || 0;
+        const pb = b.prioridad || 0;
+        if (pa !== pb) return pb - pa;
+        return new Date(a.hasta) - new Date(b.hasta);
+      });
+
+      const top = promos.slice(0, 3).map((p) => ({
+        id: p.id,
+        titulo: p.titulo,
+        tipo: p.tipo,
+        porcentajePuntos: p.porcentajePuntos,
+        porcentajeDescuento: p.porcentajeDescuento,
+      }));
+
+      resultado.push({
+        negocioId: negocio.id,
+        nombre: negocio.nombre,
+        rubro: negocio.rubro || null,
+        lat: nLat,
+        lng: nLng,
+        distancia: dKm,
+        totalOfertas: promos.length,
+        promosResumen: top,
       });
     }
 
-    const resultado = Array.from(negociosMap.values()).sort(
-      (a, b) => a.distancia - b.distancia
-    );
+    // orden final por cercanía
+    resultado.sort((a, b) => a.distancia - b.distancia);
 
     res.json(resultado);
   } catch (err) {

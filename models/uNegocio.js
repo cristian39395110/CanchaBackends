@@ -10,6 +10,10 @@ const uNegocio = sequelize.define('Negocio', {
     type: DataTypes.STRING, // Ej: almacén, ropa, comidas
     allowNull: true,
   },
+   rubroId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,       
+  },
   provincia: {
     type: DataTypes.STRING,
     allowNull: true,
@@ -30,10 +34,12 @@ const uNegocio = sequelize.define('Negocio', {
     type: DataTypes.INTEGER,
     defaultValue: 100,
   },
-  plan: {
-    type: DataTypes.STRING,
-    defaultValue: 'basico', // o 'premium'
-  },
+  planId: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  defaultValue: 1, // arranca con el básico
+},
+
   activo: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
@@ -46,6 +52,10 @@ const uNegocio = sequelize.define('Negocio', {
   type: DataTypes.INTEGER,
   defaultValue: 0,
 },
+  foto: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 
 });
 

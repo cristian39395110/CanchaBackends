@@ -4,12 +4,30 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
-const uUsuarioNegocio = require('../models/uUsuariosNegocio');
+const {uUsuarioNegocio} = require('../models/model');
+const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
+
+
+const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';
+// routes/usuariosNegocio.js (o como se llame tu router de negocio)
 
 const router = express.Router();
-const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';
 
-// 📧 Configuración del envío de mails (igual que la tuya)
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
+
+
+require('dotenv').config();
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
@@ -21,55 +39,269 @@ const transporter = nodemailer.createTransport({
   family: 4,
 });
 
-// 👉 la misma función que usabas en /routes/usuario
-function generarPasswordAleatoria(length = 8) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let pass = '';
-  for (let i = 0; i < length; i++) {
-    pass += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return pass;
-}
 
-/* ===============================
-   📌 Registro de nuevo usuario
-   =============================== */
-router.post('/registro', async (req, res) => {
+
+
+/**
+ * GET /api/loginusuario/mi-perfil
+ * Devuelve los datos del usuario-negocio logueado
+ */
+router.get("/mi-perfil", autenticarTokenNegocio, async (req, res) => {
   try {
-    const { nombre, email, password, telefono, provincia, localidad, deviceId } = req.body;
+    const usuarioNegocio = req.negocio; // viene del middleware
 
-    const existente = await uUsuarioNegocio.findOne({ where: { email } });
-    if (existente) return res.status(400).json({ message: 'El correo ya está registrado' });
+    if (!usuarioNegocio) {
+      return res.status(401).json({
+        ok: false,
+        error: "No autenticado",
+      });
+    }
 
-    const hash = await bcrypt.hash(password, 10);
-    const tokenVerificacion = uuidv4();
+    const perfil = await uUsuarioNegocio.findByPk(usuarioNegocio.id, {
+      attributes: {
+        exclude: ["password", "tokenVerificacion"], // no mandamos cosas sensibles
+      },
+    });
 
-    const nuevo = await uUsuarioNegocio.create({
+    if (!perfil) {
+      return res.status(404).json({
+        ok: false,
+        error: "Usuario de negocio no encontrado",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      perfil,
+    });
+  } catch (error) {
+    console.error("Error en GET /mi-perfil:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "Error al obtener el perfil",
+    });
+  }
+});
+
+/**
+ * PUT /api/loginusuario/mi-perfil
+ * Actualiza datos básicos + foto de perfil
+ * Acepta multipart/form-data con campo "fotoPerfil"
+ */
+router.put(
+  "/mi-perfil",
+  autenticarTokenNegocio,
+  upload.single("fotoPerfil"),
+  async (req, res) => {
+    try {
+      const usuarioNegocio = req.negocio;
+
+      if (!usuarioNegocio) {
+        return res.status(401).json({
+          ok: false,
+          error: "No autenticado",
+        });
+      }
+
+      const usuario = await uUsuariosNegocio.findByPk(usuarioNegocio.id);
+      if (!usuario) {
+        return res.status(404).json({
+          ok: false,
+          error: "Usuario de negocio no encontrado",
+        });
+      }
+
+      const { nombre, email, telefono, provincia, localidad } = req.body;
+
+      // 🔹 Validaciones básicas
+      if (!nombre || !nombre.trim()) {
+        return res.status(400).json({
+          ok: false,
+          error: "El nombre es obligatorio",
+        });
+      }
+
+      // 🔹 Verificar que el email no esté en uso por otro user
+      if (email && email !== usuario.email) {
+        const existente = await uUsuariosNegocio.findOne({
+          where: { email },
+        });
+
+        if (existente && existente.id !== usuario.id) {
+          return res.status(400).json({
+            ok: false,
+            error: "Ese email ya está en uso por otro usuario",
+          });
+        }
+
+        usuario.email = email;
+      }
+
+      // 🔹 Campos simples
+      usuario.nombre = nombre;
+      usuario.telefono = telefono || null;
+      usuario.provincia = provincia || null;
+      usuario.localidad = localidad || null;
+
+      // 🔹 Foto de perfil (opcional)
+      if (req.file) {
+        // Si ya tenía una foto en Cloudinary, la borramos
+        if (usuario.cloudinaryId) {
+          try {
+            await cloudinary.uploader.destroy(usuario.cloudinaryId);
+          } catch (err) {
+            console.warn(
+              "No se pudo eliminar la foto anterior de Cloudinary:",
+              err
+            );
+          }
+        }
+
+        // Subimos la nueva
+        const resultado = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "usuarios-negocio" },
+            (error, result) => {
+              if (result) resolve(result);
+              else reject(error);
+            }
+          );
+          streamifier.createReadStream(req.file.buffer).pipe(stream);
+        });
+
+        usuario.fotoPerfil = resultado.secure_url;
+        usuario.cloudinaryId = resultado.public_id;
+      }
+
+      await usuario.save();
+
+      // Devolvemos el perfil ya limpio
+      const perfilActualizado = await uUsuariosNegocio.findByPk(
+        usuario.id,
+        {
+          attributes: {
+            exclude: ["password", "tokenVerificacion"],
+          },
+        }
+      );
+
+      return res.json({
+        ok: true,
+        perfil: perfilActualizado,
+      });
+    } catch (error) {
+      console.error("Error en PUT /mi-perfil:", error);
+      return res.status(500).json({
+        ok: false,
+        error: "Error al actualizar el perfil",
+      });
+    }
+  }
+);
+
+// POST /api/usuarios-negocio/registro
+router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
+  try {
+    const {
       nombre,
-      email,
-      password: hash,
       telefono,
+      email,
+      password,
       provincia,
       localidad,
       deviceId,
-      tokenVerificacion,
+    } = req.body;
+
+    if (!nombre || !email || !password) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios.' });
+    }
+
+    const existente = await uUsuariosNegocio.findOne({ where: { email } });
+    if (existente) {
+      return res.status(400).json({ error: 'Ya existe un negocio con ese email.' });
+    }
+
+    // si querés limitar 1 negocio por device:
+    if (deviceId) {
+      const negocioDevice = await uUsuariosNegocio.findOne({ where: { deviceId } });
+      if (negocioDevice) {
+        return res.status(400).json({
+          error: 'Ya hay un negocio registrado desde este dispositivo.',
+        });
+      }
+    }
+
+    // FOTO CLOUDINARY
+    let fotoPerfil = null;
+    let cloudinaryId = null;
+
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'negocios' },
+          (error, result) => (result ? resolve(result) : reject(error))
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+
+      fotoPerfil = result.secure_url;
+      cloudinaryId = result.public_id;
+    } else {
+      // PODÉS USAR MISMA IMAGEN DEFAULT QUE EN MATCHCLUB O OTRA
+      fotoPerfil = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    const tokenVerificacion = uuidv4();
+
+    const nuevo = await uUsuariosNegocio.create({
+      nombre,
+      telefono,
+      email,
+      password: hashed,
+      provincia,
+      localidad,
+      deviceId: deviceId || null,
+      fotoPerfil,
+      cloudinaryId,
       verificado: false,
+      tokenVerificacion,
+      esAdmin: false,
     });
 
-    const link = `${process.env.FRONT_URL || 'http://localhost:5173'}/verificar/${tokenVerificacion}`;
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Verificá tu cuenta - CompraPuntos',
-      html: `<h2>Hola ${nombre} 👋</h2><p>Confirmá tu cuenta haciendo clic aquí:</p><a href="${link}">${link}</a>`,
-    });
+    // link verificación (podés usar el mismo BACKEND_URL que en MatchClub)
+    const base = process.env.BACKEND_URL || 'https://canchabackends-1.onrender.com';
+    const link = `${base}/api/usuarios-negocio/verificar/${tokenVerificacion}`;
 
-    res.json({ message: 'Usuario registrado. Revisá tu correo para verificar la cuenta.' });
+    let emailEnviado = true;
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Verificá tu cuenta de negocio',
+        html: `<h2>Bienvenido/a ${nombre}</h2>
+               <p>Hacé clic en el siguiente enlace para verificar tu cuenta:</p>
+               <a href="${link}">${link}</a>`,
+      });
+    } catch (err) {
+      emailEnviado = false;
+      console.error('❌ No se pudo enviar correo verificación negocio:', err);
+    }
+
+    res.status(201).json({
+      mensaje: emailEnviado
+        ? 'Negocio creado. Revisá tu correo para confirmar la cuenta.'
+        : 'Negocio creado. No pudimos enviar el correo, intentá reenviar desde la app.',
+      emailEnviado,
+      negocioId: nuevo.id,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error al registrar usuario' });
+    console.error('❌ Error al crear negocio:', error);
+    res.status(500).json({ error: 'Error interno al crear negocio.' });
   }
 });
+
+module.exports = router;
 
 /* ===============================
    ✅ Verificación del correo

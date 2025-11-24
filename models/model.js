@@ -38,6 +38,7 @@ const RetoGanadorHist = require('./RetoGanadorHist');
 const RetoGanadorHistDet = require('./RetoGanadorHistDet');
 
 
+
    
 
 const uUsuarioNegocio = require('./uUsuariosNegocio');
@@ -49,8 +50,116 @@ const uConcursoNegocio = require('./uConcursosNegocio');
 const uPromoNegocio = require('./uPromoNegocio');
 
 
+const TarifaPublicidad = require('./uTarifaPublicidad');
+
+
+
 
 const PremiumOrden = require('./PremiumOrden');
+
+const uUsuariosNegocio = require('./uUsuariosNegocio');
+const PlanNegocio = require('./PlanNegocio');
+
+const PartnerPublicidad = require('./uPartnerPublicidad');
+
+const RubroNegocio = require('./RubroNegocio');
+
+
+
+
+
+
+
+uNegocio.belongsTo(RubroNegocio, { foreignKey: 'rubroId' });
+RubroNegocio.hasMany(uNegocio, { foreignKey: 'rubroId' });
+
+
+
+// Un negocio tiene un plan
+uNegocio.belongsTo(PlanNegocio, {
+  foreignKey: 'planId',
+  as: 'plan'
+});
+
+// Un plan tiene muchos negocios
+PlanNegocio.hasMany(uNegocio, {
+  foreignKey: 'planId',
+  as: 'negocios'
+});
+
+
+
+// Un usuario-negocio tiene muchas publicidades
+uUsuariosNegocio.hasMany(PartnerPublicidad, {
+  foreignKey: 'negocioId',
+  as: 'publicidades',
+});
+
+// Cada publicidad pertenece a un usuario-negocio
+PartnerPublicidad.belongsTo(uUsuariosNegocio, {
+  foreignKey: 'negocioId',
+  as: 'negocio',
+});
+
+// Modelo de  negocioCanje-------
+
+
+//-----------------------------
+
+const MovimientoSaludable = require('./MovimientoSaludable');
+const MovimientoSaludablePunto = require('./MovimientoSaludablePunto');
+const LugarSaludable = require('./LugarSaludable');
+
+
+// ===============================================
+// 🔗 Relaciones MovimientoSaludable / Usuario
+// ===============================================
+
+// Un usuario (uUsuarioNegocio) puede tener muchos movimientos saludables
+uUsuarioNegocio.hasMany(MovimientoSaludable, {
+  foreignKey: 'usuarioNegocioId', // FK en MovimientoSaludable
+  // as: 'movimientosSaludables', // si querés alias explícito
+});
+
+// Cada movimiento saludable pertenece a un solo usuario
+MovimientoSaludable.belongsTo(uUsuarioNegocio, {
+  foreignKey: 'usuarioNegocioId',
+  // as: 'usuario',
+});
+
+
+// ===============================================
+// 🔗 Relaciones MovimientoSaludable / MovimientoSaludablePunto
+// ===============================================
+
+// Un movimiento tiene muchos puntos GPS asociados (el tracking)
+MovimientoSaludable.hasMany(MovimientoSaludablePunto, {
+  foreignKey: 'movimientoId', // FK en MovimientoSaludablePunto
+  as: 'puntos',
+  onDelete: 'CASCADE',        // si borrás el movimiento, se borran los puntos
+});
+
+// Cada punto GPS pertenece a un solo movimiento
+MovimientoSaludablePunto.belongsTo(MovimientoSaludable, {
+  foreignKey: 'movimientoId',
+  as: 'movimiento',
+});
+
+
+// ===============================================
+// 🔗 LugarSaludable
+// ===============================================
+// Por ahora LugarSaludable queda "independiente":
+// - No depende de usuario ni de negocio.
+// - Lo usás por coordenadas para validar retos tipo
+//   "andá a la plaza X" o "visitá 3 lugares saludables".
+// Si después querés, podemos agregar:
+//   LugarSaludable.belongsTo(uNegocio)  (si un lugar está ligado a un negocio)
+// o una tabla intermedia RetoLugarSaludable para retos específicos.
+
+
+
+
 
 
 //------------------------------------------------
@@ -92,6 +201,10 @@ uPromoNegocio.belongsTo(uNegocio, {
 const Reto = require('./Reto');
 const UsuarioRetoCumplido = require('./UsuarioRetoCumplido');
 
+uUsuarioNegocio.hasMany(RetoParticipante, {
+  foreignKey: 'usuarioId',
+  as: 'retosParticipados'
+});
 
 
 
@@ -134,6 +247,18 @@ RetoGanadorHist.belongsTo(Reto, { foreignKey: 'retoId' });
    RELACIONES
    ===========
    ================ */
+
+MovimientoSaludablePunto.belongsTo(LugarSaludable, {
+  foreignKey: 'lugarId',
+  as: 'lugar',
+});
+
+LugarSaludable.hasMany(MovimientoSaludablePunto, {
+  foreignKey: 'lugarId',
+  as: 'puntos',
+});
+
+
 
    // Relaciones: un reto puede ser cumplido por muchos usuarios
 Reto.hasMany(UsuarioRetoCumplido, { foreignKey: 'retoId', as: 'cumplimientos' });
@@ -391,6 +516,13 @@ RetoGanador,
 RetoParticipante,
 Ganador,
 uPromoNegocio,
-PremiumOrden
+PremiumOrden,
+MovimientoSaludable,
+MovimientoSaludablePunto,
+LugarSaludable,
+PartnerPublicidad,
+TarifaPublicidad,
+PlanNegocio,
+RubroNegocio
 
 };
