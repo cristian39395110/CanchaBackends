@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 const {uUsuarioNegocio} = require('../models/model');
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
 
-
+uUsuariosNegocio
 const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';
 // routes/usuariosNegocio.js (o como se llame tu router de negocio)
 
@@ -103,7 +103,7 @@ router.put(
         });
       }
 
-      const usuario = await uUsuariosNegocio.findByPk(usuarioNegocio.id);
+      const usuario = await uUsuarioNegocio.findByPk(usuarioNegocio.id);
       if (!usuario) {
         return res.status(404).json({
           ok: false,
@@ -123,7 +123,7 @@ router.put(
 
       // 🔹 Verificar que el email no esté en uso por otro user
       if (email && email !== usuario.email) {
-        const existente = await uUsuariosNegocio.findOne({
+        const existente = await uUsuarioNegocio.findOne({
           where: { email },
         });
 
@@ -176,7 +176,7 @@ router.put(
       await usuario.save();
 
       // Devolvemos el perfil ya limpio
-      const perfilActualizado = await uUsuariosNegocio.findByPk(
+      const perfilActualizado = await uUsuarioNegocio.findByPk(
         usuario.id,
         {
           attributes: {
@@ -216,14 +216,14 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
       return res.status(400).json({ error: 'Faltan datos obligatorios.' });
     }
 
-    const existente = await uUsuariosNegocio.findOne({ where: { email } });
+    const existente = await uUsuarioNegocio.findOne({ where: { email } });
     if (existente) {
       return res.status(400).json({ error: 'Ya existe un negocio con ese email.' });
     }
 
     // si querés limitar 1 negocio por device:
     if (deviceId) {
-      const negocioDevice = await uUsuariosNegocio.findOne({ where: { deviceId } });
+      const negocioDevice = await uUsuarioNegocio.findOne({ where: { deviceId } });
       if (negocioDevice) {
         return res.status(400).json({
           error: 'Ya hay un negocio registrado desde este dispositivo.',
@@ -254,7 +254,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     const tokenVerificacion = uuidv4();
 
-    const nuevo = await uUsuariosNegocio.create({
+    const nuevo = await uUsuarioNegocio.create({
       nombre,
       telefono,
       email,
