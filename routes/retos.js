@@ -254,25 +254,27 @@ router.post('/crear', autenticarTokenNegocio, soloAdminNegocio, async (req, res)
 // PATCH /api/retos/:id/activar  (solo admin negocio)
 // → Deja solo un reto como activo = true
 // ===========================================================
+// PATCH /api/retos/:id/activar  (solo admin negocio)
+// → Activa SOLO este reto, sin tocar los otros
 router.patch('/:id/activar', autenticarTokenNegocio, soloAdminNegocio, async (req, res) => {
   const { id } = req.params;
-  const t = await Reto.sequelize.transaction();
 
   try {
-    await Reto.update({ activo: false }, { where: {}, transaction: t });
-    const [count] = await Reto.update({ activo: true }, { where: { id }, transaction: t });
-    await t.commit();
+    const [count] = await Reto.update(
+      { activo: true },
+      { where: { id } }
+    );
 
-    if (!count) return res.status(404).json({ error: 'Reto no encontrado' });
-    res.json({ ok: true });
+    if (!count) {
+      return res.status(404).json({ error: 'Reto no encontrado' });
+    }
+
+    return res.json({ ok: true });
   } catch (err) {
-    await t.rollback();
-    console.error('❌ PATCH /api/retos/:id/activar-exclusivo:', err?.message, err?.stack);
-    res.status(500).json({ error: 'No se pudo activar el reto de forma exclusiva' });
+    console.error('❌ PATCH /api/retos/:id/activar:', err?.message, err?.stack);
+    return res.status(500).json({ error: 'No se pudo activar el reto' });
   }
 });
-
-
 
 // ===========================================================
 // PUT /api/retos/:id  (solo admin negocio)
