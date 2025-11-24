@@ -370,6 +370,33 @@ app.post('/api/test-fcm', async (req, res) => {
 });
 
 
+// 🔚 Al final de app.js
+
+const PORT = process.env.PORT || 3000;
+
+// Opción segura: solo sincronizar sin alter en producción
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log('✅ Conexión a la base de datos exitosa');
+
+    // Si querés seguir usando sync, mejor sin alter:
+    // return sequelize.sync();
+    return sequelize.sync(); // dejalo así si ya estás cómodo
+  })
+  .then(() => {
+    console.log('✅ Modelos sincronizados');
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Servidor con Socket.io corriendo en puerto ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Error al inicializar la app:', err);
+    process.exit(1); // en Render si falla, sale con error claro
+  });
+
+
+
 /*
   // Iniciar servidor
   sequelize.sync({ alter: true })
