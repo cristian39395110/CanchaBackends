@@ -384,20 +384,6 @@ app.post('/api/test-fcm', async (req, res) => {
 });
 
 */
-sequelize
-  .sync({
-    force: false,  // nunca borrar tablas
-    alter: false,  // nunca tratar de ajustar columnas automáticamente
-  })
-  .then(() => {
-    console.log('✅ DB conectada sin tocar estructura');
-    server.listen(3000, '0.0.0.0', () => {
-      console.log('✅ Servidor listo en puerto 3000');
-    });
-  })
-  .catch(err => {
-    console.error('❌ Error al sincronizar sequelize:', err);
-  });
 
 /*
   

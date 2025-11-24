@@ -92,3 +92,4 @@ const Reto = sequelize.define('Reto', {
 });
 
 module.exports = Reto;
+  
