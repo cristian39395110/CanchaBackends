@@ -270,7 +270,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
 
     // link verificación (podés usar el mismo BACKEND_URL que en MatchClub)
     const base = process.env.BACKEND_URL || 'https://canchabackends-1.onrender.com';
-    const link = `${base}/api/usuarios-negocio/verificar/${tokenVerificacion}`;
+    const link = `${base}/api/loginusuario/verificar/${tokenVerificacion}`;
 
     let emailEnviado = true;
     try {
