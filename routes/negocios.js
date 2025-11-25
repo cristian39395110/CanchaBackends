@@ -348,6 +348,8 @@ router.post(
 
 // GET /api/negocios/ranking
 // Ranking de negocios por ciudad del NEGOCIO del dueño logueado (premium)
+// GET /api/negocios/ranking
+// Ranking mensual de negocios por ciudad, usando puntosMes
 router.get("/ranking", autenticarTokenNegocio, async (req, res) => {
   try {
     const usuarioNegocio = req.negocio;
@@ -355,10 +357,9 @@ router.get("/ranking", autenticarTokenNegocio, async (req, res) => {
       return res.status(401).json({ ok: false, error: "No autenticado" });
     }
 
-    // 1) Buscamos el negocio del dueño (si tiene negocio, es premium)
+    // 1) Buscamos el negocio del dueño (premium)
     const negocioMio = await uNegocio.findOne({
       where: { ownerId: usuarioNegocio.id },
-      attributes: ["id", "nombre", "provincia", "localidad", "foto"],
     });
 
     if (!negocioMio) {
@@ -378,64 +379,90 @@ router.get("/ranking", autenticarTokenNegocio, async (req, res) => {
       });
     }
 
-    // 2) Agregamos puntos por negocio (en todos lados)
-    const agregados = await uCheckinNegocio.findAll({
-      attributes: [
-        "negocioId",
-        [fn("SUM", col("puntosGanados")), "totalPuntos"],
-        [fn("COUNT", col("id")), "totalCheckins"],
+    // 2) Traemos todos los negocios de la misma ciudad
+    const negociosCiudad = await uNegocio.findAll({
+      where: {
+        provincia,
+        localidad,
+        activo: true,
+      },
+      order: [
+        ["puntosMes", "DESC"],
+        ["id", "ASC"],
       ],
-      group: ["negocioId"],
-      raw: true,
     });
 
-    if (!agregados || agregados.length === 0) {
+    if (!negociosCiudad || negociosCiudad.length === 0) {
       return res.json({
-        ciudad: { provincia, localidad },
-        ranking: [],
+        negocioPropio: null,
+        top3: [],
+        faltanParaTop: null,
+        faltanParaArriba: null,
       });
     }
 
-    const negocioIds = agregados.map((a) => a.negocioId);
+    // 3) Calculamos posición del negocio propio
+    const idxPropio = negociosCiudad.findIndex((n) => n.id === negocioMio.id);
 
-    // 3) Traemos solo los negocios de ESA ciudad
-    const negociosCiudad = await uNegocio.findAll({
-      where: {
-        id: negocioIds,
-        provincia,
-        localidad,
-      },
-      attributes: ["id", "nombre", "provincia", "localidad", "foto"],
-    });
-
-    const mapNegocios = new Map();
-    negociosCiudad.forEach((n) => {
-      mapNegocios.set(n.id, n);
-    });
-
-    // 4) Armamos ranking, filtrando solo los negocios de la ciudad
-    const ranking = agregados
-      .filter((a) => mapNegocios.has(a.negocioId))
-      .sort(
-        (a, b) => Number(b.totalPuntos || 0) - Number(a.totalPuntos || 0)
-      )
-      .slice(0, 20)
-      .map((a) => {
-        const negocio = mapNegocios.get(a.negocioId);
-        return {
-          id: negocio.id,
-          nombre: negocio.nombre,
-          provincia: negocio.provincia,
-          localidad: negocio.localidad,
-          foto: negocio.foto,
-          puntos: Number(a.totalPuntos || 0),
-          checkins: Number(a.totalCheckins || 0),
-        };
+    if (idxPropio === -1) {
+      // Por algún motivo no aparece en la lista (no debería pasar)
+      return res.json({
+        negocioPropio: null,
+        top3: [],
+        faltanParaTop: null,
+        faltanParaArriba: null,
       });
+    }
+
+    const posicionPropia = idxPropio + 1;
+    const puntosPropios = Number(negocioMio.puntosMes || 0);
+
+    const negocioPropio = {
+      id: negocioMio.id,
+      nombre: negocioMio.nombre,
+      puntosMes: puntosPropios,
+      posicion: posicionPropia,
+    };
+
+    // 4) Armamos TOP 3
+    const top3 = negociosCiudad.slice(0, 3).map((n, index) => ({
+      id: n.id,
+      nombre: n.nombre,
+      puntosMes: Number(n.puntosMes || 0),
+      posicion: index + 1,
+    }));
+
+    // 5) Cálculo de "faltan para subir un puesto"
+    let faltanParaArriba = null;
+    if (posicionPropia > 1) {
+      const negocioArriba = negociosCiudad[posicionPropia - 2]; // el de arriba
+      const puntosArriba = Number(negocioArriba.puntosMes || 0);
+      const diff = puntosArriba - puntosPropios;
+      faltanParaArriba = diff > 0 ? diff : 0;
+    }
+
+    // 6) Cálculo de "faltan para entrar al TOP 3"
+    let faltanParaTop = null;
+    if (top3.length < 3) {
+      // Si aún no hay 3 negocios, no tiene sentido el cálculo
+      faltanParaTop = null;
+    } else {
+      if (posicionPropia <= 3) {
+        // Ya está dentro del TOP 3
+        faltanParaTop = 0;
+      } else {
+        const tercero = negociosCiudad[2];
+        const puntosTercero = Number(tercero.puntosMes || 0);
+        const diffTop = puntosTercero - puntosPropios;
+        faltanParaTop = diffTop > 0 ? diffTop : 0;
+      }
+    }
 
     return res.json({
-      ciudad: { provincia, localidad },
-      ranking,
+      negocioPropio,
+      top3,
+      faltanParaTop,
+      faltanParaArriba,
     });
   } catch (err) {
     console.error("Error en GET /api/negocios/ranking:", err);
@@ -445,6 +472,7 @@ router.get("/ranking", autenticarTokenNegocio, async (req, res) => {
     });
   }
 });
+
 
 
 module.exports = router;
