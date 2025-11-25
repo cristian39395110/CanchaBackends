@@ -1,7 +1,7 @@
 // routes/puntosnegociosqr.js
 const express = require('express');
 const router = express.Router();
-const { Op, fn, col } = require('sequelize');
+const { Op, fn, col ,literal  } = require('sequelize');
 
 
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio'); 
@@ -347,7 +347,7 @@ router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
    → suma de puntos del usuario (por checkins)
    =========================================================== */
 router.get('/mis-puntos', autenticarTokenNegocio, async (req, res) => {
-  const usuarioNegocioId = req.usuario.id;
+  const usuarioNegocioId =req.negocio.id;
   try {
     const total = await uCheckinNegocio.findOne({
       attributes: [[fn('SUM', col('puntosGanados')), 'totalPuntos']],
@@ -372,7 +372,7 @@ router.get('/mis-puntos', autenticarTokenNegocio, async (req, res) => {
    → historial crudo (por si lo querés en admin)
    =========================================================== */
 router.get('/mis-checkins', autenticarTokenNegocio, async (req, res) => {
-  const usuarioNegocioId = req.usuario.id;
+  const usuarioNegocioId =req.negocio.id;
   try {
     const checkins = await uCheckinNegocio.findAll({
       where: { usuarioNegocioId },
@@ -411,8 +411,40 @@ router.get('/negocio/:negocioId/checkins', autenticarTokenNegocio, async (req, r
 
 
 
+// GET /api/puntosnegociosqr/ranking
+// Ranking por ciudad (provincia + localidad del usuario logueado)
 router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
   try {
+    const usuarioNegocioId = req.negocio?.id;
+    if (!usuarioNegocioId) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    // 1) Buscamos los datos del usuario (su ciudad)
+    const yo = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
+      attributes: ['id', 'nombre', 'provincia', 'localidad'],
+    });
+
+    if (!yo) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const { provincia, localidad } = yo;
+
+    if (!provincia || !localidad) {
+      return res.status(400).json({
+        error:
+          'Tu usuario no tiene provincia/localidad cargada. Completá tus datos de ciudad para ver el ranking.',
+      });
+    }
+
+    // 2) Armamos filtro por ciudad
+    const filtroCiudad = {
+      provincia,
+      localidad,
+    };
+
+    // 3) Sacamos ranking solo de usuarios de esa ciudad
     const filas = await uCheckinNegocio.findAll({
       attributes: [
         'usuarioNegocioId',
@@ -421,7 +453,8 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       include: [
         {
           model: uUsuarioNegocio,
-          attributes: ['id', 'nombre'],
+          attributes: ['id', 'nombre', 'provincia', 'localidad'],
+          where: filtroCiudad, // 👈 solo usuarios de la misma ciudad
         },
       ],
       group: ['usuarioNegocioId', 'uUsuarioNegocio.id'],
@@ -432,15 +465,24 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
     const data = filas.map((row) => ({
       id: row.uUsuarioNegocio ? row.uUsuarioNegocio.id : row.usuarioNegocioId,
       nombre: row.uUsuarioNegocio ? row.uUsuarioNegocio.nombre : 'Usuario',
+      provincia: row.uUsuarioNegocio?.provincia || provincia,
+      localidad: row.uUsuarioNegocio?.localidad || localidad,
       puntos: Number(row.get('totalPuntos') || 0),
     }));
 
-    return res.json(data);
+    return res.json({
+      ciudad: {
+        provincia,
+        localidad,
+      },
+      ranking: data,
+    });
   } catch (err) {
     console.error('Error en /api/puntosnegociosqr/ranking', err);
     return res.status(500).json({ error: 'No se pudo obtener el ranking.' });
   }
-}); 
+});
+
 
 
 
