@@ -413,6 +413,8 @@ router.get('/negocio/:negocioId/checkins', autenticarTokenNegocio, async (req, r
 
 // GET /api/puntosnegociosqr/ranking
 // Ranking por ciudad (provincia + localidad del usuario logueado)
+// GET /api/puntosnegociosqr/ranking
+// Ranking por ciudad (provincia + localidad del usuario logueado)
 router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
   try {
     const usuarioNegocioId = req.negocio?.id;
@@ -420,7 +422,7 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       return res.status(401).json({ error: 'No autenticado' });
     }
 
-    // 1) Buscamos los datos del usuario (su ciudad)
+    // 1) Buscamos los datos del usuario logueado (su ciudad)
     const yo = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
       attributes: ['id', 'nombre', 'provincia', 'localidad'],
     });
@@ -438,13 +440,13 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       });
     }
 
-    // 2) Armamos filtro por ciudad
+    // 2) Filtro por ciudad
     const filtroCiudad = {
       provincia,
       localidad,
     };
 
-    // 3) Sacamos ranking solo de usuarios de esa ciudad
+    // 3) Ranking solo con usuarios de esa ciudad
     const filas = await uCheckinNegocio.findAll({
       attributes: [
         'usuarioNegocioId',
@@ -452,23 +454,36 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       ],
       include: [
         {
-          model: uUsuarioNegocio,
+          model: uUsuarioNegocio, // 👈 este es el modelo que importás
           attributes: ['id', 'nombre', 'provincia', 'localidad'],
-          where: filtroCiudad, // 👈 solo usuarios de la misma ciudad
+          where: filtroCiudad,    // solo misma ciudad
         },
       ],
-      group: ['usuarioNegocioId', 'uUsuarioNegocio.id'],
-      order: [[literal('totalPuntos'), 'DESC']],
+      group: [
+        'usuarioNegocioId',
+        'uUsuariosNegocio.id',
+        'uUsuariosNegocio.nombre',
+        'uUsuariosNegocio.provincia',
+        'uUsuariosNegocio.localidad',
+      ],
+      // ordenamos por la suma de puntos
+      order: [[fn('SUM', col('puntosGanados')), 'DESC']],
       limit: 20,
+      subQuery: false,
     });
 
-    const data = filas.map((row) => ({
-      id: row.uUsuarioNegocio ? row.uUsuarioNegocio.id : row.usuarioNegocioId,
-      nombre: row.uUsuarioNegocio ? row.uUsuarioNegocio.nombre : 'Usuario',
-      provincia: row.uUsuarioNegocio?.provincia || provincia,
-      localidad: row.uUsuarioNegocio?.localidad || localidad,
-      puntos: Number(row.get('totalPuntos') || 0),
-    }));
+    // 4) Map al formato que devuelve la API
+    const data = filas.map((row) => {
+      const usuario = row.uUsuariosNegocio; // 👈 alias correcto según el nombre del modelo
+
+      return {
+        id: usuario ? usuario.id : row.usuarioNegocioId,
+        nombre: usuario ? usuario.nombre : 'Usuario',
+        provincia: usuario ? usuario.provincia : provincia,
+        localidad: usuario ? usuario.localidad : localidad,
+        puntos: Number(row.get('totalPuntos') || 0),
+      };
+    });
 
     return res.json({
       ciudad: {
@@ -479,9 +494,12 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
     });
   } catch (err) {
     console.error('Error en /api/puntosnegociosqr/ranking', err);
-    return res.status(500).json({ error: 'No se pudo obtener el ranking.' });
+    return res
+      .status(500)
+      .json({ error: 'No se pudo obtener el ranking.' });
   }
 });
+
 
 
 
