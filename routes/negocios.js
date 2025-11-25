@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { uNegocio, RubroNegocio } = require("../models/model"); 
+const { uNegocio, RubroNegocio,  uUsuarioNegocio,   uCheckinNegocio   } = require("../models/model"); 
 const { autenticarTokenNegocio } = require("../middlewares/authNegocio");
 
 const multer = require("multer");
@@ -342,5 +342,109 @@ router.post(
     }
   }
 );
+
+
+
+
+// GET /api/negocios/ranking
+// Ranking de negocios por ciudad del NEGOCIO del dueño logueado (premium)
+router.get("/ranking", autenticarTokenNegocio, async (req, res) => {
+  try {
+    const usuarioNegocio = req.negocio;
+    if (!usuarioNegocio) {
+      return res.status(401).json({ ok: false, error: "No autenticado" });
+    }
+
+    // 1) Buscamos el negocio del dueño (si tiene negocio, es premium)
+    const negocioMio = await uNegocio.findOne({
+      where: { ownerId: usuarioNegocio.id },
+      attributes: ["id", "nombre", "provincia", "localidad", "foto"],
+    });
+
+    if (!negocioMio) {
+      return res.status(404).json({
+        ok: false,
+        error: "No tenés negocio dado de alta para ver el ranking",
+      });
+    }
+
+    const { provincia, localidad } = negocioMio;
+
+    if (!provincia || !localidad) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "Tu negocio no tiene provincia/localidad cargada. Completá esos datos para ver el ranking.",
+      });
+    }
+
+    // 2) Agregamos puntos por negocio (en todos lados)
+    const agregados = await uCheckinNegocio.findAll({
+      attributes: [
+        "negocioId",
+        [fn("SUM", col("puntosGanados")), "totalPuntos"],
+        [fn("COUNT", col("id")), "totalCheckins"],
+      ],
+      group: ["negocioId"],
+      raw: true,
+    });
+
+    if (!agregados || agregados.length === 0) {
+      return res.json({
+        ciudad: { provincia, localidad },
+        ranking: [],
+      });
+    }
+
+    const negocioIds = agregados.map((a) => a.negocioId);
+
+    // 3) Traemos solo los negocios de ESA ciudad
+    const negociosCiudad = await uNegocio.findAll({
+      where: {
+        id: negocioIds,
+        provincia,
+        localidad,
+      },
+      attributes: ["id", "nombre", "provincia", "localidad", "foto"],
+    });
+
+    const mapNegocios = new Map();
+    negociosCiudad.forEach((n) => {
+      mapNegocios.set(n.id, n);
+    });
+
+    // 4) Armamos ranking, filtrando solo los negocios de la ciudad
+    const ranking = agregados
+      .filter((a) => mapNegocios.has(a.negocioId))
+      .sort(
+        (a, b) => Number(b.totalPuntos || 0) - Number(a.totalPuntos || 0)
+      )
+      .slice(0, 20)
+      .map((a) => {
+        const negocio = mapNegocios.get(a.negocioId);
+        return {
+          id: negocio.id,
+          nombre: negocio.nombre,
+          provincia: negocio.provincia,
+          localidad: negocio.localidad,
+          foto: negocio.foto,
+          puntos: Number(a.totalPuntos || 0),
+          checkins: Number(a.totalCheckins || 0),
+        };
+      });
+
+    return res.json({
+      ciudad: { provincia, localidad },
+      ranking,
+    });
+  } catch (err) {
+    console.error("Error en GET /api/negocios/ranking:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo obtener el ranking de negocios",
+    });
+  }
+});
+
 
 module.exports = router;
