@@ -40,7 +40,6 @@ router.get('/vigentes', async (req, res) => {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
 
-    // soportamos radio y radioKm
     const radioKm =
       Number(req.query.radio) ||
       Number(req.query.radioKm) ||
@@ -63,9 +62,8 @@ router.get('/vigentes', async (req, res) => {
       longitud: { [Op.ne]: null },
     };
 
-    // 👇 mejor chequear que sea número finito
     if (Number.isFinite(rubroId)) {
-      whereNegocio.rubroId = rubroId; // nombre de la FK en tu tabla uNegocio
+      whereNegocio.rubroId = rubroId;
     }
 
     const negocios = await uNegocio.findAll({
@@ -83,9 +81,8 @@ router.get('/vigentes', async (req, res) => {
           required: true,
         },
         {
-          // 👇 este include es para poder usar negocio.rubroNegocio?.nombre
+          // 👉 acá NO ponemos "as", dejamos el alias por defecto: "RubroNegocio"
           model: RubroNegocio,
-          as: 'rubroNegocio',
           attributes: ['id', 'nombre', 'icono'],
           required: false,
         },
@@ -123,7 +120,10 @@ router.get('/vigentes', async (req, res) => {
         negocioId: negocio.id,
         nombre: negocio.nombre,
         rubroId: negocio.rubroId,
-        rubroNombre: negocio.rubroNegocio?.nombre || null,
+        // 👇 OJO: ahora el nombre viene en negocio.RubroNegocio
+        rubroNombre: negocio.RubroNegocio
+          ? negocio.RubroNegocio.nombre
+          : null,
         lat: nLat,
         lng: nLng,
         distancia: dKm,
@@ -140,7 +140,6 @@ router.get('/vigentes', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener promos cercanas' });
   }
 });
-
 
 // ===============================================
 // POST /api/promoNegocio
