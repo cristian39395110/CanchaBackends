@@ -332,20 +332,25 @@ router.post('/login', async (req, res) => {
     const { email, password, deviceId } = req.body;
 
     const usuario = await uUsuarioNegocio.findOne({ where: { email } });
-    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
-    if (!usuario.verificado) return res.status(403).json({ message: 'Verificá tu correo antes de iniciar sesión' });
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    if (!usuario.verificado) {
+      return res.status(403).json({ message: 'Verificá tu correo antes de iniciar sesión' });
+    }
 
     const valido = await bcrypt.compare(password, usuario.password);
-    if (!valido) return res.status(401).json({ message: 'Contraseña incorrecta' });
-
-    // deviceId (igual que ya tenías)
-    if (usuario.deviceId && usuario.deviceId !== deviceId) {
-      return res.status(403).json({ message: 'Este correo ya está vinculado a otro celular.' });
+    if (!valido) {
+      return res.status(401).json({ message: 'Contraseña incorrecta' });
     }
+
+    // ✅ OPCIONAL: solo guardamos el deviceId si no tenía uno, pero NO bloqueamos
     if (!usuario.deviceId && deviceId) {
       usuario.deviceId = deviceId;
       await usuario.save();
     }
+    // 👇 Si querés que ni siquiera lo guarde, directamente borrá todo este bloque.
 
     // 👇 payload con flags y rol
     const payload = {
@@ -359,7 +364,6 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '12h' });
 
-    // 👇 devolvé también los flags por comodidad del FE
     res.json({
       token,
       usuarioId: usuario.id,
@@ -374,7 +378,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Error al iniciar sesión' });
   }
 });
-
 
 /* ===============================
    🙋 Obtener usuario autenticado
