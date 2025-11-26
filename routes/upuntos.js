@@ -44,35 +44,49 @@ router.get('/lugares', async (req, res) => {
     const RADIO_METROS = Number(radio);
     const R = 6371;
 
+    // 👇 armamos el where base
     const where = { activo: true };
-    if (categoria && categoria !== 'todas') where.rubro = categoria;
 
-  const negocios = await uNegocio.findAll({
-  where,
-  attributes: [
-    'id',
-    'nombre',
-    ['rubro', 'categoria'],
-    ['provincia', 'provincia'],
-    ['localidad', 'localidad'],
-    ['latitud', 'lat'],
-    ['longitud', 'lng'],
-    ['puntosPorCompra', 'puntosOtorga'],
-    ['foto', 'fotoPerfil'],   // 👈 alias para el front
-    'planId',
-    'activo'
-  ],
-  raw: true
-});
+    // 👇 si viene categoría distinta de 'todas' filtramos por rubroId
+    if (categoria && categoria !== 'todas') {
+      const rubroId = Number(categoria);
+      if (!Number.isNaN(rubroId)) {
+        where.rubroId = rubroId;
+      }
+    }
 
+    // 👇 cargamos negocios
+    const negocios = await uNegocio.findAll({
+      where,
+      attributes: [
+        'id',
+        'nombre',
+        // alias para el front:
+        ['rubro', 'categoria'],               // string viejo, si lo seguís usando
+        ['provincia', 'provincia'],
+        ['localidad', 'localidad'],
+        ['latitud', 'lat'],
+        ['longitud', 'lng'],
+        ['puntosPorCompra', 'puntosOtorga'],
+        ['foto', 'fotoPerfil'],
+        'planId',
+        'activo',
+        'rubroId',                            // por si lo querés usar luego en FE
+      ],
+      raw: true,
+    });
 
     const toRad = (v) => (v * Math.PI) / 180;
+
+    // 👇 interpretamos soloPromo (viene como string)
+    const soloPromoBool =
+      soloPromo === '1' || soloPromo === 'true' || soloPromo === 'on';
 
     const lista = negocios
       .map((n) => {
         const nLat = Number(n.lat);
         const nLng = Number(n.lng);
-        if (isNaN(nLat) || isNaN(nLng)) return null;
+        if (Number.isNaN(nLat) || Number.isNaN(nLng)) return null;
 
         const dLat = toRad(nLat - LAT);
         const dLng = toRad(nLng - LNG);
@@ -89,18 +103,20 @@ router.get('/lugares', async (req, res) => {
         return {
           ...n,
           distancia: distanciaM,
-          tienePromo: n.planId === 2 // 👈 ejemplo: 2 = premium
+          tienePromo: n.planId === 2, // ej: plan 2 = negocios con promo
         };
       })
       .filter(Boolean)
       .filter((n) => n.distancia <= RADIO_METROS)
-      .filter((n) => (!soloPromo ? true : n.tienePromo))
+      .filter((n) => (!soloPromoBool ? true : n.tienePromo))
       .sort((a, b) => a.distancia - b.distancia);
 
     res.json(lista);
   } catch (err) {
     console.error('❌ Error en /api/puntosNegocio/lugares:', err);
-    res.status(500).json({ error: 'Error al buscar lugares con puntos' });
+    res
+      .status(500)
+      .json({ error: 'Error al buscar lugares con puntos' });
   }
 });
 
