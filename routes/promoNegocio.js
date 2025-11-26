@@ -141,10 +141,31 @@ router.get('/vigentes', async (req, res) => {
 // ===============================================
 router.post('/', autenticarTokenNegocio, async (req, res) => {
   try {
-    const negocioId = req.negocio?.id || req.negocioId;
-    if (!negocioId) {
-      return res.status(401).json({ error: 'Negocio no autenticado' });
+    // 1) Sacar el "usuario-negocio" real del token / middleware
+    const usuarioNegocioId =
+      req.usuarioNegocioId ??     // si en el middleware lo seteás
+      req.user?.id ??             // si usás req.user
+      req.negocio?.id ??          // si antes lo usabas para el usuario
+      null;
+
+    if (!usuarioNegocioId) {
+      return res.status(401).json({ error: 'Usuario negocio no autenticado' });
     }
+
+    // 2) Buscar el negocio real (tabla Negocios) por ownerId
+    const negocio = await uNegocio.findOne({
+      where: {
+        ownerId: usuarioNegocioId,
+        activo: true,
+      },
+      attributes: ['id'],
+    });
+
+    if (!negocio) {
+      return res.status(404).json({ error: 'Negocio no encontrado para este usuario' });
+    }
+
+    const negocioId = negocio.id; // 👈 ESTE es el que respeta el FK
 
     const {
       titulo,
@@ -187,7 +208,7 @@ router.post('/', autenticarTokenNegocio, async (req, res) => {
     }
 
     const promo = await uPromoNegocio.create({
-      negocioId,
+      negocioId, // ✅ ahora es el id correcto de Negocios
       titulo: String(titulo).trim(),
       descripcion: descripcion ? String(descripcion).trim() : null,
       tipo,
@@ -202,10 +223,18 @@ router.post('/', autenticarTokenNegocio, async (req, res) => {
       activa: true,
     });
 
-    res.status(201).json(promo);
+    return res.status(201).json(promo);
   } catch (err) {
     console.error('Error creando promo negocio:', err);
-    res.status(500).json({ error: 'Error al crear la promoción' });
+
+    // Manejo más lindo del FK
+    if (err.name === 'SequelizeForeignKeyConstraintError') {
+      return res
+        .status(400)
+        .json({ error: 'No se pudo asociar la promo al negocio (negocioId inválido)' });
+    }
+
+    return res.status(500).json({ error: 'Error al crear la promoción' });
   }
 });
 
