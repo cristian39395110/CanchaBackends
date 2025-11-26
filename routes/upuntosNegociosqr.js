@@ -21,8 +21,14 @@ const {
    helper para generar códigos tipo "MCQR-ABC123"
    =========================================================== */
 function generarCodigoQR() {
-  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `MCQR-${rand}`;
+  const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let codigo = "";
+
+  for (let i = 0; i < 6; i++) {
+    codigo += letras.charAt(Math.floor(Math.random() * letras.length));
+  }
+
+  return codigo;
 }
 
 /* ===========================================================
@@ -197,10 +203,28 @@ router.post('/emitir', autenticarTokenNegocio, async (req, res) => {
    =========================================================== */
 
 
+// Helper para distancia en metros (Haversine)
+function distanciaMetros(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // metros
+  const toRad = (v) => (v * Math.PI) / 180;
 
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
 
 router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
-  const usuarioNegocioId = req.negocio?.id || null;
+  const usuarioNegocioId = req.negocio?.id || null;   // EL USUARIO QUE ESCANEA
   const { qr, negocioId: negocioIdBody, lat, lng } = req.body;
 
   if (!usuarioNegocioId) return res.status(401).json({ error: 'No autenticado' });
@@ -218,15 +242,53 @@ router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
     }
 
     const negocioId = qrRow.negocioId; // fuente de verdad
-    const modoQR = qrRow.modo || null; // 'compra' | 'dia' | null
+    const modoQR = qrRow.modo || null; // 'compra' | 'dia' | 'fijo' | null
 
-    // 2) Validaciones básicas
+    // 2) Traemos el negocio (para validar dueño y ubicación)
+    const negocio = await uNegocio.findByPk(negocioId, {
+      attributes: ['id', 'ownerId', 'latitud', 'longitud'], // ajustá nombres si difieren
+    });
+
+    if (!negocio) {
+      return res.status(404).json({ error: 'Negocio no encontrado.' });
+    }
+
+    // 2.a) Bloquear al dueño del local: NO puede canjear en su propio negocio
+    if (negocio.ownerId && Number(negocio.ownerId) === Number(usuarioNegocioId)) {
+      return res.status(403).json({
+        error: 'No podés sumar puntos escaneando el QR de tu propio negocio.',
+      });
+    }
+
+    // 2.b) Validaciones básicas del QR
     if (modoQR === 'compra' && qrRow.usado) {
       return res.status(409).json({ error: 'Este QR ya fue usado.' });
     }
     if (qrRow.fechaExpiracion && qrRow.fechaExpiracion < new Date()) {
       return res.status(400).json({ error: 'QR vencido.' });
     }
+
+    // 2.c) Validar distancia si tenemos lat/lng del usuario y del negocio
+    if (lat != null && lng != null && negocio.latitud != null && negocio.longitud != null) {
+      const dist = distanciaMetros(
+        Number(lat),
+        Number(lng),
+        Number(negocio.latitud),
+        Number(negocio.longitud)
+      );
+
+      const MAX_DISTANCIA = 20; // podés subirlo a 30 si ves problemas
+
+      if (dist > MAX_DISTANCIA) {
+        return res.status(400).json({
+          error: `Tenés que estar dentro de ${MAX_DISTANCIA}m del negocio para canjear. Distancia detectada: ${Math.round(dist)}m.`,
+        });
+      }
+    }
+    // Si querés obligar SIEMPRE ubicación, descomentá este bloque:
+    // else {
+    //   return res.status(400).json({ error: 'Falta ubicación para canjear.' });
+    // }
 
     // 3) Cooldown 4h por negocio
     const COOLDOWN_HORAS = 4;
@@ -325,7 +387,6 @@ router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
     return res.status(500).json({ error: 'No se pudo canjear.' });
   }
 });
-
 
 
 /* ===========================================================
