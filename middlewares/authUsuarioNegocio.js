@@ -1,6 +1,6 @@
 // middlewares/authUsuarioNegocio.js
 const jwt = require("jsonwebtoken");
-const { uUsuariosNegocio } = require("../models/model");
+const { uUsuarioNegocio } = require("../models/model");
 
 async function autenticarUsuarioNegocio(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -15,7 +15,7 @@ async function autenticarUsuarioNegocio(req, res, next) {
       return res.status(403).json({ error: "Rol inválido" });
     }
 
-    const usuario = await uUsuariosNegocio.findByPk(decoded.id);
+    const usuario = await uUsuarioNegocio.findByPk(decoded.id);
     if (!usuario) {
       return res.status(401).json({ error: "Usuario no encontrado" });
     }
