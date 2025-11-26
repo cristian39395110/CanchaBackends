@@ -74,4 +74,26 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
   }
 });
 
+// GET /api/negocios/mis-negocios
+router.get("/mis-negocios", autenticarTokenNegocio, async (req, res) => {
+  try {
+    const usuarioNegocioId = req.negocio.id;
+
+    const negocios = await uNegocio.findAll({
+      where: { ownerId: usuarioNegocioId },
+    });
+
+    return res.json({
+      ok: true,
+      negocios, // 👈 importante que se llame negocios o lista
+    });
+  } catch (err) {
+    console.error("❌ GET /api/negocios/mis-negocios:", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: "Error al obtener negocios" });
+  }
+});
+
+
 module.exports = router;

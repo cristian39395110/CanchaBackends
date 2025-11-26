@@ -18,6 +18,67 @@ const mpClient = new MercadoPagoConfig({
 const preferenceClient = new Preference(mpClient);
 const paymentClient = new Payment(mpClient);
 
+
+
+router.get("/mi-plan", autenticarTokenNegocio, async (req, res) => {
+  try {
+    const usuarioNegocioId = req.negocio.id;
+
+    // 1) Buscamos algún negocio que pertenezca a este dueño
+    const negocio = await uNegocio.findOne({
+      where: { ownerId: usuarioNegocioId },
+    });
+
+    // 2) Si no tiene negocio, pero es premium => devolvemos plan "activo" genérico
+    const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId);
+
+    if (!negocio) {
+      if (usuario?.esPremium) {
+        return res.json({
+          ok: true,
+          planActual: {
+            id: 0, // o null, da igual para el front
+            nombre: "Plan activo",
+            venceEl: null,
+            activo: true,
+          },
+        });
+      }
+
+      // no tiene plan ni negocio
+      return res.json({ ok: true, planActual: null });
+    }
+
+    // 3) Tiene negocio, miramos el plan
+    let plan = null;
+    if (negocio.planId) {
+      plan = await PlanNegocio.findByPk(negocio.planId);
+    }
+
+    if (!plan) {
+      // tiene negocio pero sin plan asociado
+      return res.json({
+        ok: true,
+        planActual: null,
+      });
+    }
+
+    // Si tenés lógica de vencimiento, acá la metés. Por ahora lo dejamos siempre activo.
+    const planActual = {
+      id: plan.id,
+      nombre: plan.nombre,
+      venceEl: null, // si luego guardás fecha de vencimiento, la ponés acá
+      activo: true,
+    };
+
+    return res.json({ ok: true, planActual });
+  } catch (err) {
+    console.error("❌ GET /api/negocios/mi-plan:", err);
+    return res.status(500).json({ ok: false, error: "Error al obtener plan" });
+  }
+});
+
+
 /**
  * POST /api/planes-negocio/crear-orden
  * Crea la preferencia de pago para el plan de negocio.
