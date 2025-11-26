@@ -385,27 +385,24 @@ router.post('/login', async (req, res) => {
 /* ===============================
    🙋 Obtener usuario autenticado
    =============================== */
-router.get('/yo', autenticarUsuarioNegocio,async (req, res) => {
+// GET /api/auth/yo
+router.get('/yo', autenticarUsuarioNegocio, async (req, res) => {
   try {
+    const usuarioNegocioId = req.negocio.id; // ← viene del middleware
 
-
-    const header = req.headers['authorization'];
- 
-
-    if (!header) return res.status(401).json({ message: 'Token requerido' });
-
-    const token = header.split(' ')[1];
-    const decoded = jwt.verify(token, SECRET_KEY);
-
-    const usuario = await uUsuarioNegocio.findByPk(decoded.id, {
+    const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
       attributes: { exclude: ['password'] },
     });
 
-    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
 
     res.json(usuario);
-  } catch (error) {
-    res.status(401).json({ message: 'Token inválido o expirado' });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al obtener el usuario' });
   }
 });
 
