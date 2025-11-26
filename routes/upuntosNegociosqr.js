@@ -107,97 +107,83 @@ router.get('/historial', autenticarTokenNegocio, async (req, res) => {
    =========================================================== */
 // POST /api/puntosnegociosqr/emitir
 // routes/puntosnegociosqr.js  (fragmento)
+// POST /api/puntosnegociosqr/emitir
 router.post('/emitir', autenticarTokenNegocio, async (req, res) => {
   try {
-    // 1) Tomamos lo que venga del body
-    let { negocioId, modo = 'compra', minutosValidez } = req.body;
+    let { negocioId } = req.body;
 
-        const ownerId = req.negocio?.id;
-     
+    const ownerId = req.negocio?.id;
     if (!ownerId) return res.status(401).json({ error: 'No autenticado' });
 
-    // 2) Si no vino, lo inferimos desde el usuario del token
+    // 1) Si no vino negocioId, lo inferimos por ownerId (como antes)
     if (!negocioId) {
-      const ownerId = req.negocio?.id || req.user?.id;
-      if (!ownerId) return res.status(401).json({ error: 'No autenticado' });
-
       const negocioDelOwner = await uNegocio.findOne({
         where: { ownerId, activo: true },
         attributes: ['id', 'puntosPorCompra', 'plan'],
       });
 
       if (!negocioDelOwner) {
-        return res.status(400).json({ error: 'No se pudo inferir el negocio del usuario' });
+        return res
+          .status(400)
+          .json({ error: 'No se pudo inferir el negocio del usuario' });
       }
-      negocioId = negocioDelOwner.id;
 
-      // dejamos el negocio resuelto para calcular puntos
+      negocioId = negocioDelOwner.id;
       req._negocioResuelto = negocioDelOwner;
     }
 
-    // 3) Buscar el negocio (si no lo resolvimos recién)
-    const negocio = req._negocioResuelto || await uNegocio.findByPk(negocioId);
-    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+    // 2) Buscar negocio (si no lo resolvimos recién)
+    const negocio =
+      req._negocioResuelto || (await uNegocio.findByPk(negocioId));
 
-    // 4) Calcular puntos según plan
-    let puntosOtorga = negocio.puntosPorCompra || 100;
-    if (negocio.plan === 'premium') puntosOtorga *= 2;
+    if (!negocio) {
+      return res.status(404).json({ error: 'Negocio no encontrado' });
+    }
 
-    // 5) Armar expiración según modo
-    let fechaExpiracion = null;
+    // 3) ¿Ya tiene un QR fijo?
+    const qrExistente = await uQRCompraNegocio.findOne({
+      where: {
+        negocioId,
+        modo: 'fijo',
+      },
+    });
 
-    if (modo === 'dia') {
-      const inicioHoy = new Date(); inicioHoy.setHours(0,0,0,0);
-      const finHoy = new Date();   finHoy.setHours(23,59,59,999);
-
-      // Reutilizar si ya existe uno del día
-      const qrExistente = await uQRCompraNegocio.findOne({
-        where: {
-          negocioId,
-          modo: 'dia',
-          fechaExpiracion: { [Op.between]: [inicioHoy, finHoy] },
-        },
+    if (qrExistente) {
+      return res.json({
+        mensaje: '♾️ Ya tenés un QR fijo, se reutiliza.',
+        qr: qrExistente,
       });
-
-      if (qrExistente) {
-        return res.json({
-          mensaje: '📅 Ya existe un QR del día. Se reutiliza.',
-          qr: qrExistente,
-        });
-      }
-      fechaExpiracion = finHoy; // vence hoy 23:59
     }
 
-    if (modo === 'compra') {
-      if (minutosValidez) {
-        const ahora = new Date();
-        fechaExpiracion = new Date(ahora.getTime() + minutosValidez * 60000);
-      }
+    // 4) Calcular puntos iniciales según política (solo para guardar de referencia)
+    const PLAN_TO_PUNTOS = { basico: 100, premium: 200 };
+    let puntos = Number(negocio.puntosPorCompra) || 0;
+    if (!puntos) {
+      puntos = PLAN_TO_PUNTOS[(negocio.plan || 'basico').toLowerCase()] ?? 100;
     }
 
-    // 6) Crear el QR
+    // 5) Crear QR fijo (sin fecha de expiración, sin uso único)
     const codigoQR = generarCodigoQR();
 
     const qrCreado = await uQRCompraNegocio.create({
       negocioId,
       codigoQR,
-      puntosOtorga,
-      fechaExpiracion,
-      modo,
-      usado: false,
+      puntosOtorga: puntos,   // referencia, pero en canjear recalculamos
+      fechaExpiracion: null,  // ♾️ sin vencimiento
+      modo: 'fijo',
+      usado: false,           // no se usa nunca como “one-shot”
     });
 
     return res.json({
-      mensaje: modo === 'compra'
-        ? '✅ QR por compra generado con éxito.'
-        : '✅ QR del día generado con éxito.',
+      mensaje: '✅ QR fijo generado con éxito.',
       qr: qrCreado,
     });
   } catch (error) {
-    console.error('Error en /emitir:', error);
+    console.error('Error en /emitir (QR fijo):', error);
     return res.status(500).json({ error: 'Error al emitir QR' });
   }
 });
+
 
 
 
