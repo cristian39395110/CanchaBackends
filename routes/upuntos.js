@@ -23,7 +23,7 @@ router.get('/categorias', async (req, res) => {
         ['nombre', 'ASC'],
       ],
     });
-
+console.log(rubros)
     return res.json(rubros);
   } catch (err) {
     console.error('❌ Error al obtener categorías:', err);
