@@ -46,10 +46,10 @@ router.get('/vigentes', async (req, res) => {
       Number(req.query.radioKm) ||
       3;
 
-    const rubro =
-      req.query.rubro && req.query.rubro !== 'todos'
-        ? String(req.query.rubro)
-        : null;
+  const rubroId =
+  req.query.rubroId && req.query.rubroId !== 'todos'
+    ? Number(req.query.rubroId)
+    : null;
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng inválidos' });
@@ -63,8 +63,8 @@ router.get('/vigentes', async (req, res) => {
       longitud: { [Op.ne]: null },
     };
 
-    if (rubro) {
-      whereNegocio.rubro = rubro;
+    if (rubroId) {
+      whereNegocio.rubroId = rubroId;
     }
 
     const negocios = await uNegocio.findAll({
@@ -113,16 +113,18 @@ router.get('/vigentes', async (req, res) => {
         porcentajeDescuento: p.porcentajeDescuento,
       }));
 
-      resultado.push({
-        negocioId: negocio.id,
-        nombre: negocio.nombre,
-        rubro: negocio.rubro || null,
-        lat: nLat,
-        lng: nLng,
-        distancia: dKm,
-        totalOfertas: promos.length,
-        promosResumen: top,
-      });
+     resultado.push({
+  negocioId: negocio.id,
+  nombre: negocio.nombre,
+  rubroId: negocio.rubroId,
+  rubroNombre: negocio.rubroNegocio?.nombre || null,
+  lat: nLat,
+  lng: nLng,
+  distancia: dKm,
+  totalOfertas: promos.length,
+  promosResumen: top,
+});
+
     }
 
     // orden final por cercanía
