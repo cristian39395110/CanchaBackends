@@ -46,10 +46,10 @@ router.get('/vigentes', async (req, res) => {
       Number(req.query.radioKm) ||
       3;
 
-  const rubroId =
-  req.query.rubroId && req.query.rubroId !== 'todos'
-    ? Number(req.query.rubroId)
-    : null;
+    const rubroId =
+      req.query.rubroId && req.query.rubroId !== 'todos'
+        ? Number(req.query.rubroId)
+        : null;
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng inválidos' });
@@ -63,8 +63,9 @@ router.get('/vigentes', async (req, res) => {
       longitud: { [Op.ne]: null },
     };
 
-    if (rubroId) {
-      whereNegocio.rubroId = rubroId;
+    // 👇 mejor chequear que sea número finito
+    if (Number.isFinite(rubroId)) {
+      whereNegocio.rubroId = rubroId; // nombre de la FK en tu tabla uNegocio
     }
 
     const negocios = await uNegocio.findAll({
@@ -72,7 +73,7 @@ router.get('/vigentes', async (req, res) => {
       include: [
         {
           model: uPromoNegocio,
-          as: 'uPromoNegocios',   // 👈 alias CORRECTO
+          as: 'uPromoNegocios',
           where: {
             activa: true,
             visibilidad: 'publica',
@@ -80,6 +81,13 @@ router.get('/vigentes', async (req, res) => {
             hasta: { [Op.gte]: now },
           },
           required: true,
+        },
+        {
+          // 👇 este include es para poder usar negocio.rubroNegocio?.nombre
+          model: RubroNegocio,
+          as: 'rubroNegocio',
+          attributes: ['id', 'nombre', 'icono'],
+          required: false,
         },
       ],
     });
@@ -94,10 +102,8 @@ router.get('/vigentes', async (req, res) => {
       const dKm = distanciaKm(lat, lng, nLat, nLng);
       if (dKm > radioKm) continue;
 
-      // 👇 OJO: ahora las promos vienen en negocio.uPromoNegocios
       const promos = (negocio.uPromoNegocios || []).slice();
 
-      // ordenamos por prioridad y fecha de fin
       promos.sort((a, b) => {
         const pa = a.prioridad || 0;
         const pb = b.prioridad || 0;
@@ -113,21 +119,19 @@ router.get('/vigentes', async (req, res) => {
         porcentajeDescuento: p.porcentajeDescuento,
       }));
 
-     resultado.push({
-  negocioId: negocio.id,
-  nombre: negocio.nombre,
-  rubroId: negocio.rubroId,
-  rubroNombre: negocio.rubroNegocio?.nombre || null,
-  lat: nLat,
-  lng: nLng,
-  distancia: dKm,
-  totalOfertas: promos.length,
-  promosResumen: top,
-});
-
+      resultado.push({
+        negocioId: negocio.id,
+        nombre: negocio.nombre,
+        rubroId: negocio.rubroId,
+        rubroNombre: negocio.rubroNegocio?.nombre || null,
+        lat: nLat,
+        lng: nLng,
+        distancia: dKm,
+        totalOfertas: promos.length,
+        promosResumen: top,
+      });
     }
 
-    // orden final por cercanía
     resultado.sort((a, b) => a.distancia - b.distancia);
 
     res.json(resultado);
@@ -136,6 +140,7 @@ router.get('/vigentes', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener promos cercanas' });
   }
 });
+
 
 // ===============================================
 // POST /api/promoNegocio
