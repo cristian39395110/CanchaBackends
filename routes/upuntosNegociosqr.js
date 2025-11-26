@@ -491,21 +491,34 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
 
 
 // GET /api/puntosnegociosqr/politica
+// GET /api/puntosnegociosqr/politica
 router.get('/politica', autenticarTokenNegocio, async (req, res) => {
   try {
-    const negocioId =
-      req.negocio?.id ;
-     
-    if (!negocioId) return res.status(400).json({ error: 'Falta negocioId' });
+    // 1) sacamos el ownerId desde el token (usuario-negocio logueado)
+    const ownerId = req.negocio?.id || req.user?.id;
 
-    const negocio = await uNegocio.findByPk(negocioId);
-    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (!ownerId) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
 
-    // Regla: primero puntosPorCompra; si no hay, map por plan
+    // 2) buscamos el negocio del dueño (igual que en /emitir)
+    const negocio = await uNegocio.findOne({
+      where: { ownerId, activo: true },
+    });
+
+    if (!negocio) {
+      return res
+        .status(404)
+        .json({ error: 'Negocio no encontrado para este usuario.' });
+    }
+
+    // 3) regla de puntos: primero puntosPorCompra, si no, por plan
     const PLAN_TO_PUNTOS = { basico: 100, premium: 200 };
+
     let puntos = Number(negocio.puntosPorCompra) || 0;
     if (!puntos) {
-      puntos = PLAN_TO_PUNTOS[(negocio.plan || 'basico').toLowerCase()] ?? 100;
+      puntos =
+        PLAN_TO_PUNTOS[(negocio.plan || 'basico').toLowerCase()] ?? 100;
     }
 
     return res.json({
@@ -515,7 +528,9 @@ router.get('/politica', autenticarTokenNegocio, async (req, res) => {
     });
   } catch (e) {
     console.error('GET /politica', e);
-    return res.status(500).json({ error: 'No se pudo obtener la política' });
+    return res
+      .status(500)
+      .json({ error: 'No se pudo obtener la política' });
   }
 });
 
