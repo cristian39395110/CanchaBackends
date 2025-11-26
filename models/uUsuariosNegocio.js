@@ -69,6 +69,14 @@ const uUsuariosNegocio = sequelize.define(
       type: DataTypes.STRING, // public_id de Cloudinary
       allowNull: true,
     },
+      fechaInicioPremium: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    fechaFinPremium: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     tableName: 'uUsuariosNegocio',

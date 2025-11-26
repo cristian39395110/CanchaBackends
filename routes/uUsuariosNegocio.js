@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
 const {uUsuarioNegocio} = require('../models/model');
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
+const { autenticarUsuarioNegocio } = require('../middlewares/authUsuarioNegocio'); 
 
 const SECRET_KEY = process.env.SECRET_KEY || 'clave-ultra-secreta';
 // routes/usuariosNegocio.js (o como se llame tu router de negocio)
@@ -45,7 +46,7 @@ const transporter = nodemailer.createTransport({
  * GET /api/loginusuario/mi-perfil
  * Devuelve los datos del usuario-negocio logueado
  */
-router.get("/mi-perfil", autenticarTokenNegocio, async (req, res) => {
+router.get("/mi-perfil", autenticarUsuarioNegocio, async (req, res) => {
   try {
     const usuarioNegocio = req.negocio; // viene del middleware
 
@@ -89,7 +90,7 @@ router.get("/mi-perfil", autenticarTokenNegocio, async (req, res) => {
  */
 router.put(
   "/mi-perfil",
-  autenticarTokenNegocio,
+  autenticarUsuarioNegocio,
   upload.single("fotoPerfil"),
   async (req, res) => {
     try {
@@ -382,7 +383,7 @@ router.post('/login', async (req, res) => {
 /* ===============================
    🙋 Obtener usuario autenticado
    =============================== */
-router.get('/yo', async (req, res) => {
+router.get('/yo', autenticarUsuarioNegocio,async (req, res) => {
   try {
 
 

@@ -177,25 +177,58 @@ router.post("/webhook", async (req, res) => {
       externalReference &&
       externalReference.startsWith("negocio-plan-")
     ) {
-      const parts = externalReference.split("-"); // ['negocio', 'plan', '<usuarioNegocioId>', '<planId>']
+      const parts = externalReference.split("-"); 
+      // ['negocio', 'plan', '<usuarioNegocioId>', '<planId>']
       const usuarioNegocioId = Number(parts[2]);
       const planId = Number(parts[3]);
 
       if (usuarioNegocioId && planId) {
-        // 1) Marcamos al usuario-negocio como premium
+        // 👉 1) Buscamos el plan (por si después tenés 1, 3, 6 meses, etc.)
+        let meses = 1; // por ahora un mes fijo
+        const plan = await PlanNegocio.findByPk(planId);
+        if (plan && plan.duracionMeses) {
+          meses = plan.duracionMeses; // si existe el campo, lo usamos
+        }
+
+        // 👉 2) Buscamos el usuario-negocio para saber si ya tenía premium vigente
+        const usuarioNegocio = await uUsuarioNegocio.findByPk(usuarioNegocioId);
+        const ahora = new Date();
+
+        let inicio;
+
+        // Si ya tiene premium y NO venció, extendemos desde la fechaFin actual
+        if (
+          usuarioNegocio?.fechaFinPremium &&
+          new Date(usuarioNegocio.fechaFinPremium) > ahora
+        ) {
+          inicio = new Date(usuarioNegocio.fechaFinPremium);
+        } else {
+          // Si no tenía o ya venció, arranca desde ahora
+          inicio = ahora;
+        }
+
+        const fechaInicioPremium = inicio;
+        const fechaFinPremium = new Date(inicio);
+        fechaFinPremium.setMonth(fechaFinPremium.getMonth() + meses);
+
+        // 👉 3) Marcamos al usuario-negocio como premium con fechas
         await uUsuarioNegocio.update(
-          { esPremium: true },
+          {
+            esPremium: true,
+            fechaInicioPremium,
+            fechaFinPremium,
+          },
           { where: { id: usuarioNegocioId } }
         );
 
-        // 2) Actualizamos todos los negocios de ese dueño al plan pagado
+        // 👉 4) Actualizamos todos los negocios de ese dueño al plan pagado
         await uNegocio.update(
           { planId },
           { where: { ownerId: usuarioNegocioId } }
         );
 
         console.log(
-          `✅ Plan negocio aprobado. usuarioNegocioId=${usuarioNegocioId}, planId=${planId}`
+          `✅ Plan negocio aprobado. usuarioNegocioId=${usuarioNegocioId}, planId=${planId}, meses=${meses}, desde=${fechaInicioPremium.toISOString()}, hasta=${fechaFinPremium.toISOString()}`
         );
       } else {
         console.warn("⚠️ external_reference con formato raro:", externalReference);

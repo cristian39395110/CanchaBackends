@@ -5,6 +5,9 @@ const { Op, fn, col ,literal  } = require('sequelize');
 
 
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio'); 
+const { autenticarUsuarioNegocio } = require('../middlewares/authUsuarioNegocio'); 
+
+
 
 const {
   uQRCompraNegocio,
@@ -36,7 +39,7 @@ function generarCodigoQR() {
    → historial del usuario logueado (para PuntosPage.tsx)
    =========================================================== */
 // SIN cambiar asociaciones
-router.get('/historial', autenticarTokenNegocio, async (req, res) => {
+router.get('/historial', autenticarUsuarioNegocio, async (req, res) => {
   const usuarioNegocioId = req.negocio.id;
 
   try {
@@ -223,7 +226,7 @@ function distanciaMetros(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
+router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
   const usuarioNegocioId = req.negocio?.id || null;   // EL USUARIO QUE ESCANEA
   const { qr, negocioId: negocioIdBody, lat, lng } = req.body;
 
@@ -393,7 +396,7 @@ router.post('/canjear', autenticarTokenNegocio, async (req, res) => {
    4) GET /api/puntosnegociosqr/mis-puntos
    → suma de puntos del usuario (por checkins)
    =========================================================== */
-router.get('/mis-puntos', autenticarTokenNegocio, async (req, res) => {
+router.get('/mis-puntos', autenticarUsuarioNegocio, async (req, res) => {
   const usuarioNegocioId =req.negocio.id;
   try {
     const total = await uCheckinNegocio.findOne({
@@ -418,7 +421,7 @@ router.get('/mis-puntos', autenticarTokenNegocio, async (req, res) => {
    5) GET /api/puntosnegociosqr/mis-checkins
    → historial crudo (por si lo querés en admin)
    =========================================================== */
-router.get('/mis-checkins', autenticarTokenNegocio, async (req, res) => {
+router.get('/mis-checkins', autenticarUsuarioNegocio, async (req, res) => {
   const usuarioNegocioId =req.negocio.id;
   try {
     const checkins = await uCheckinNegocio.findAll({
@@ -462,7 +465,7 @@ router.get('/negocio/:negocioId/checkins', autenticarTokenNegocio, async (req, r
 // Ranking por ciudad (provincia + localidad del usuario logueado)
 // GET /api/puntosnegociosqr/ranking
 // Ranking por ciudad (provincia + localidad del usuario logueado)
-router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
+router.get('/ranking', autenticarUsuarioNegocio, async (req, res) => {
   try {
     const usuarioNegocioId = req.negocio?.id;
     if (!usuarioNegocioId) {

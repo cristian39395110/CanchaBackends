@@ -27,7 +27,7 @@ const {
 
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
 const { soloAdminNegocio } = require('../middlewares/soloAdminNegocio');
-const { autenticarTokenUsuarioNegocio } = require('../middlewares/autenticarTokenUsuarioNegocio');
+const { autenticarTokenUsuarioNegocio } = require('../middlewares/authUsuarioNegocio');
 const { Op, fn, col } = require('sequelize');
 
 
