@@ -1,34 +1,36 @@
 // routes/puntosNegocio
 const express = require('express');
 const router = express.Router();
-const Negocio = require('../models/uNegocio'); // 👈 el que mostraste
+const {uNegocio,RubroNegocio} = require('../models/model'); // 👈 el que mostraste
 
 // GET /api/puntos/lugares?lat=-33.3&lng=-66.3&radio=3000&categoria=...&soloPromo=1
 // GET /api/puntosNegocio/categorias
 router.get('/categorias', async (req, res) => {
   try {
-    // Traemos solo la columna "rubro"
-    const rubros = await Negocio.findAll({
-      attributes: ['rubro'],
-      where: { activo: true },
-      raw: true
+    const rubros = await RubroNegocio.findAll({
+      attributes: ['id', 'nombre', 'icono', 'orden'],
+      include: [
+        {
+          model: uNegocio,
+          attributes: [],
+          where: { activo: true },
+          required: true, // 👈 solo rubros que tengan al menos un negocio activo
+        },
+      ],
+      group: ['RubroNegocio.id', 'RubroNegocio.nombre', 'RubroNegocio.icono', 'RubroNegocio.orden'],
+      order: [
+        ['orden', 'ASC'],
+        ['nombre', 'ASC'],
+      ],
     });
 
-    // Extraemos, limpiamos y filtramos duplicados
-    const categorias = Array.from(
-      new Set(
-        rubros
-          .map(r => (r.rubro || '').toString().trim())
-          .filter(r => r.length > 0)
-      )
-    );
-
-    return res.json(categorias);
+    return res.json(rubros);
   } catch (err) {
     console.error('❌ Error al obtener categorías:', err);
     return res.status(500).json({ error: 'No se pudieron cargar las categorías' });
   }
 });
+
 
 
 router.get('/lugares', async (req, res) => {
@@ -45,7 +47,7 @@ router.get('/lugares', async (req, res) => {
     const where = { activo: true };
     if (categoria && categoria !== 'todas') where.rubro = categoria;
 
-  const negocios = await Negocio.findAll({
+  const negocios = await uNegocio.findAll({
   where,
   attributes: [
     'id',
