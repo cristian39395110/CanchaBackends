@@ -346,17 +346,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Contraseña incorrecta' });
     }
 
-    // ✅ OPCIONAL: solo guardamos el deviceId si no tenía uno, pero NO bloqueamos
+    // ✅ opcional: guardar deviceId si no tenía
     if (!usuario.deviceId && deviceId) {
       usuario.deviceId = deviceId;
       await usuario.save();
     }
-    // 👇 Si querés que ni siquiera lo guarde, directamente borrá todo este bloque.
 
-    // 👇 payload con flags y rol
+    // 👇 ACA definimos el rol según premium
+    const rol = usuario.esPremium ? 'negocio' : 'usuarioNegocio';
+
     const payload = {
       id: usuario.id,
-      rol: 'negocio',
+      rol, // 'negocio' o 'usuarioNegocio'
       esAdmin: !!usuario.esAdmin,
       esPremium: !!usuario.esPremium,
       email: usuario.email,
@@ -368,6 +369,7 @@ router.post('/login', async (req, res) => {
     res.json({
       token,
       usuarioId: usuario.id,
+      rol,                       // 👈 si querés usarlo en el frontend
       esAdmin: !!usuario.esAdmin,
       esPremium: !!usuario.esPremium,
       nombre: usuario.nombre,
