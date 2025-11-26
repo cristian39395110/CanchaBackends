@@ -1,7 +1,7 @@
 // routes/promoNegocio.js
 const express = require('express');
 const { Op } = require('sequelize');
-const { uPromoNegocio, uNegocio } = require('../models/model');
+const { uPromoNegocio, uNegocio,RubroNegocio } = require('../models/model');
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
 
 const router = express.Router();
