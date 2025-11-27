@@ -41,7 +41,28 @@ const transporter = nodemailer.createTransport({
 
 
 
+router.get("/estado-premium", autenticarTokenNegocio, (req, res) => {
+  const {
+    esPremium,
+    fechaFinPremium,
+    diasRestantesPremium,
+    premiumVencido,
+  } = req.negocio;
 
+  const porVencer =
+    esPremium &&
+    diasRestantesPremium !== null &&
+    diasRestantesPremium <= 7; // por ej. 7 días o menos
+
+  return res.json({
+    ok: true,
+    esPremium,
+    fechaFinPremium,
+    diasRestantes: diasRestantesPremium,
+    estaVencida: premiumVencido,
+    porVencer,
+  });
+});
 /**
  * GET /api/loginusuario/mi-perfil
  * Devuelve los datos del usuario-negocio logueado

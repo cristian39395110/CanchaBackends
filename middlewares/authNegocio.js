@@ -25,29 +25,30 @@ async function autenticarTokenNegocio(req, res, next) {
       return res.status(401).json({ error: "Negocio no encontrado" });
     }
 
-    // 2) Verificar fecha de premium
-    let esPremiumReal = usuario.esPremium;
+    // 2) Calcular estado de premium
+    let esPremiumReal = !!usuario.esPremium;
+    let diasRestantes = null;
+    let premiumVencido = false;
 
-    if (usuario.esPremium && usuario.fechaFinPremium) {
+    if (usuario.fechaFinPremium) {
       const hoy = new Date();
       const fin = new Date(usuario.fechaFinPremium);
 
-      if (hoy > fin) {
-        // Premium vencido → bajar en la base
-        await uUsuarioNegocio.update(
-          { esPremium: false },
-          { where: { id: usuario.id }
-        });
+      const diffMs = fin.getTime() - hoy.getTime();
+      const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24)); // redondeo hacia arriba
 
+      if (diffDias < 0) {
+        // Premium vencido → bajar bandera en la base si seguía true
+        if (usuario.esPremium) {
+          usuario.esPremium = false;
+          await usuario.save();
+        }
         esPremiumReal = false;
+        premiumVencido = true;
+        diasRestantes = 0;
+      } else {
+        diasRestantes = diffDias;
       }
-    }
-
-    // 👉 Si ya NO es premium (nunca tuvo o venció) devolvés 403 acá
-    if (!esPremiumReal) {
-      return res
-        .status(403)
-        .json({ error: "Requiere cuenta premium vigente." });
     }
 
     // 3) Meter en req.negocio el estado real
@@ -57,6 +58,9 @@ async function autenticarTokenNegocio(req, res, next) {
       esPremium: esPremiumReal,
       email: usuario.email,
       nombre: usuario.nombre,
+      fechaFinPremium: usuario.fechaFinPremium,
+      diasRestantesPremium: diasRestantes,
+      premiumVencido,
     };
 
     return next();
