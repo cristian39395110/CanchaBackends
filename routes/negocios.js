@@ -74,19 +74,35 @@ router.put(
         rubroId,
         provincia,
         localidad,
-        // si en la tabla tenés dirección/teléfono/whatsapp
         direccion,
         telefono,
         whatsapp,
+        latitud,
+        longitud,
       } = req.body;
 
-      // 🔹 Actualizar campos simples
+      // 🔹 Campos simples
       if (nombre) negocio.nombre = nombre;
       if (provincia) negocio.provincia = provincia;
       if (localidad) negocio.localidad = localidad;
       if (direccion) negocio.direccion = direccion;
       if (telefono) negocio.telefono = telefono;
       if (whatsapp) negocio.whatsapp = whatsapp;
+
+      // 🔹 Coordenadas desde el mapa (las manda el frontend siempre como string)
+      if (latitud !== undefined && latitud !== "") {
+        const latNum = Number(latitud);
+        if (!isNaN(latNum)) {
+          negocio.latitud = latNum;
+        }
+      }
+
+      if (longitud !== undefined && longitud !== "") {
+        const lngNum = Number(longitud);
+        if (!isNaN(lngNum)) {
+          negocio.longitud = lngNum;
+        }
+      }
 
       // 🔹 Rubro
       if (rubroId) {
@@ -113,7 +129,6 @@ router.put(
           streamifier.createReadStream(req.file.buffer).pipe(stream);
         });
 
-        // @ts-ignore
         negocio.foto = resultado.secure_url;
       }
 
