@@ -253,7 +253,7 @@ router.post(
         });
       }
 
-      const {
+      let {
         nombre,
         rubroId,
         rubro,
