@@ -275,6 +275,8 @@ router.post(
             "Faltan datos obligatorios (nombre, rubro, provincia, localidad)",
         });
       }
+      planId=1;
+
 
       if (!planId) {
         return res.status(400).json({

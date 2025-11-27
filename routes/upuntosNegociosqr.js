@@ -599,3 +599,4 @@ router.get('/politica', autenticarTokenNegocio, async (req, res) => {
 });
 
 module.exports = router;
+  
