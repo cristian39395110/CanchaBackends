@@ -1,6 +1,6 @@
 // middlewares/authNegocio.js
 const jwt = require("jsonwebtoken");
-const { uUsuariosNegocio } = require("../models/model");
+const { uUsuarioNegocio } = require("../models/model");
 
 async function autenticarTokenNegocio(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -19,7 +19,7 @@ async function autenticarTokenNegocio(req, res, next) {
     }
 
     // 1) Buscar el usuario real en la base
-    const usuario = await uUsuariosNegocio.findByPk(decoded.id);
+    const usuario = await uUsuarioNegocio.findByPk(decoded.id);
 
     if (!usuario) {
       return res.status(401).json({ error: "Negocio no encontrado" });
@@ -34,7 +34,7 @@ async function autenticarTokenNegocio(req, res, next) {
 
       if (hoy > fin) {
         // Premium vencido → bajar en la base
-        await uUsuariosNegocio.update(
+        await uUsuarioNegocio.update(
           { esPremium: false },
           { where: { id: usuario.id }
         });
