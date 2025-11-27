@@ -22,6 +22,19 @@ const uNegocio = sequelize.define('Negocio', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+    direccion: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+    // 📞 Contacto
+  telefono: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  whatsapp: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   latitud: {
     type: DataTypes.DECIMAL(10, 7),
     allowNull: true,
