@@ -137,12 +137,12 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
 
     const prov = usuario.provincia || null;
 
-    // 🔹 Solo 2 niveles: global (provincia = null) o provincial (misma provincia)
+    // 🔹 Global (provincia = null) o misma provincia
     const whereReto = {
       activo: true,
       [Op.or]: [
-        { provincia: null },   // global
-        { provincia: prov },   // misma provincia
+        { provincia: null }, // global
+        { provincia: prov }, // misma provincia
       ],
     };
 
@@ -161,7 +161,7 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
         'destinoLongitud',
         'destinoRadioMetros',
         'provincia',
-        'localidad', // aunque no la uses, no molesta
+        'localidad',
       ],
       order: [['id', 'DESC']],
     });
@@ -175,30 +175,9 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
       });
     }
 
-    // 🔒 Retos que ESTE usuario ya cobró
-    const cumplidos = await UsuarioRetoCumplido.findAll({
-      where: {
-        usuarioId: usuarioNegocioId,
-        retoId: retos.map((r) => r.id),
-      },
-      attributes: ['retoId'],
-    });
-
-    const retosCumplidosSet = new Set(cumplidos.map((c) => c.retoId));
-    const retosFiltrados = retos.filter((r) => !retosCumplidosSet.has(r.id));
-
-    if (!retosFiltrados.length) {
-      return res.json({
-        activosVigentes: [],
-        futuros: [],
-        vencidos: [],
-        inactivos: [],
-      });
-    }
-
-    // Progreso (solo para saber si está "iniciado")
+    // 👇 Solo calculamos si el usuario lo inició o no
     const progresos = await Promise.all(
-      retosFiltrados.map(async (r) => {
+      retos.map(async (r) => {
         try {
           const prog = await RetoParticipante.findOne({
             where: { retoId: r.id, usuarioId: usuarioNegocioId },
@@ -218,7 +197,7 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
     const activosVigentes = [];
     const inactivos = [];
 
-    for (const r of retosFiltrados) {
+    for (const r of retos) {
       const base = { ...r.toJSON(), iniciado: progMap[r.id] };
       if (r.activo) {
         activosVigentes.push(base);
@@ -238,7 +217,9 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
     });
   } catch (err) {
     console.error('❌ GET /api/retos/disponibles', err);
-    res.status(500).json({ error: 'No se pudieron obtener los retos disponibles' });
+    res
+      .status(500)
+      .json({ error: 'No se pudieron obtener los retos disponibles' });
   }
 });
 
