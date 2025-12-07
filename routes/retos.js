@@ -1230,52 +1230,48 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
         // (en el frontend si querés lo mostrás en km: completado / 1000)
         break;
 
-    case 'destino_unico':
-case 'movimiento_destino': { // por si quedó viejo en la BD
-  // armamos filtro de fecha para los puntos
-  const wherePunto = {};
-  if (whereFecha.createdAt) {
-    wherePunto.createdAt = whereFecha.createdAt;
-  }
+      case 'destino_unico':
+      case 'movimiento_destino': {
+        const wherePunto = {};
+        if (whereFecha.createdAt) {
+          wherePunto.createdAt = whereFecha.createdAt;
+        }
 
-  const puntos = await MovimientoSaludablePunto.findAll({
-    where: wherePunto,
-    include: [
-      {
-        model: MovimientoSaludable,
-        as: 'movimiento',        // 👈 alias como en model.js
-        where: { usuarioNegocioId },
-        attributes: [],          // no necesitamos campos del movimiento
-      },
-      {
-        model: LugarSaludable,
-        as: 'lugar',
-        attributes: ['id', 'nombre'],
-      },
-    ],
-  });
+        const puntos = await MovimientoSaludablePunto.findAll({
+          where: wherePunto,
+          include: [
+            {
+              model: MovimientoSaludable,
+              as: 'movimiento',
+              where: { usuarioNegocioId },
+              attributes: [],
+            },
+            {
+              model: LugarSaludable,
+              as: 'lugar',
+              attributes: ['id', 'nombre'],
+            },
+          ],
+        });
 
-  // Distintos lugares (por si pasa varias veces por el mismo)
-  const porLugar = new Map();
-  for (const p of puntos) {
-    const lid = p.lugarId;       // 👈 este es el campo real
-    if (!lid) continue;
-    if (!porLugar.has(lid)) {
-      porLugar.set(lid, p);
-    }
-  }
+        const porLugar = new Map();
+        for (const p of puntos) {
+          const lid = p.lugarId;
+          if (!lid) continue;
+          if (!porLugar.has(lid)) {
+            porLugar.set(lid, p);
+          }
+        }
 
-  completado = porLugar.size;
-  requisitos = Array.from(porLugar.values()).map((row) => ({
-    lugarId: row.lugarId,
-    nombre: row.lugar?.nombre || 'Lugar saludable',
-  }));
-  break;
-}
+        completado = porLugar.size;
+        requisitos = Array.from(porLugar.values()).map((row) => ({
+          lugarId: row.lugarId,
+          nombre: row.lugar?.nombre || 'Lugar saludable',
+        }));
+        break;
+      }
 
       case 'compras_qr':
-        // ✅ Reto: "Hacé X compras escaneando QR"
-        // Ajustá el campo 'tipo' si en tu modelo es otro nombre
         completado = await uCheckinNegocio.count({
           where: {
             usuarioNegocioId,
@@ -1285,24 +1281,25 @@ case 'movimiento_destino': { // por si quedó viejo en la BD
         });
         break;
 
-      case 'puntos':
-        // ✅ Reto: "Juntá X puntos"
-        // Usamos los puntos totales del usuarioNegocio
-        {
-          const user = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
-            attributes: ['puntos'],
-          });
-          completado = Number(user?.puntos || 0);
-        }
+      case 'puntos': {
+        const user = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
+          attributes: ['puntos'],
+        });
+        completado = Number(user?.puntos || 0);
         break;
+      }
 
       case 'general':
       default:
-        // ✅ Reto genérico (todavía sin lógica específica)
         completado = 0;
         requisitos = [];
         break;
     }
+
+    // 🔥 NUEVO: ver si este reto YA FUE COBRADO por este usuario
+    const yaCobro = await UsuarioRetoCumplido.findOne({
+      where: { retoId: reto.id, usuarioId: usuarioNegocioId },
+    });
 
     // 5) Respondemos al frontend
     res.json({
@@ -1310,14 +1307,14 @@ case 'movimiento_destino': { // por si quedó viejo en la BD
       tipo: reto.tipo,
       completado,
       objetivo: reto.meta ?? 0,
-      requisitos, // array vacío o con info (ej. lugares visitados)
+      requisitos,          // array vacío o con info (ej. lugares visitados)
+      completadoReto: !!yaCobro, // 👈 flag para el frontend
     });
   } catch (e) {
     console.error('GET /api/retos/:id/progreso', e);
     res.status(500).json({ error: 'No se pudo calcular el progreso' });
   }
 });
-
 
 
 router.post('/registrar', autenticarTokenNegocio, async (req, res) => {
