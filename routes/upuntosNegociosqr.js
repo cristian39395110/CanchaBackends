@@ -110,7 +110,7 @@ router.get('/historial', autenticarUsuarioNegocio, async (req, res) => {
 });
 
 
-/* ===========================================================
+/* =======================================================  ====
    2) POST /api/puntosnegociosqr/emitir
    → el negocio genera un QR para dar puntos
    =========================================================== */

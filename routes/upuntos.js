@@ -45,7 +45,10 @@ router.get('/lugares', async (req, res) => {
     const R = 6371;
 
     // 👇 armamos el where base
-    const where = { activo: true };
+    const where = { 
+  activo: true,
+  esPremium: true,   // 👈 SOLO negocios premium
+};
 
     // 👇 si viene categoría distinta de 'todas' filtramos por rubroId
     if (categoria && categoria !== 'todas') {
