@@ -1166,14 +1166,12 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // LOG para debug
     console.log('auth payload:', {
       user: req.user,
       negocio: req.negocio,
       usuarioNegocioId: req.usuarioNegocioId,
     });
 
-    // 1) Sacamos el usuarioNegocioId de forma robusta
     const fromQuery =
       req.query.usuarioId !== undefined && req.query.usuarioId !== ''
         ? parseInt(String(req.query.usuarioId), 10)
@@ -1195,7 +1193,15 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
     const reto = await Reto.findByPk(id);
     if (!reto) return res.status(404).json({ error: 'Reto no encontrado' });
 
-    // 3) Filtro por rango de días (si el reto lo tiene configurado)
+    // 3) Vemos si este usuario YA COBRÓ ese reto alguna vez
+    const yaCobrado = await UsuarioRetoCumplido.findOne({
+      where: {
+        retoId: reto.id,
+        usuarioId: usuarioNegocioId,
+      },
+    });
+
+    // 4) Filtro por rango de días (si el reto lo tiene configurado)
     const whereFecha = {};
     if (reto.rangoDias && Number(reto.rangoDias) > 0) {
       const desde = new Date();
@@ -1206,10 +1212,8 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
     let completado = 0;
     let requisitos = [];
 
-    // 4) Lógica según tipo de reto
     switch (reto.tipo) {
       case 'visitas':
-        // ✅ Reto: "Visitá X negocios" (usa check-in en negocios)
         completado = await uCheckinNegocio.count({
           where: {
             usuarioNegocioId,
@@ -1219,7 +1223,6 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
         break;
 
       case 'movimiento_distancia':
-        // ✅ Reto: "Caminá / movete X km"
         completado =
           (await MovimientoSaludable.sum('distanciaMetros', {
             where: {
@@ -1227,7 +1230,6 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
               ...(Object.keys(whereFecha).length ? whereFecha : {}),
             },
           })) || 0;
-        // (en el frontend si querés lo mostrás en km: completado / 1000)
         break;
 
       case 'destino_unico':
@@ -1296,19 +1298,16 @@ router.get('/:id/progreso', autenticarTokenNegocio, async (req, res) => {
         break;
     }
 
-    // 🔥 NUEVO: ver si este reto YA FUE COBRADO por este usuario
-    const yaCobro = await UsuarioRetoCumplido.findOne({
-      where: { retoId: reto.id, usuarioId: usuarioNegocioId },
-    });
+    // ⚠️ IMPORTANTE: objetivo tiene que venir de algún lado coherente
+    const objetivo = reto.meta ? Number(reto.meta) : 0;
 
-    // 5) Respondemos al frontend
     res.json({
       retoId: reto.id,
       tipo: reto.tipo,
       completado,
-      objetivo: reto.meta ?? 0,
-      requisitos,          // array vacío o con info (ej. lugares visitados)
-      completadoReto: !!yaCobro, // 👈 flag para el frontend
+      objetivo,
+      requisitos,
+      completadoReto: !!yaCobrado, // 👈 esto es lo que usa el frontend para marcarlos como completados
     });
   } catch (e) {
     console.error('GET /api/retos/:id/progreso', e);
