@@ -106,21 +106,54 @@ router.get('/ranking/top', async (req, res) => {
 
 // routes/retos.js (fragmento)
 
+// routes/retos.js
 router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
   try {
-    // Sacar usuarioNegocioId del token
-    const usuarioId =
+    // Sacar usuarioNegocioId del token, como ya hacés en /progreso
+    const fromQuery =
+      req.query.usuarioId !== undefined && req.query.usuarioId !== ''
+        ? parseInt(String(req.query.usuarioId), 10)
+        : null;
+
+    const usuarioNegocioId =
       req.usuarioNegocioId ??
       req.user?.usuarioNegocioId ??
+      req.user?.id ??
       req.negocio?.id ??
+      fromQuery ??
       null;
 
-    if (!usuarioId) {
+    if (!usuarioNegocioId || Number.isNaN(usuarioNegocioId)) {
       return res.status(401).json({ error: 'No autenticado' });
     }
 
-    // ➤ Traer todos los retos (SIN fechaInicio / fechaFin)
+    // Buscamos al usuario para saber su provincia/localidad
+    const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
+      attributes: ['id', 'provincia', 'localidad'],
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const prov = usuario.provincia || null;
+    const loc = usuario.localidad || null;
+
+    // ⚙️ Filtro de retos:
+    // - provincia = null  → nacional
+    // - misma provincia y localidad null → provincial
+    // - misma provincia y misma localidad → hiperlocal
+    const whereReto = {
+      activo: true,
+      [Op.or]: [
+        { provincia: null }, // global
+        { provincia: prov, localidad: null },
+        { provincia: prov, localidad: loc },
+      ],
+    };
+
     const retos = await Reto.findAll({
+      where: whereReto,
       attributes: [
         'id',
         'titulo',
@@ -132,17 +165,19 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
         'rangoDias',
         'destinoLatitud',
         'destinoLongitud',
-        'destinoRadioMetros'
+        'destinoRadioMetros',
+        'provincia',
+        'localidad',
       ],
-      order: [['id', 'DESC']]
+      order: [['id', 'DESC']],
     });
 
-    // ➤ Traer progreso del usuario por cada reto
+    // Progreso por reto como ya lo tenías:
     const progresos = await Promise.all(
       retos.map(async (r) => {
         try {
           const prog = await RetoParticipante.findOne({
-            where: { retoId: r.id, usuarioId }
+            where: { retoId: r.id, usuarioId: usuarioNegocioId },
           });
 
           return { retoId: r.id, iniciado: !!prog };
@@ -156,13 +191,11 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
       progresos.map((p) => [p.retoId, p.iniciado])
     );
 
-    // ➤ Clasificación simple sin fechas
     const activosVigentes = [];
     const inactivos = [];
 
     for (const r of retos) {
       const base = { ...r.toJSON(), iniciado: progMap[r.id] };
-
       if (r.activo) {
         activosVigentes.push(base);
       } else {
@@ -170,7 +203,6 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
       }
     }
 
-    // futuros y vencidos vacíos para no romper el front
     const futuros = [];
     const vencidos = [];
 
@@ -178,15 +210,13 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
       activosVigentes,
       futuros,
       vencidos,
-      inactivos
+      inactivos,
     });
-
   } catch (err) {
     console.error('❌ GET /api/retos/disponibles', err);
     res.status(500).json({ error: 'No se pudieron obtener los retos disponibles' });
   }
 });
-
 
 /**
  * ===========================================================
