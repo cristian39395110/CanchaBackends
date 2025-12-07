@@ -12,6 +12,19 @@ const Reto = sequelize.define('Reto', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  // models/Reto.js
+// models/Reto.js
+provincia: {
+  type: DataTypes.STRING,
+  allowNull: true,   // ✅ ahora acepta null para retos nacionales
+},
+
+
+localidad: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+
 
   // 🔢 Puntos que otorga el reto al completarlo
   puntos: {

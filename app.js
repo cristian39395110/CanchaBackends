@@ -269,20 +269,15 @@ app.use('/api/promoNegocio', promoNegocioRoutes);
 
 
 
-//______________________________-----------------------------
-
-
 const puntosNegociosqrRoutes = require('./routes/upuntosNegociosqr');
 app.use('/api/puntosnegociosqr', puntosNegociosqrRoutes);
 
-//______________________________-----------------------------
+
 
 
 const ganadorRoutes = require('./routes/uganador');
 app.use('/api/ganador', ganadorRoutes);
 
-
-//______________________________-----------------------------
 const retosRoutes = require('./routes/retos');
 app.use('/api/retos', retosRoutes);
   
@@ -323,6 +318,43 @@ app.use('/api/negocio', negociosRankingRoutes);
 //------------------------------------------------------------------
 //Fin de Negocio 
   //---------------------------
+
+
+
+  //------------------------------------------------------------------
+//Parte Comercial Vendedores y Encargada, 
+  //---------------------------
+
+
+const tecnicocomercioRoutes = require("./routes/tecnicocomercio");
+app.use("/api/tecnicocomercio", tecnicocomercioRoutes);
+
+
+
+
+const supervisorventasRoutes = require("./routes/supervisor");
+app.use("/api/supervisor", supervisorventasRoutes);
+
+
+const rutasVendedor = require("./routes/vendedor");
+
+app.use("/api/vendedor", rutasVendedor);
+
+
+const AdminRoutes = require("./routes/admin");
+
+app.use("/api/admin", AdminRoutes);
+
+
+const SupAdminRoutes = require("./routes/adminSupervisor");
+app.use('/api/admin-supervisor', SupAdminRoutes);
+
+
+  //------------------------------------------------------------------
+//Fin Fin Comercial Vendedores y Encargada, 
+  //---------------------------
+
+
 
 
   // 📤 Ruta de test para enviar notificación FCM

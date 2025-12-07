@@ -65,6 +65,84 @@ const PartnerPublicidad = require('./uPartnerPublicidad');
 const RubroNegocio = require('./RubroNegocio');
 
 
+const ParteTecnica = require('./ParteTecnica');
+
+const VentaVendedor = require('./VentaVendedor');
+const LiquidacionVendedor = require('./LiquidacionVendedor');
+
+const AlertasSupervisor = require('./AlertasSupervisor');
+const SorteoMensualProvincia = require('./SorteoMensualProvincia');
+
+
+
+// ... después de definir uUsuarioNegocio y antes del module.exports
+
+SorteoMensualProvincia.belongsTo(uUsuarioNegocio, {
+  foreignKey: 'usuarioId',
+  as: 'usuario',
+});
+
+uUsuarioNegocio.hasMany(SorteoMensualProvincia, {
+  foreignKey: 'usuarioId',
+  as: 'sorteosGanados',
+});
+
+
+
+// ==========================
+// 🔔 ALERTAS DEL SUPERVISOR
+// ==========================
+
+// Cada alerta pertenece a un supervisor (ParteTecnica con rol = supervisor)
+AlertasSupervisor.belongsTo(ParteTecnica, {
+  foreignKey: "supervisorId",
+  as: "supervisor",
+});
+
+// Cada alerta puede pertenecer a un vendedor
+AlertasSupervisor.belongsTo(ParteTecnica, {
+  foreignKey: "vendedorId",
+  as: "vendedor",
+});
+
+// Un supervisor tiene muchas alertas
+ParteTecnica.hasMany(AlertasSupervisor, {
+  foreignKey: "supervisorId",
+  as: "alertas",
+});
+
+
+
+// Un vendedor tiene muchas ventas
+ParteTecnica.hasMany(VentaVendedor, { foreignKey: "vendedorId" });
+VentaVendedor.belongsTo(ParteTecnica, { foreignKey: "vendedorId" });
+
+// Un negocio pertenece a una venta
+// Un negocio tiene muchas ventas
+uNegocio.hasMany(VentaVendedor, {
+  foreignKey: "negocioId",
+  as: "ventas", // este alias no te rompe nada
+});
+
+// Una venta pertenece a un negocio
+VentaVendedor.belongsTo(uNegocio, {
+  foreignKey: "negocioId",
+  as: "uNegocio", // 👈 ESTE alias hace que exista v.uNegocio
+});
+
+
+// Relación con liquidación
+LiquidacionVendedor.hasMany(VentaVendedor, { foreignKey: "liquidacionId" });
+VentaVendedor.belongsTo(LiquidacionVendedor, { foreignKey: "liquidacionId" });
+
+// Un vendedor tiene muchas liquidaciones
+ParteTecnica.hasMany(LiquidacionVendedor, { foreignKey: "vendedorId" });
+LiquidacionVendedor.belongsTo(ParteTecnica, { foreignKey: "vendedorId" });
+
+
+
+
+// ParteTecnica ↔ uNegocio  (técnicos / vendedores de un negocio)
 
 
 
@@ -267,7 +345,16 @@ Reto.hasMany(UsuarioRetoCumplido, { foreignKey: 'retoId', as: 'cumplimientos' })
 Usuario.hasMany(UsuarioRetoCumplido, { foreignKey: 'usuarioId', as: 'retosCumplidos' });
 
 // Un cumplimiento pertenece a un usuario y a un reto
-UsuarioRetoCumplido.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+UsuarioRetoCumplido.belongsTo(uUsuarioNegocio, {
+  foreignKey: "usuarioId",
+  as: "usuario",   // 👈 mantenemos el alias "usuario" porque así lo usa la query
+});
+
+uUsuarioNegocio.hasMany(UsuarioRetoCumplido, {
+  foreignKey: "usuarioId",
+  as: "retosCumplidos",
+});
+
 UsuarioRetoCumplido.belongsTo(Reto, { foreignKey: 'retoId', as: 'reto' });
 
 // Negocios ↔ UsuariosNegocio (dueño)
@@ -523,6 +610,12 @@ LugarSaludable,
 PartnerPublicidad,
 TarifaPublicidad,
 PlanNegocio,
-RubroNegocio
+RubroNegocio,
+  ParteTecnica,
+  LiquidacionVendedor,
+  VentaVendedor,
+  AlertasSupervisor,
+  SorteoMensualProvincia
+
 
 };
