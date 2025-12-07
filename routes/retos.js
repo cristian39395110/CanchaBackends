@@ -109,7 +109,6 @@ router.get('/ranking/top', async (req, res) => {
 // routes/retos.js
 router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
   try {
-    // Sacar usuarioNegocioId del token, como ya hacés en /progreso
     const fromQuery =
       req.query.usuarioId !== undefined && req.query.usuarioId !== ''
         ? parseInt(String(req.query.usuarioId), 10)
@@ -127,9 +126,9 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
       return res.status(401).json({ error: 'No autenticado' });
     }
 
-    // Buscamos al usuario para saber su provincia/localidad
+    // usuario => necesitamos la provincia
     const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
-      attributes: ['id', 'provincia', 'localidad'],
+      attributes: ['id', 'provincia'],
     });
 
     if (!usuario) {
@@ -137,18 +136,13 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
     }
 
     const prov = usuario.provincia || null;
-    const loc = usuario.localidad || null;
 
-    // ⚙️ Filtro de retos:
-    // - provincia = null  → nacional
-    // - misma provincia y localidad null → provincial
-    // - misma provincia y misma localidad → hiperlocal
+    // 🔹 Solo 2 niveles: global (provincia = null) o provincial (misma provincia)
     const whereReto = {
       activo: true,
       [Op.or]: [
-        { provincia: null }, // global
-        { provincia: prov, localidad: null },
-        { provincia: prov, localidad: loc },
+        { provincia: null },   // global
+        { provincia: prov },   // misma provincia
       ],
     };
 
@@ -167,14 +161,44 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
         'destinoLongitud',
         'destinoRadioMetros',
         'provincia',
-        'localidad',
+        'localidad', // aunque no la uses, no molesta
       ],
       order: [['id', 'DESC']],
     });
 
-    // Progreso por reto como ya lo tenías:
+    if (!retos.length) {
+      return res.json({
+        activosVigentes: [],
+        futuros: [],
+        vencidos: [],
+        inactivos: [],
+      });
+    }
+
+    // 🔒 Retos que ESTE usuario ya cobró
+    const cumplidos = await UsuarioRetoCumplido.findAll({
+      where: {
+        usuarioId: usuarioNegocioId,
+        retoId: retos.map((r) => r.id),
+      },
+      attributes: ['retoId'],
+    });
+
+    const retosCumplidosSet = new Set(cumplidos.map((c) => c.retoId));
+    const retosFiltrados = retos.filter((r) => !retosCumplidosSet.has(r.id));
+
+    if (!retosFiltrados.length) {
+      return res.json({
+        activosVigentes: [],
+        futuros: [],
+        vencidos: [],
+        inactivos: [],
+      });
+    }
+
+    // Progreso (solo para saber si está "iniciado")
     const progresos = await Promise.all(
-      retos.map(async (r) => {
+      retosFiltrados.map(async (r) => {
         try {
           const prog = await RetoParticipante.findOne({
             where: { retoId: r.id, usuarioId: usuarioNegocioId },
@@ -194,7 +218,7 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
     const activosVigentes = [];
     const inactivos = [];
 
-    for (const r of retos) {
+    for (const r of retosFiltrados) {
       const base = { ...r.toJSON(), iniciado: progMap[r.id] };
       if (r.activo) {
         activosVigentes.push(base);
@@ -217,6 +241,7 @@ router.get('/disponibles', autenticarTokenNegocio, async (req, res) => {
     res.status(500).json({ error: 'No se pudieron obtener los retos disponibles' });
   }
 });
+
 
 /**
  * ===========================================================
