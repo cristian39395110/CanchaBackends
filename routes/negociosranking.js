@@ -4,6 +4,7 @@ const router = express.Router();
 
 const { uNegocio,uCheckinNegocio } = require('../models/model');
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
+const { autenticarUsuarioNegocio } = require("../middlewares/authUsuarioNegocio");
 
 router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
   try {
