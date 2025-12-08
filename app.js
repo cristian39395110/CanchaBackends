@@ -314,6 +314,12 @@ app.use('/api/negocio', negociosRankingRoutes);
 
 
 
+const ganadorUsusuarioRoutes = require('./routes/ganadorUsuariosNegocio');
+app.use('/api/ganadorusuario', ganadorUsusuarioRoutes);
+
+
+
+
 
 //------------------------------------------------------------------
 //Fin de Negocio 
