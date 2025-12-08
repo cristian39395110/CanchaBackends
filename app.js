@@ -311,9 +311,10 @@ app.use("/api/planes-negocio", planRoutes);
 const negociosRankingRoutes = require('./routes/negociosranking');
 app.use('/api/negocio', negociosRankingRoutes);
 
+//------------------------------------------------------------------
+//Este endpoint me da el ganador por provinicia de la app punto mas
 
-
-
+//------------------------------------------------------------------
 const ganadorUsusuarioRoutes = require('./routes/ganadorUsuariosNegocio');
 app.use('/api/ganadorusuario', ganadorUsusuarioRoutes);
 

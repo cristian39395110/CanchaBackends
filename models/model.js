@@ -74,6 +74,16 @@ const AlertasSupervisor = require('./AlertasSupervisor');
 const SorteoMensualProvincia = require('./SorteoMensualProvincia');
 
 
+Ganador.belongsTo(uUsuarioNegocio, {
+  foreignKey: 'usuarioId',
+  as: 'Usuario',
+});
+
+uUsuarioNegocio.hasMany(Ganador, {
+  foreignKey: 'usuarioId',
+  as: 'ganadoresSorteo',
+});
+
 
 // ... después de definir uUsuarioNegocio y antes del module.exports
 
