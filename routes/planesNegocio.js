@@ -7,7 +7,7 @@ const { PlanNegocio, uNegocio, uUsuarioNegocio } = require("../models/model");
 
 // SDK nuevo de MercadoPago
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
-const { autenticarTokenNegocio, autenticarUsuarioNegocio } = require("../middlewares/authNegocio");
+const { autenticarTokenNegocio } = require("../middlewares/authNegocio");
 
 const {autenticarUsuarioNegocio } = require("../middlewares/authUsuarioNegocio");
 
