@@ -56,9 +56,7 @@ function addMeses(fecha, meses) {
    - Retos (UsuarioRetoCumplido)
    ===================================== */
 router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
-  // ⚠️ así lo usás en /historial
   const usuarioNegocioId = req.negocio.id;
-  console.log(usuarioNegocioId,"seuuuuuuuu")
 
   try {
     const hoy = new Date();
@@ -70,7 +68,7 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
     const inicioMesAnteriorSiguiente = inicioMesActual;
 
     // ---------- MES ACTUAL ----------
-    // 1) puntos por checkins
+    // 1) puntos por CHECKINS del mes actual
     const puntosCheckinsActual =
       (await uCheckinNegocio.sum('puntosGanados', {
         where: {
@@ -81,27 +79,18 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
           },
         },
       })) || 0;
-        console.log(usuarioNegocioId,"222222222222222222")
 
-    // 2) puntos por retos (sumo en JS por seguridad)
-    const retosActual = await UsuarioRetoCumplido.findAll({
-      where: {
-        usuarioId: usuarioNegocioId,
-        createdAt: {
-          [Op.gte]: inicioMesActual,
-          [Op.lt]: inicioMesSiguiente,
+    // 2) puntos por RETOS del mes actual (solo puntosOtorgados)
+    const puntosRetosActual =
+      (await UsuarioRetoCumplido.sum('puntosOtorgados', {
+        where: {
+          usuarioId: usuarioNegocioId,
+          createdAt: {
+            [Op.gte]: inicioMesActual,
+            [Op.lt]: inicioMesSiguiente,
+          },
         },
-      },
-      attributes: ['puntosOtorgados', 'puntosGanados'],
-      raw: true,
-    });
-      console.log(usuarioNegocioId,"33333333333333333333")
-
-    const puntosRetosActual = retosActual.reduce((acc, r) => {
-      const puntos =
-        (r.puntosOtorgados ?? r.puntosGanados ?? 0);
-      return acc + Number(puntos);
-    }, 0);
+      })) || 0;
 
     const puntosMesActual = puntosCheckinsActual + puntosRetosActual;
 
@@ -117,31 +106,20 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
         },
       })) || 0;
 
-
-        console.log(usuarioNegocioId,"44444444444444444444")
-    const retosAnterior = await UsuarioRetoCumplido.findAll({
-      where: {
-        usuarioId: usuarioNegocioId,
-        createdAt: {
-          [Op.gte]: inicioMesAnterior,
-          [Op.lt]: inicioMesAnteriorSiguiente,
+    const puntosRetosAnterior =
+      (await UsuarioRetoCumplido.sum('puntosOtorgados', {
+        where: {
+          usuarioId: usuarioNegocioId,
+          createdAt: {
+            [Op.gte]: inicioMesAnterior,
+            [Op.lt]: inicioMesAnteriorSiguiente,
+          },
         },
-      },
-      attributes: ['puntosOtorgados', 'puntosGanados'],
-      raw: true,
-    });
-      console.log(usuarioNegocioId,"5555555555555555555555555555")
-
-    const puntosRetosAnterior = retosAnterior.reduce((acc, r) => {
-      const puntos =
-        (r.puntosOtorgados ?? r.puntosGanados ?? 0);
-      return acc + Number(puntos);
-    }, 0);
+      })) || 0;
 
     const puntosMesAnterior = puntosCheckinsAnterior + puntosRetosAnterior;
 
     const diferencia = puntosMesActual - puntosMesAnterior;
-      console.log(usuarioNegocioId,"666666666666666666")
 
     return res.json({
       puntosMesActual,
@@ -210,8 +188,8 @@ router.get('/historial-mensual', autenticarUsuarioNegocio, async (req, res) => {
       attributes: [
         [fn('YEAR', col('createdAt')), 'anio'],
         [fn('MONTH', col('createdAt')), 'mes'],
-        // SUM(COALESCE(puntosOtorgados, puntosGanados, 0))
-        [fn('SUM', literal('COALESCE(puntosOtorgados, puntosGanados, 0)')), 'totalPuntos'],
+        // solo puntosOtorgados, porque puntosGanados NO existe en esta tabla
+        [fn('SUM', col('puntosOtorgados')), 'totalPuntos'],
       ],
       where: {
         usuarioId: usuarioNegocioId,
@@ -291,6 +269,7 @@ router.get('/historial-mensual', autenticarUsuarioNegocio, async (req, res) => {
       .json({ error: 'Error al obtener historial mensual' });
   }
 });
+
 
 
 
