@@ -10,6 +10,15 @@ const { autenticarUsuarioNegocio } = require('../middlewares/authUsuarioNegocio'
 
 
 const {
+  uCheckinNegocio,
+  UsuarioRetoCumplido,
+} = require('../models/model');
+
+const { autenticarUsuarioNegocio } = require('../middlewares/authNegocio'); 
+
+
+
+const {
   uQRCompraNegocio,
   uCheckinNegocio,
   uNegocio,
@@ -33,6 +42,261 @@ function generarCodigoQR() {
 
   return codigo;
 }
+
+
+
+// 👈 usás el mismo que en /historial
+
+// ---------- helpers de fechas ----------
+function getInicioMes(fecha) {
+  return new Date(fecha.getFullYear(), fecha.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function addMeses(fecha, meses) {
+  return new Date(fecha.getFullYear(), fecha.getMonth() + meses, 1, 0, 0, 0, 0);
+}
+
+/* =====================================
+   A) RESUMEN: MES ACTUAL vs MES ANTERIOR
+   Incluye:
+   - Checkins (uCheckinNegocio)
+   - Retos (UsuarioRetoCumplido)
+   ===================================== */
+router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
+  // ⚠️ así lo usás en /historial
+  const usuarioNegocioId = req.negocio.id;
+
+  try {
+    const hoy = new Date();
+
+    const inicioMesActual = getInicioMes(hoy);
+    const inicioMesSiguiente = addMeses(inicioMesActual, 1);
+
+    const inicioMesAnterior = addMeses(inicioMesActual, -1);
+    const inicioMesAnteriorSiguiente = inicioMesActual;
+
+    // ---------- MES ACTUAL ----------
+    // 1) puntos por checkins
+    const puntosCheckinsActual =
+      (await uCheckinNegocio.sum('puntosGanados', {
+        where: {
+          usuarioNegocioId,
+          fecha: {
+            [Op.gte]: inicioMesActual,
+            [Op.lt]: inicioMesSiguiente,
+          },
+        },
+      })) || 0;
+
+    // 2) puntos por retos (sumo en JS por seguridad)
+    const retosActual = await UsuarioRetoCumplido.findAll({
+      where: {
+        usuarioId: usuarioNegocioId,
+        createdAt: {
+          [Op.gte]: inicioMesActual,
+          [Op.lt]: inicioMesSiguiente,
+        },
+      },
+      attributes: ['puntosOtorgados', 'puntosGanados'],
+      raw: true,
+    });
+
+    const puntosRetosActual = retosActual.reduce((acc, r) => {
+      const puntos =
+        (r.puntosOtorgados ?? r.puntosGanados ?? 0);
+      return acc + Number(puntos);
+    }, 0);
+
+    const puntosMesActual = puntosCheckinsActual + puntosRetosActual;
+
+    // ---------- MES ANTERIOR ----------
+    const puntosCheckinsAnterior =
+      (await uCheckinNegocio.sum('puntosGanados', {
+        where: {
+          usuarioNegocioId,
+          fecha: {
+            [Op.gte]: inicioMesAnterior,
+            [Op.lt]: inicioMesAnteriorSiguiente,
+          },
+        },
+      })) || 0;
+
+    const retosAnterior = await UsuarioRetoCumplido.findAll({
+      where: {
+        usuarioId: usuarioNegocioId,
+        createdAt: {
+          [Op.gte]: inicioMesAnterior,
+          [Op.lt]: inicioMesAnteriorSiguiente,
+        },
+      },
+      attributes: ['puntosOtorgados', 'puntosGanados'],
+      raw: true,
+    });
+
+    const puntosRetosAnterior = retosAnterior.reduce((acc, r) => {
+      const puntos =
+        (r.puntosOtorgados ?? r.puntosGanados ?? 0);
+      return acc + Number(puntos);
+    }, 0);
+
+    const puntosMesAnterior = puntosCheckinsAnterior + puntosRetosAnterior;
+
+    const diferencia = puntosMesActual - puntosMesAnterior;
+
+    return res.json({
+      puntosMesActual,
+      puntosMesAnterior,
+      diferencia,
+      detalle: {
+        checkins: {
+          actual: puntosCheckinsActual,
+          anterior: puntosCheckinsAnterior,
+        },
+        retos: {
+          actual: puntosRetosActual,
+          anterior: puntosRetosAnterior,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('Error en GET /api/puntos/resumen:', err);
+    return res
+      .status(500)
+      .json({ error: 'Error al obtener resumen de puntos' });
+  }
+});
+
+/* =====================================
+   C) HISTORIAL MENSUAL (últimos N meses)
+   Suma:
+   - puntos de uCheckinNegocio (fecha)
+   - puntos de UsuarioRetoCumplido (createdAt)
+   ===================================== */
+router.get('/historial-mensual', autenticarUsuarioNegocio, async (req, res) => {
+  const usuarioNegocioId = req.negocio.id;
+
+  try {
+    const meses = Number(req.query.meses) || 6;
+    const hoy = new Date();
+
+    const inicioMesActual = getInicioMes(hoy);
+    const inicioRango = addMeses(inicioMesActual, -(meses - 1));
+    const finRango = addMeses(inicioMesActual, 1);
+
+    // ---------- CHECKINS AGRUPADOS POR MES ----------
+    const rowsCheckins = await uCheckinNegocio.findAll({
+      attributes: [
+        [fn('YEAR', col('fecha')), 'anio'],
+        [fn('MONTH', col('fecha')), 'mes'],
+        [fn('SUM', col('puntosGanados')), 'totalPuntos'],
+      ],
+      where: {
+        usuarioNegocioId,
+        fecha: {
+          [Op.gte]: inicioRango,
+          [Op.lt]: finRango,
+        },
+      },
+      group: ['anio', 'mes'],
+      order: [
+        [literal('anio'), 'ASC'],
+        [literal('mes'), 'ASC'],
+      ],
+      raw: true,
+    });
+
+    // ---------- RETOS AGRUPADOS POR MES ----------
+    const rowsRetos = await UsuarioRetoCumplido.findAll({
+      attributes: [
+        [fn('YEAR', col('createdAt')), 'anio'],
+        [fn('MONTH', col('createdAt')), 'mes'],
+        // SUM(COALESCE(puntosOtorgados, puntosGanados, 0))
+        [fn('SUM', literal('COALESCE(puntosOtorgados, puntosGanados, 0)')), 'totalPuntos'],
+      ],
+      where: {
+        usuarioId: usuarioNegocioId,
+        createdAt: {
+          [Op.gte]: inicioRango,
+          [Op.lt]: finRango,
+        },
+      },
+      group: ['anio', 'mes'],
+      order: [
+        [literal('anio'), 'ASC'],
+        [literal('mes'), 'ASC'],
+      ],
+      raw: true,
+    });
+
+    // ---------- COMBINAR CHECKINS + RETOS POR MES ----------
+    const mapa = new Map(); // key: `${anio}-${mes}` → { anio, mes, checkins, retos }
+
+    for (const row of rowsCheckins) {
+      const anio = Number(row.anio);
+      const mes = Number(row.mes);
+      const key = `${anio}-${mes}`;
+      const total = Number(row.totalPuntos) || 0;
+
+      if (!mapa.has(key)) {
+        mapa.set(key, { anio, mes, checkins: 0, retos: 0 });
+      }
+      const item = mapa.get(key);
+      item.checkins += total;
+    }
+
+    for (const row of rowsRetos) {
+      const anio = Number(row.anio);
+      const mes = Number(row.mes);
+      const key = `${anio}-${mes}`;
+      const total = Number(row.totalPuntos) || 0;
+
+      if (!mapa.has(key)) {
+        mapa.set(key, { anio, mes, checkins: 0, retos: 0 });
+      }
+      const item = mapa.get(key);
+      item.retos += total;
+    }
+
+    // ---------- ARMAR SALIDA CONTINUA POR MES ----------
+    const resultado = [];
+    for (let i = 0; i < meses; i++) {
+      const fecha = addMeses(inicioRango, i);
+      const anio = fecha.getFullYear();
+      const mes = fecha.getMonth() + 1; // 1-12
+      const key = `${anio}-${mes}`;
+
+      const item = mapa.get(key) || {
+        anio,
+        mes,
+        checkins: 0,
+        retos: 0,
+      };
+
+      resultado.push({
+        anio,
+        mes,
+        totalPuntos: item.checkins + item.retos,
+        detalle: {
+          checkins: item.checkins,
+          retos: item.retos,
+        },
+      });
+    }
+
+    return res.json(resultado);
+  } catch (err) {
+    console.error('Error en GET /api/puntos/historial-mensual:', err);
+    return res
+      .status(500)
+      .json({ error: 'Error al obtener historial mensual' });
+  }
+});
+
+
+
+
+
+
 
 /* ===========================================================
    1) GET /api/puntosnegociosqr/historial
