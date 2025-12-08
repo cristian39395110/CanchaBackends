@@ -1,3 +1,4 @@
+//Canchas2025Backend/app-partidos/middlewares/auth.js
 const jwt = require('jsonwebtoken');
 function autenticarToken(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];

@@ -7,7 +7,9 @@ const { PlanNegocio, uNegocio, uUsuarioNegocio } = require("../models/model");
 
 // SDK nuevo de MercadoPago
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
-const { autenticarTokenNegocio } = require("../middlewares/authNegocio");
+const { autenticarTokenNegocio, autenticarUsuarioNegocio } = require("../middlewares/authNegocio");
+
+const {autenticarUsuarioNegocio } = require("../middlewares/authUsuarioNegocio");
 
 // ⚙️ Config MP (poné tu access token en .env)
 const mpClient = new MercadoPagoConfig({
@@ -83,7 +85,7 @@ router.get("/mi-plan", autenticarTokenNegocio, async (req, res) => {
  * POST /api/planes-negocio/crear-orden
  * Crea la preferencia de pago para el plan de negocio.
  */
-router.post("/crear-orden", autenticarTokenNegocio, async (req, res) => {
+router.post("/crear-orden", autenticarUsuarioNegocio, async (req, res) => {
   try {
     const { planId } = req.body;
     const plan = await PlanNegocio.findByPk(planId);
