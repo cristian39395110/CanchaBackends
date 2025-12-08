@@ -47,7 +47,7 @@ router.get('/lugares', async (req, res) => {
     // 👇 SOLO negocios activos y con plan premium (ej: 2)
     const where = { 
       activo: true,
-      planId: 2,
+      planId: 1,
     };
 
     if (categoria && categoria !== 'todas') {
