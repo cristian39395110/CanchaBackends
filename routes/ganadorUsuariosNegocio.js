@@ -24,12 +24,15 @@ function getPeriodo(anioParam, mesParam) {
  * Usa la provincia del USUARIO logueado:
  *   req.usuario.provincia
  */
+// routes/ganadorusuario.js
 router.get('/ganadores-mes', autenticarUsuarioNegocio, async (req, res) => {
   try {
     const { anio: qAnio, mes: qMes } = req.query;
     const { anio, mes } = getPeriodo(qAnio, qMes);
 
-    const provinciaUsuario = req.usuario?.provincia || null;
+    // 👇 acá el cambio importante
+    const provinciaUsuario =
+      req.user?.provincia || req.negocio?.provincia || null;
 
     if (!provinciaUsuario) {
       return res
@@ -57,7 +60,6 @@ router.get('/ganadores-mes', autenticarUsuarioNegocio, async (req, res) => {
       anio,
       mes,
       provincia: provinciaUsuario,
-      // Podés tomar la fecha del primero, si la guardás en cada fila
       fechaSorteo: ganadores[0]?.fechaSorteo || null,
       ganadores: ganadores.map((g, idx) => ({
         id: g.id,
@@ -79,5 +81,6 @@ router.get('/ganadores-mes', autenticarUsuarioNegocio, async (req, res) => {
       .json({ error: 'Error al obtener ganadores del mes.' });
   }
 });
+
 
 module.exports = router;
