@@ -80,8 +80,17 @@ router.get('/vigentes', async (req, res) => {
           },
           required: true,
         },
+
+        // ⭐⭐ FILTRO PREMIUM REAL ⭐⭐
         {
-          // 👉 acá NO ponemos "as", dejamos el alias por defecto: "RubroNegocio"
+          model: uUsuarioNegocio,
+          as: 'duenio',
+          where: { esPremium: true },   // 🔥 solo dueños premium
+          required: true,               // INNER JOIN
+          attributes: [],               // no devuelve info del dueño
+        },
+
+        {
           model: RubroNegocio,
           attributes: ['id', 'nombre', 'icono'],
           required: false,
@@ -120,7 +129,6 @@ router.get('/vigentes', async (req, res) => {
         negocioId: negocio.id,
         nombre: negocio.nombre,
         rubroId: negocio.rubroId,
-        // 👇 OJO: ahora el nombre viene en negocio.RubroNegocio
         rubroNombre: negocio.RubroNegocio
           ? negocio.RubroNegocio.nombre
           : null,
