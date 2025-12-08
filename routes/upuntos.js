@@ -37,19 +37,21 @@ router.get('/lugares', async (req, res) => {
   try {
     const { lat, lng, radio = 3000, categoria, soloPromo } = req.query;
 
+    // Si no viene ubicación, no devolvemos nada
     if (!lat || !lng) return res.json([]);
 
     const LAT = Number(lat);
     const LNG = Number(lng);
     const RADIO_METROS = Number(radio);
-    const R = 6371;
+    const R = 6371; // radio de la Tierra en km
 
-    // 👇 SOLO negocios activos y con plan premium (ej: 2)
+    // 👇 SOLO negocios activos y del plan que paga (plan 1)
     const where = { 
       activo: true,
-      planId: 1,
+      planId: 1,   // 🔥 solo los que pagan
     };
 
+    // 👇 si viene categoría distinta de 'todas' filtramos por rubroId
     if (categoria && categoria !== 'todas') {
       const rubroId = Number(categoria);
       if (!Number.isNaN(rubroId)) {
@@ -57,11 +59,13 @@ router.get('/lugares', async (req, res) => {
       }
     }
 
+    // 👇 cargamos negocios que cumplen el where
     const negocios = await uNegocio.findAll({
       where,
       attributes: [
         'id',
         'nombre',
+        // alias para el front:
         ['rubro', 'categoria'],
         ['provincia', 'provincia'],
         ['localidad', 'localidad'],
@@ -78,6 +82,7 @@ router.get('/lugares', async (req, res) => {
 
     const toRad = (v) => (v * Math.PI) / 180;
 
+    // 👇 interpretamos soloPromo (viene como string)
     const soloPromoBool =
       soloPromo === '1' || soloPromo === 'true' || soloPromo === 'on';
 
@@ -102,7 +107,8 @@ router.get('/lugares', async (req, res) => {
         return {
           ...n,
           distancia: distanciaM,
-          tienePromo: n.planId === 2, // si querés, esto ya es redundante
+          // 👇 como solo plan 1 paga, acá marcamos promo = plan 1
+          tienePromo: n.planId === 1,
         };
       })
       .filter(Boolean)
@@ -116,6 +122,7 @@ router.get('/lugares', async (req, res) => {
     res.status(500).json({ error: 'Error al buscar lugares con puntos' });
   }
 });
+
 
 
 
