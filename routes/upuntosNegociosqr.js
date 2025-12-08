@@ -9,13 +9,6 @@ const { autenticarUsuarioNegocio } = require('../middlewares/authUsuarioNegocio'
 
 
 
-const {
-  uCheckinNegocio,
-  UsuarioRetoCumplido,
-} = require('../models/model');
-
-const { autenticarUsuarioNegocio } = require('../middlewares/authNegocio'); 
-
 
 
 const {
