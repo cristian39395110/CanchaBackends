@@ -45,10 +45,9 @@ router.get('/lugares', async (req, res) => {
     const RADIO_METROS = Number(radio);
     const R = 6371; // radio de la Tierra en km
 
-    // 👇 SOLO negocios activos y del plan que paga (plan 1)
-    const where = { 
+    // 👇 SOLO negocios activos
+    const where = {
       activo: true,
-      planId: 1,   // 🔥 solo los que pagan
     };
 
     // 👇 si viene categoría distinta de 'todas' filtramos por rubroId
@@ -59,13 +58,23 @@ router.get('/lugares', async (req, res) => {
       }
     }
 
-    // 👇 cargamos negocios que cumplen el where
+    // 👇 cargamos negocios:
+    //   - activos
+    //   - cuyo DUEÑO (uUsuarioNegocio) tiene esPremium = true
     const negocios = await uNegocio.findAll({
       where,
+      include: [
+        {
+          model: uUsuarioNegocio,
+          as: 'duenio',        // 👈 usa la asociación que ya definiste
+          where: { esPremium: true }, // 🔥 dueño premium obligatorio
+          attributes: [],      // no agregamos campos del dueño al resultado
+          required: true,      // INNER JOIN: si no tiene dueño premium, no aparece
+        },
+      ],
       attributes: [
         'id',
         'nombre',
-        // alias para el front:
         ['rubro', 'categoria'],
         ['provincia', 'provincia'],
         ['localidad', 'localidad'],
@@ -101,14 +110,16 @@ router.get('/lugares', async (req, res) => {
             Math.cos(toRad(nLat)) *
             Math.sin(dLng / 2) ** 2;
 
-        const distanciaKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        const distanciaKm =
+          R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         const distanciaM = distanciaKm * 1000;
 
         return {
           ...n,
           distancia: distanciaM,
-          // 👇 como solo plan 1 paga, acá marcamos promo = plan 1
-          tienePromo: n.planId === 1,
+          // Si querés que el filtro soloPromo funcione,
+          // marcamos true para todos estos (son todos premium por dueño).
+          tienePromo: true,
         };
       })
       .filter(Boolean)
