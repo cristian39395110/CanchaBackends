@@ -58,6 +58,7 @@ function addMeses(fecha, meses) {
 router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
   // ⚠️ así lo usás en /historial
   const usuarioNegocioId = req.negocio.id;
+  console.log(usuarioNegocioId,"seuuuuuuuu")
 
   try {
     const hoy = new Date();
