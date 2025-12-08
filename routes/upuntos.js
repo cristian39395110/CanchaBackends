@@ -1,7 +1,7 @@
 // routes/puntosNegocio
 const express = require('express');
 const router = express.Router();
-const {uNegocio,RubroNegocio} = require('../models/model'); // 👈 el que mostraste
+const {uNegocio,RubroNegocio,uUsuarioNegocio} = require('../models/model'); // 👈 el que mostraste
 
 // GET /api/puntos/lugares?lat=-33.3&lng=-66.3&radio=3000&categoria=...&soloPromo=1
 // GET /api/puntosNegocio/categorias
