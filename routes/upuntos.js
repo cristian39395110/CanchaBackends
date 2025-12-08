@@ -44,13 +44,12 @@ router.get('/lugares', async (req, res) => {
     const RADIO_METROS = Number(radio);
     const R = 6371;
 
-    // 👇 armamos el where base
+    // 👇 SOLO negocios activos y con plan premium (ej: 2)
     const where = { 
-  activo: true,
-  esPremium: true,   // 👈 SOLO negocios premium
-};
+      activo: true,
+      planId: 2,
+    };
 
-    // 👇 si viene categoría distinta de 'todas' filtramos por rubroId
     if (categoria && categoria !== 'todas') {
       const rubroId = Number(categoria);
       if (!Number.isNaN(rubroId)) {
@@ -58,14 +57,12 @@ router.get('/lugares', async (req, res) => {
       }
     }
 
-    // 👇 cargamos negocios
     const negocios = await uNegocio.findAll({
       where,
       attributes: [
         'id',
         'nombre',
-        // alias para el front:
-        ['rubro', 'categoria'],               // string viejo, si lo seguís usando
+        ['rubro', 'categoria'],
         ['provincia', 'provincia'],
         ['localidad', 'localidad'],
         ['latitud', 'lat'],
@@ -74,14 +71,13 @@ router.get('/lugares', async (req, res) => {
         ['foto', 'fotoPerfil'],
         'planId',
         'activo',
-        'rubroId',                            // por si lo querés usar luego en FE
+        'rubroId',
       ],
       raw: true,
     });
 
     const toRad = (v) => (v * Math.PI) / 180;
 
-    // 👇 interpretamos soloPromo (viene como string)
     const soloPromoBool =
       soloPromo === '1' || soloPromo === 'true' || soloPromo === 'on';
 
@@ -106,7 +102,7 @@ router.get('/lugares', async (req, res) => {
         return {
           ...n,
           distancia: distanciaM,
-          tienePromo: n.planId === 2, // ej: plan 2 = negocios con promo
+          tienePromo: n.planId === 2, // si querés, esto ya es redundante
         };
       })
       .filter(Boolean)
@@ -117,11 +113,10 @@ router.get('/lugares', async (req, res) => {
     res.json(lista);
   } catch (err) {
     console.error('❌ Error en /api/puntosNegocio/lugares:', err);
-    res
-      .status(500)
-      .json({ error: 'Error al buscar lugares con puntos' });
+    res.status(500).json({ error: 'Error al buscar lugares con puntos' });
   }
 });
+
 
 
 module.exports = router;
