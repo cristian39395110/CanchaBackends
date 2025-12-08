@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { uNegocio } = require('../models/model');
+const { uNegocio,uCheckinNegocio } = require('../models/model');
 const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
 
 router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
@@ -71,6 +71,112 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
   } catch (err) {
     console.error("Error en /api/negocio/ranking:", err);
     res.status(500).json({ error: "Error interno" });
+  }
+});
+
+
+router.get("/ranking-propio", autenticarUsuarioNegocio, async (req, res) => {
+  try {
+    const usuarioNegocioId = req.negocio.id; // viene del middleware
+
+    // 1) Buscar el negocio del dueño (ownerId = usuarioNegocioId)
+    const negocio = await uNegocio.findOne({
+      where: { ownerId: usuarioNegocioId },
+      attributes: ["id", "nombre", "rubroId"],
+    });
+
+    if (!negocio) {
+      return res.status(404).json({ error: "No tenés ningún negocio asociado" });
+    }
+
+    const negocioId = negocio.id;
+
+    // 2) Rango fechas mes actual y mes anterior
+    const ahora = new Date();
+
+    const inicioMesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    const inicioMesAnterior = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1);
+    const finMesAnterior = new Date(ahora.getFullYear(), ahora.getMonth(), 0); // día 0 = último día mes anterior
+
+    // 3) Puntos del mes actual (sumando checkins)
+    const puntosMesActual =
+      (await uCheckinNegocio.sum("puntosGanados", {
+        where: {
+          negocioId,
+          createdAt: {
+            [Op.between]: [inicioMesActual, ahora],
+          },
+        },
+      })) || 0;
+
+    // 4) Puntos del mes anterior
+    const puntosMesAnterior =
+      (await uCheckinNegocio.sum("puntosGanados", {
+        where: {
+          negocioId,
+          createdAt: {
+            [Op.between]: [inicioMesAnterior, finMesAnterior],
+          },
+        },
+      })) || 0;
+
+    // 5) Meta mensual (puede ser campo nuevo en la tabla uNegocio, si querés)
+    //    Estrategia: si hay datos del mes anterior => meta = +20%,
+    //    si no hay nada => meta fija 1000 para arrancar.
+    let metaPuntos;
+    if (puntosMesAnterior > 0) {
+      metaPuntos = Math.round(puntosMesAnterior * 1.2); // +20%
+    } else {
+      metaPuntos = 1000; // valor base para arrancar
+    }
+
+    // 6) Progreso hacia la meta
+    let progresoPorcentaje = null;
+    let faltanPuntos = null;
+
+    if (metaPuntos > 0) {
+      progresoPorcentaje = Math.round((puntosMesActual * 100) / metaPuntos);
+      if (progresoPorcentaje > 100) progresoPorcentaje = 100;
+      faltanPuntos = Math.max(0, metaPuntos - puntosMesActual);
+    }
+
+    // 7) Crecimiento vs mes anterior
+    let crecimientoPorcentaje = null;
+    if (puntosMesAnterior > 0) {
+      crecimientoPorcentaje = Math.round(
+        ((puntosMesActual - puntosMesAnterior) / puntosMesAnterior) * 100
+      );
+    }
+
+    // 8) Respuesta
+    return res.json({
+      negocio: {
+        id: negocio.id,
+        nombre: negocio.nombre,
+        rubroId: negocio.rubroId,
+      },
+      mesActual: {
+        desde: inicioMesActual.toISOString(),
+        hasta: ahora.toISOString(),
+        puntos: puntosMesActual,
+      },
+      mesAnterior: {
+        desde: inicioMesAnterior.toISOString(),
+        hasta: finMesAnterior.toISOString(),
+        puntos: puntosMesAnterior,
+      },
+      meta: {
+        objetivoPuntos: metaPuntos,
+        progresoPorcentaje, // 0–100
+        faltanPuntos,
+      },
+      crecimiento: {
+        porcentaje: crecimientoPorcentaje, // puede ser negativo, null si no hay historial
+      },
+    });
+  } catch (err) {
+    console.error("Error en /api/negocio/ranking-propio:", err);
+    return res.status(500).json({ error: "Error interno" });
   }
 });
 
