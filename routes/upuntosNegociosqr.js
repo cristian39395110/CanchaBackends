@@ -81,6 +81,7 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
           },
         },
       })) || 0;
+        console.log(usuarioNegocioId,"222222222222222222")
 
     // 2) puntos por retos (sumo en JS por seguridad)
     const retosActual = await UsuarioRetoCumplido.findAll({
@@ -94,6 +95,7 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
       attributes: ['puntosOtorgados', 'puntosGanados'],
       raw: true,
     });
+      console.log(usuarioNegocioId,"33333333333333333333")
 
     const puntosRetosActual = retosActual.reduce((acc, r) => {
       const puntos =
@@ -115,6 +117,8 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
         },
       })) || 0;
 
+
+        console.log(usuarioNegocioId,"44444444444444444444")
     const retosAnterior = await UsuarioRetoCumplido.findAll({
       where: {
         usuarioId: usuarioNegocioId,
@@ -126,6 +130,7 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
       attributes: ['puntosOtorgados', 'puntosGanados'],
       raw: true,
     });
+      console.log(usuarioNegocioId,"5555555555555555555555555555")
 
     const puntosRetosAnterior = retosAnterior.reduce((acc, r) => {
       const puntos =
@@ -136,6 +141,7 @@ router.get('/resumen', autenticarUsuarioNegocio, async (req, res) => {
     const puntosMesAnterior = puntosCheckinsAnterior + puntosRetosAnterior;
 
     const diferencia = puntosMesActual - puntosMesAnterior;
+      console.log(usuarioNegocioId,"666666666666666666")
 
     return res.json({
       puntosMesActual,
