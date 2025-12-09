@@ -335,9 +335,12 @@ router.patch('/sorteos/provincia/:id/premio', async (req, res) => {
 
 
 
+
+// POST /api/admin/sorteos/provincia/ejecutar
+// body: { provincia, mes?, anio?, cantidadGanadores?, premiosPorPuesto? }
 router.post('/sorteos/provincia/ejecutar', async (req, res) => {
   try {
-    let { provincia, mes, anio } = req.body;
+    let { provincia, mes, anio, cantidadGanadores, premiosPorPuesto } = req.body;
 
     if (!provincia) {
       return res.status(400).json({ error: 'Falta provincia' });
@@ -352,13 +355,24 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
         mes = 12;
         anio = hoy.getFullYear() - 1;
       } else {
-        mes = m;           // ej: hoy es diciembre (11) → mes pasado = 11
+        mes = m; // ej: hoy es diciembre (11) → mes pasado = 11
         anio = hoy.getFullYear();
       }
     }
 
     mes = Number(mes);
     anio = Number(anio);
+
+    // Cantidad de ganadores configurable (1–20, default 3)
+    let cant = Number(cantidadGanadores) || 3;
+    if (cant < 1) cant = 1;
+    if (cant > 20) cant = 20;
+
+    // Normalizamos premiosPorPuesto (puede venir como objeto { "1": "...", "2": "..." })
+    const premiosMap =
+      premiosPorPuesto && typeof premiosPorPuesto === 'object'
+        ? premiosPorPuesto
+        : {};
 
     // Rango de fechas del mes [inicio, fin)
     const inicioMes = new Date(anio, mes - 1, 1, 0, 0, 0, 0);
@@ -419,7 +433,7 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
 
     // 3) Armamos ranking
     let ranking = filasCheckins.map((row) => {
-      const usuario = row.uUsuariosNegocio; // alias por defecto del modelo
+      const usuario = row.uUsuariosNegocio; // alias del include
       const comprasMes = Number(row.get('comprasMes') || 0);
       const puntosCheck = Number(row.get('puntosCheckinMes') || 0);
       const puntosReto = mapaRetos.get(usuario.id) || 0;
@@ -436,9 +450,7 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
     });
 
     // Regla: mínimo 10 compras y más de 0 puntos
-    ranking = ranking.filter(
-      (r) => r.comprasMes >= 10 && r.puntosMes > 0
-    );
+    ranking = ranking.filter((r) => r.comprasMes >= 10 && r.puntosMes > 0);
 
     if (ranking.length === 0) {
       return res.status(400).json({
@@ -450,21 +462,49 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
     // Ordenamos por puntos (desc)
     ranking.sort((a, b) => b.puntosMes - a.puntosMes);
 
-    // 4) Elegimos ganadores
-    const ganadores = [];
+  const maxGanadores = Math.min(cant, ranking.length);
+const ganadores = [];
 
-    if (ranking[0]) {
-      ganadores.push({ ...ranking[0], puesto: 1 });
-    }
-    if (ranking[1]) {
-      ganadores.push({ ...ranking[1], puesto: 2 });
+
+    // 4) Elegimos ganadores:
+    //  - Puesto 1 → ranking
+    //  - Puesto 2 → ranking
+    //  - Resto (3..N) → al azar entre los que quedan
+    let restantes = [...ranking];
+
+    if (maxGanadores >= 1 && restantes[0]) {
+      const top1 = restantes[0];
+      ganadores.push({
+        ...top1,
+        puesto: 1,
+        metodoSeleccion: 'ranking',
+      });
+      restantes = restantes.slice(1);
     }
 
-    if (ranking.length > 2) {
-      const restantes = ranking.slice(2);
-      const randomIndex = Math.floor(Math.random() * restantes.length);
-      const tercero = restantes[randomIndex];
-      ganadores.push({ ...tercero, puesto: 3 });
+    if (maxGanadores >= 2 && restantes[0]) {
+      const top2 = restantes[0];
+      ganadores.push({
+        ...top2,
+        puesto: 2,
+        metodoSeleccion: 'ranking',
+      });
+      restantes = restantes.slice(1);
+    }
+
+    for (let puesto = ganadores.length + 1; puesto <= maxGanadores; puesto++) {
+      if (!restantes.length) break;
+
+      const idxRandom = Math.floor(Math.random() * restantes.length);
+      const elegido = restantes[idxRandom];
+
+      ganadores.push({
+        ...elegido,
+        puesto,
+        metodoSeleccion: 'azar',
+      });
+
+      restantes.splice(idxRandom, 1);
     }
 
     // 5) Borramos ganadores previos de ese mes/provincia y guardamos nuevos
@@ -477,6 +517,7 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
       },
     });
 
+    // Creamos filas en la tabla SorteoMensualProvincia
     await SorteoMensualProvincia.bulkCreate(
       ganadores.map((g) => ({
         provincia: g.provincia,
@@ -487,15 +528,25 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
         puesto: g.puesto,
         puntosMes: g.puntosMes,
         comprasMes: g.comprasMes,
+        premio: premiosMap[g.puesto] || null,
+        // metodoSeleccion NO se guarda porque tu tabla no lo tiene
+        // fechaSorteo: new Date(), // solo si tu modelo tiene esta columna
       }))
     );
+
+    // Adjuntamos el premio también en la respuesta
+    const ganadoresConPremio = ganadores.map((g) => ({
+      ...g,
+      premio: premiosMap[g.puesto] || null,
+    }));
 
     return res.json({
       ok: true,
       provincia,
       mes,
       anio,
-      ganadores,
+      cantidadGanadores: maxGanadores,
+      ganadores: ganadoresConPremio,
       top20: ranking.slice(0, 20),
     });
   } catch (err) {
@@ -505,6 +556,7 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
       .json({ error: 'Error al ejecutar el sorteo por provincia' });
   }
 });
+
 
 /**
  * GET /api/admin/sorteos/provincia
@@ -543,6 +595,7 @@ router.get('/sorteos/provincia', async (req, res) => {
       .json({ error: 'Error al obtener ganadores del sorteo' });
   }
 });
+
 
 
 
