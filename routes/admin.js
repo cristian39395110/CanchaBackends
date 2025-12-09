@@ -32,7 +32,126 @@ router.use((req, res, next) => {
 
 
 
+router.get('/estadisticas/provincia/ranking', async (req, res) => {
+  try {
+    let { provincia, mes, anio } = req.query;
 
+    if (!provincia) {
+      return res.status(400).json({ error: 'Falta provincia' });
+    }
+
+    const hoy = new Date();
+    if (!mes || !anio) {
+      const m = hoy.getMonth(); // 0-11
+      if (m === 0) {
+        mes = 12;
+        anio = hoy.getFullYear() - 1;
+      } else {
+        mes = m; // mes pasado
+        anio = hoy.getFullYear();
+      }
+    }
+
+    mes = Number(mes);
+    anio = Number(anio);
+
+    const inicioMes = new Date(anio, mes - 1, 1, 0, 0, 0, 0);
+    const finMes = new Date(anio, mes, 1, 0, 0, 0, 0);
+
+    // 1) CHECKINS del mes (compras y puntos)
+    const filasCheckins = await uCheckinNegocio.findAll({
+      attributes: [
+        'usuarioNegocioId',
+        [fn('COUNT', col('*')), 'comprasMes'],
+        [fn('SUM', col('puntosGanados')), 'puntosCheckinMes'],
+      ],
+      include: [
+        {
+          model: uUsuarioNegocio,
+          attributes: ['id', 'nombre', 'provincia', 'localidad'],
+          where: { provincia },
+        },
+      ],
+      where: {
+        createdAt: {
+          [Op.gte]: inicioMes,
+          [Op.lt]: finMes,
+        },
+      },
+      group: [
+        'usuarioNegocioId',
+        'uUsuariosNegocio.id',
+        'uUsuariosNegocio.nombre',
+        'uUsuariosNegocio.provincia',
+        'uUsuariosNegocio.localidad',
+      ],
+      subQuery: false,
+    });
+
+    // 2) Puntos de retos en el mes
+    const filasRetos = await UsuarioRetoCumplido.findAll({
+      attributes: [
+        'usuarioId',
+        [fn('SUM', col('puntosOtorgados')), 'puntosRetosMes'],
+      ],
+      where: {
+        fechaCumplido: {
+          [Op.gte]: inicioMes,
+          [Op.lt]: finMes,
+        },
+      },
+      group: ['usuarioId'],
+      raw: true,
+    });
+
+    const mapaRetos = new Map();
+    for (const fila of filasRetos) {
+      const uid = Number(fila.usuarioId);
+      const puntos = Number(fila.puntosRetosMes || 0);
+      mapaRetos.set(uid, puntos);
+    }
+
+    // 3) Armamos ranking por usuario
+    let ranking = filasCheckins.map((row) => {
+      const usuario = row.uUsuariosNegocio;
+      const comprasMes = Number(row.get('comprasMes') || 0);
+      const puntosCheckinMes = Number(row.get('puntosCheckinMes') || 0);
+      const puntosRetosMes = mapaRetos.get(usuario.id) || 0;
+      const puntosTotalMes = puntosCheckinMes + puntosRetosMes;
+
+      return {
+        usuarioId: usuario.id,
+        nombre: usuario.nombre,
+        provincia: usuario.provincia,
+        localidad: usuario.localidad,
+        comprasMes,
+        puntosCheckinMes,
+        puntosRetosMes,
+        puntosTotalMes,
+      };
+    });
+
+    // mismo filtro que el sorteo
+    ranking = ranking.filter(
+      (r) => r.comprasMes >= 10 && r.puntosTotalMes > 0
+    );
+
+    // ordenar de mayor a menor
+    ranking.sort((a, b) => b.puntosTotalMes - a.puntosTotalMes);
+
+    return res.json({
+      ok: true,
+      provincia,
+      mes,
+      anio,
+      totalUsuariosRanking: ranking.length,
+      ranking,
+    });
+  } catch (err) {
+    console.error('❌ GET /api/admin/estadisticas/provincia/ranking', err);
+    res.status(500).json({ error: 'Error al obtener ranking por provincia' });
+  }
+});
 
 
 
