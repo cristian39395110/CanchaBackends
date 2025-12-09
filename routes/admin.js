@@ -30,12 +30,47 @@ router.use((req, res, next) => {
   next();
 });
 
+
+
+
+
+
+
+// ...
+
+// 📊 Usuarios por provincia (ranking de mayor a menor)
+router.get('/estadisticas/usuarios-negocio/provincias', async (req, res) => {
+  try {
+    const filas = await uUsuarioNegocio.findAll({
+      attributes: [
+        'provincia',
+        [fn('COUNT', col('*')), 'cantidad'],
+      ],
+      group: ['provincia'],
+      order: [[fn('COUNT', col('*')), 'DESC']], // de mayor a menor
+    });
+
+    res.json({
+      ok: true,
+      provincias: filas.map((fila) => ({
+        provincia: fila.provincia || 'SIN_PROVINCIA',
+        cantidad: Number(fila.get('cantidad') || 0),
+      })),
+    });
+  } catch (err) {
+    console.error('❌ GET /api/admin/estadisticas/usuarios-negocio/provincias', err);
+    res.status(500).json({ error: 'Error al obtener estadísticas por provincia' });
+  }
+});
+
 /**
  * POST /api/admin/sorteos/provincia/ejecutar
  * body: { provincia, mes?, anio? }
  * - Si no mandás mes/anio → usa el MES PASADO.
  * - Saca top 2 por puntos y el 3º al azar entre el resto (mín. 10 canjes).
  */
+
+
 
 
 /**
