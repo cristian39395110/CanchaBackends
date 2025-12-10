@@ -77,6 +77,12 @@ const uUsuariosNegocio = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    puntosHistoricos: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  defaultValue: 0,
+},
+  
   },
   {
     tableName: 'uUsuariosNegocio',

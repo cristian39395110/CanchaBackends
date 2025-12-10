@@ -687,9 +687,19 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
       }))
     );
 
+    await Promise.all(
+  ranking.map((r) =>
+    uUsuarioNegocio.increment(
+      { puntosHistoricos: r.puntosMes },
+      { where: { id: r.usuarioId } }
+    )
+  )
+);
+
     // 🔥 RESETEO DE PUNTOS SOLO PARA ESA PROVINCIA
     await uUsuarioNegocio.update(
       { puntos: 0 },
+
       {
         where: { provincia },
       }

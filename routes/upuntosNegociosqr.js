@@ -22,6 +22,196 @@ const {
   // Usuario, // si después querés sumar puntos al usuario-app
 } = require('../models/model');
 
+
+
+
+
+
+
+
+
+
+
+// GET /api/puntosnegociosqr/historial/completo
+// → Devuelve:
+//   - datos del usuario (puntos actuales + puntos históricos)
+//   - movimientosTotales  = TODOS los movimientos (negocios + retos)
+//   - movimientosMes      = SOLO movimientos del mes actual
+//   - resumen.puntosMes   = suma de puntos del mes actual
+router.get('/historial/completo', autenticarUsuarioNegocio, async (req, res) => {
+  try {
+    const usuarioNegocioId = req.negocio.id; // mismo criterio que usabas en /historial
+
+    // 1) Usuario (para puntos actuales e históricos)
+    const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId, {
+      attributes: ['id', 'nombre', 'puntos', 'puntosHistoricos'],
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // 2) Movimientos HISTÓRICOS
+
+    // 2.1 Checkins en negocios (todos)
+    const checkinsTotal = await uCheckinNegocio.findAll({
+      where: { usuarioNegocioId },
+      include: [
+        {
+          model: uNegocio,
+          attributes: ['id', 'nombre', 'provincia', 'localidad', 'latitud', 'longitud'],
+        },
+      ],
+      order: [['fecha', 'DESC']],
+    });
+
+    const historialCheckinsTotal = checkinsTotal.map((c) => ({
+      id: c.id,
+      tipo: 'negocio',
+      negocioId: c.Negocio?.id ?? c.negocioId,
+      negocioNombre: c.Negocio?.nombre ?? 'Negocio',
+      puntosGanados: c.puntosGanados,
+      fecha: c.fecha,
+      lat: c.latitudUsuario,
+      lng: c.longitudUsuario,
+      negocioLocalidad: c.Negocio?.localidad ?? null,
+      negocioProvincia: c.Negocio?.provincia ?? null,
+    }));
+
+    // 2.2 Retos cobrados (todos)
+    const retosTotal = await UsuarioRetoCumplido.findAll({
+      where: { usuarioId: usuarioNegocioId },
+      include: [
+        {
+          model: Reto,
+          as: 'reto',
+          attributes: ['id', 'titulo'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const historialRetosTotal = retosTotal.map((r) => ({
+      id: 1000000 + r.id, // para que no choque con ids de checkins
+      tipo: 'reto',
+      negocioId: null,
+      negocioNombre: r.reto?.titulo
+        ? `Reto: ${r.reto.titulo}`
+        : 'Reto saludable',
+      puntosGanados: r.puntosOtorgados ?? r.puntosGanados ?? 0,
+      fecha: r.createdAt,
+      lat: null,
+      lng: null,
+      negocioLocalidad: null,
+      negocioProvincia: null,
+    }));
+
+    const movimientosTotales = [...historialCheckinsTotal, ...historialRetosTotal].sort(
+      (a, b) => new Date(b.fecha) - new Date(a.fecha)
+    );
+
+    // 3) Movimientos del MES ACTUAL
+
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0, 0);
+    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1, 0, 0, 0, 0);
+
+    // 3.1 Checkins del mes
+    const checkinsMes = await uCheckinNegocio.findAll({
+      where: {
+        usuarioNegocioId,
+        fecha: {
+          [Op.gte]: inicioMes,
+          [Op.lt]: finMes,
+        },
+      },
+      include: [
+        {
+          model: uNegocio,
+          attributes: ['id', 'nombre', 'provincia', 'localidad', 'latitud', 'longitud'],
+        },
+      ],
+      order: [['fecha', 'DESC']],
+    });
+
+    const historialCheckinsMes = checkinsMes.map((c) => ({
+      id: c.id,
+      tipo: 'negocio',
+      negocioId: c.Negocio?.id ?? c.negocioId,
+      negocioNombre: c.Negocio?.nombre ?? 'Negocio',
+      puntosGanados: c.puntosGanados,
+      fecha: c.fecha,
+      lat: c.latitudUsuario,
+      lng: c.longitudUsuario,
+      negocioLocalidad: c.Negocio?.localidad ?? null,
+      negocioProvincia: c.Negocio?.provincia ?? null,
+    }));
+
+    // 3.2 Retos del mes (usamos fechaCumplido como referencia de mes)
+    const retosMes = await UsuarioRetoCumplido.findAll({
+      where: {
+        usuarioId: usuarioNegocioId,
+        fechaCumplido: {
+          [Op.gte]: inicioMes,
+          [Op.lt]: finMes,
+        },
+      },
+      include: [
+        {
+          model: Reto,
+          as: 'reto',
+          attributes: ['id', 'titulo'],
+        },
+      ],
+      order: [['fechaCumplido', 'DESC']],
+    });
+
+    const historialRetosMes = retosMes.map((r) => ({
+      id: 2000000 + r.id, // otro offset para no chocar
+      tipo: 'reto',
+      negocioId: null,
+      negocioNombre: r.reto?.titulo
+        ? `Reto: ${r.reto.titulo}`
+        : 'Reto saludable',
+      puntosGanados: r.puntosOtorgados ?? r.puntosGanados ?? 0,
+      fecha: r.fechaCumplido ?? r.createdAt,
+      lat: null,
+      lng: null,
+      negocioLocalidad: null,
+      negocioProvincia: null,
+    }));
+
+    const movimientosMes = [...historialCheckinsMes, ...historialRetosMes].sort(
+      (a, b) => new Date(b.fecha) - new Date(a.fecha)
+    );
+
+    // 4) Totales del mes (solo para info)
+    const puntosMes = movimientosMes.reduce(
+      (acc, mov) => acc + Number(mov.puntosGanados || 0),
+      0
+    );
+
+    // 5) Respuesta final
+    return res.json({
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+      },
+      resumen: {
+        puntosActuales: Number(usuario.puntos || 0),           // saldo que puede usar
+        puntosHistoricos: Number(usuario.puntosHistoricos || 0), // acumulado total
+        puntosMes,                                             // suma del mes actual
+      },
+      movimientosMes,
+      movimientosTotales,
+    });
+  } catch (error) {
+    console.error('Error en /historial/completo:', error);
+    res.status(500).json({ error: 'No se pudo obtener el historial completo.' });
+  }
+});
+
+
 /* ===========================================================
    helper para generar códigos tipo "MCQR-ABC123"
    =========================================================== */
@@ -47,7 +237,7 @@ function getInicioMes(fecha) {
 
 function addMeses(fecha, meses) {
   return new Date(fecha.getFullYear(), fecha.getMonth() + meses, 1, 0, 0, 0, 0);
-}
+}z
 
 /* =====================================
    A) RESUMEN: MES ACTUAL vs MES ANTERIOR
