@@ -237,7 +237,7 @@ function getInicioMes(fecha) {
 
 function addMeses(fecha, meses) {
   return new Date(fecha.getFullYear(), fecha.getMonth() + meses, 1, 0, 0, 0, 0);
-}z
+}
 
 /* =====================================
    A) RESUMEN: MES ACTUAL vs MES ANTERIOR
