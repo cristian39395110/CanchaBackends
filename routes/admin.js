@@ -682,33 +682,47 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
         puntosMes: g.puntosMes,
         comprasMes: g.comprasMes,
         premio: premiosMap[g.puesto] || null,
-        // metodoSeleccion NO se guarda porque tu tabla no lo tiene
-        // fechaSorteo: new Date(), // solo si tu modelo tiene esta columna
       }))
     );
 
+    // ✅ SUMAR al histórico para todos los que tuvieron puntos este mes
     await Promise.all(
-  ranking.map((r) =>
-    uUsuarioNegocio.increment(
-      { puntosHistoricos: r.puntosMes },
-      { where: { id: r.usuarioId } }
-    )
-  )
-);
+      ranking.map((r) =>
+        uUsuarioNegocio.increment(
+          { puntosHistoricos: r.puntosMes },
+          { where: { id: r.usuarioId } }
+        )
+      )
+    );
 
-    // 🔥 RESETEO DE PUNTOS SOLO PARA ESA PROVINCIA
+    // ✅ RESETEAR puntos del mes solo para esa provincia
     await uUsuarioNegocio.update(
       { puntos: 0 },
-
       {
         where: { provincia },
       }
     );
 
-    // Adjuntamos el premio también en la respuesta
-    const ganadoresConPremio = ganadores.map((g) => ({
-      ...g,
-      premio: premiosMap[g.puesto] || null,
+    // ✅ Traemos de vuelta desde la DB los ganadores ya con su ID real
+    const filasSorteo = await SorteoMensualProvincia.findAll({
+      where: {
+        provincia,
+        localidad: null,
+        mes,
+        anio,
+      },
+      order: [['puesto', 'ASC']],
+    });
+
+    const ganadoresRespuesta = filasSorteo.map((g) => ({
+      id: g.id,
+      usuarioId: g.usuarioId,
+      puesto: g.puesto,
+      puntosMes: g.puntosMes,
+      comprasMes: g.comprasMes,
+      provincia: g.provincia,
+      localidad: g.localidad,
+      premio: g.premio,
     }));
 
     return res.json({
@@ -717,7 +731,7 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
       mes,
       anio,
       cantidadGanadores: maxGanadores,
-      ganadores: ganadoresConPremio,
+      ganadores: ganadoresRespuesta,
       top20: ranking.slice(0, 20),
     });
   } catch (err) {
