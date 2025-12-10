@@ -26,28 +26,32 @@ router.get("/mi-plan", autenticarTokenNegocio, async (req, res) => {
   try {
     const usuarioNegocioId = req.negocio.id;
 
-    // 1) Buscamos algún negocio que pertenezca a este dueño
+    const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId);
+
+    // 1) Buscamos negocio del dueño
     const negocio = await uNegocio.findOne({
       where: { ownerId: usuarioNegocioId },
     });
 
-    // 2) Si no tiene negocio, pero es premium => devolvemos plan "activo" genérico
-    const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId);
+    // función helper para pasar fecha a string ISO (o null)
+    const getVenceEl = () => {
+      if (!usuario?.fechaFinPremium) return null;
+      return usuario.fechaFinPremium; // si ya es Date en Sequelize, se serializa solo
+    };
 
+    // 🚩 Caso: no tiene negocio, pero es premium (ya pagó)
     if (!negocio) {
       if (usuario?.esPremium) {
         return res.json({
           ok: true,
           planActual: {
-            id: 0, // o null, da igual para el front
-            nombre: "Plan activo",
-            venceEl: null,
+            id: 1, // tu único plan básico
+            nombre: "Plan Básico",
+            venceEl: getVenceEl(),   // 👈 ahora sí
             activo: true,
           },
         });
       }
-
-      // no tiene plan ni negocio
       return res.json({ ok: true, planActual: null });
     }
 
@@ -58,27 +62,26 @@ router.get("/mi-plan", autenticarTokenNegocio, async (req, res) => {
     }
 
     if (!plan) {
-      // tiene negocio pero sin plan asociado
       return res.json({
         ok: true,
         planActual: null,
       });
     }
 
-    // Si tenés lógica de vencimiento, acá la metés. Por ahora lo dejamos siempre activo.
     const planActual = {
       id: plan.id,
       nombre: plan.nombre,
-      venceEl: null, // si luego guardás fecha de vencimiento, la ponés acá
-      activo: true,
+      venceEl: getVenceEl(), // 👈 usar fechaFinPremium del usuario
+      activo: !!usuario?.esPremium,
     };
 
     return res.json({ ok: true, planActual });
   } catch (err) {
-    console.error("❌ GET /api/negocios/mi-plan:", err);
+    console.error("❌ GET /api/planes-negocio/mi-plan:", err);
     return res.status(500).json({ ok: false, error: "Error al obtener plan" });
   }
 });
+
 
 
 /**
