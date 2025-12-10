@@ -616,9 +616,8 @@ router.post('/sorteos/provincia/ejecutar', async (req, res) => {
     // Ordenamos por puntos (desc)
     ranking.sort((a, b) => b.puntosMes - a.puntosMes);
 
-  const maxGanadores = Math.min(cant, ranking.length);
-const ganadores = [];
-
+    const maxGanadores = Math.min(cant, ranking.length);
+    const ganadores = [];
 
     // 4) Elegimos ganadores:
     //  - Puesto 1 → ranking
@@ -688,6 +687,14 @@ const ganadores = [];
       }))
     );
 
+    // 🔥 RESETEO DE PUNTOS SOLO PARA ESA PROVINCIA
+    await uUsuarioNegocio.update(
+      { puntos: 0 },
+      {
+        where: { provincia },
+      }
+    );
+
     // Adjuntamos el premio también en la respuesta
     const ganadoresConPremio = ganadores.map((g) => ({
       ...g,
@@ -710,7 +717,6 @@ const ganadores = [];
       .json({ error: 'Error al ejecutar el sorteo por provincia' });
   }
 });
-
 
 /**
  * GET /api/admin/sorteos/provincia
