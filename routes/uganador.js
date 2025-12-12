@@ -131,11 +131,9 @@ router.get('/ganadores', autenticarTokenNegocio, async (req, res) => {
     const negocioId = negocio.id;
     const limit = Math.max(1, Math.min(Number(req.query.limit) || 10, 100));
 
-    // Si aún no tenés ganadores, devolvé array vacío
-    if (!Ganador) return res.json([]);
-
     const filas = await Ganador.findAll({
       where: { negocioId },
+      attributes: ['id', 'nombre', 'premio', 'fecha'],  // 👈 FIX FINAL
       order: [['fecha', 'DESC']],
       limit,
     });
@@ -153,5 +151,6 @@ router.get('/ganadores', autenticarTokenNegocio, async (req, res) => {
     res.status(500).json({ error: 'No se pudieron obtener los ganadores.' });
   }
 });
+
 
 module.exports = router;
