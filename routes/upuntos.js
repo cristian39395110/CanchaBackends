@@ -1,8 +1,11 @@
 // routes/puntosNegocio
 const express = require('express');
 const router = express.Router();
-const {uNegocio,RubroNegocio,uUsuarioNegocio} = require('../models/model'); // 👈 el que mostraste
+const {uNegocio,RubroNegocio,uUsuarioNegocio,uCheckinNegocio} = require('../models/model'); // 👈 el que mostraste
 
+const {
+  autenticarUsuarioNegocio,
+} = require('../middlewares/authUsuarioNegocio');
 // GET /api/puntos/lugares?lat=-33.3&lng=-66.3&radio=3000&categoria=...&soloPromo=1
 // GET /api/puntosNegocio/categorias
 router.get('/categorias', async (req, res) => {
@@ -133,6 +136,169 @@ router.get('/lugares', async (req, res) => {
     res.status(500).json({ error: 'Error al buscar lugares con puntos' });
   }
 });
+
+router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
+  const usuarioNegocioId = req.user?.id || null;   // ✔ EL USUARIO QUE ESCANEA (REAL)
+  const { qr, negocioId: negocioIdBody, lat, lng } = req.body;
+
+  if (!usuarioNegocioId) return res.status(401).json({ error: 'No autenticado' });
+  if (!qr) return res.status(400).json({ error: 'Falta el código QR' });
+
+  try {
+    // 1) Leer QR (si mandan negocioId lo validamos contra el QR)
+    const whereQR = negocioIdBody
+      ? { codigoQR: qr, negocioId: negocioIdBody }
+      : { codigoQR: qr };
+
+    const qrRow = await uQRCompraNegocio.findOne({ where: whereQR });
+    if (!qrRow) {
+      return res.status(404).json({ error: 'QR no válido o no corresponde a este negocio.' });
+    }
+
+    const negocioId = qrRow.negocioId; // fuente de verdad
+    const modoQR = qrRow.modo || null; // 'compra' | 'dia' | 'fijo' | null
+
+    // 2) Traemos el negocio (para validar dueño y ubicación)
+    const negocio = await uNegocio.findByPk(negocioId, {
+      attributes: ['id', 'ownerId', 'latitud', 'longitud'],
+    });
+
+    if (!negocio) {
+      return res.status(404).json({ error: 'Negocio no encontrado.' });
+    }
+
+    // 2.a) Bloquear al dueño del local: NO puede canjear en su propio negocio
+    if (negocio.ownerId && Number(negocio.ownerId) === Number(usuarioNegocioId)) {
+      return res.status(403).json({
+        error: 'No podés sumar puntos escaneando el QR de tu propio negocio.',
+      });
+    }
+
+    // 2.b) Validaciones del QR
+    if (modoQR === 'compra' && qrRow.usado) {
+      return res.status(409).json({ error: 'Este QR ya fue usado.' });
+    }
+    if (qrRow.fechaExpiracion && qrRow.fechaExpiracion < new Date()) {
+      return res.status(400).json({ error: 'QR vencido.' });
+    }
+
+    // 2.c) Validar distancia si tenemos lat/lng
+    if (lat != null && lng != null && negocio.latitud != null && negocio.longitud != null) {
+      const dist = distanciaMetros(
+        Number(lat),
+        Number(lng),
+        Number(negocio.latitud),
+        Number(negocio.longitud)
+      );
+
+      const MAX_DISTANCIA = 20;
+
+      if (dist > MAX_DISTANCIA) {
+        return res.status(400).json({
+          error: `Tenés que estar dentro de ${MAX_DISTANCIA}m del negocio para canjear. Distancia detectada: ${Math.round(dist)}m.`,
+        });
+      }
+    }
+
+    // 3) Cooldown 4h por negocio
+    const COOLDOWN_HORAS = 4;
+    const limiteTiempo = new Date(Date.now() - COOLDOWN_HORAS * 60 * 60 * 1000);
+
+    const checkinReciente = await uCheckinNegocio.findOne({
+      where: {
+        usuarioNegocioId,
+        negocioId,
+        createdAt: { [Op.gte]: limiteTiempo },
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (checkinReciente) {
+      return res.status(429).json({
+        error: `Debés esperar ${COOLDOWN_HORAS}h para volver a canjear en este negocio.`,
+      });
+    }
+
+    const puntosDelCanje = Number(qrRow.puntosOtorga) || 0;
+
+    // 4) Marcar usado SOLO si es QR de compra
+    if (modoQR === 'compra' && !qrRow.usado) {
+      await qrRow.update({ usado: true });
+    }
+
+    // 5) Crear checkin
+    const nuevoCheckin = await uCheckinNegocio.create({
+      usuarioNegocioId,
+      negocioId,
+      qrId: qrRow.id,
+      puntosGanados: puntosDelCanje,
+      latitudUsuario: lat ?? null,
+      longitudUsuario: lng ?? null,
+    });
+
+    // 6) Sumar puntos al usuario
+    if (puntosDelCanje > 0) {
+      await uUsuarioNegocio.increment('puntos', {
+        by: puntosDelCanje,
+        where: { id: usuarioNegocioId },
+      });
+    }
+
+    // 7) Reto 24h (3 locales distintos)
+    let puntosExtraReto = 0;
+    const reto = await Reto.findOne({
+      where: { titulo: 'Visitá 3 locales distintos en 24h', activo: true },
+    });
+
+    if (reto) {
+      const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const checkinsUltimoDia = await uCheckinNegocio.findAll({
+        where: { usuarioNegocioId, createdAt: { [Op.gte]: hace24h } },
+        attributes: ['negocioId'],
+      });
+
+      const localesDistintos = new Set(checkinsUltimoDia.map(c => c.negocioId)).size;
+
+      if (localesDistintos >= 3) {
+        const yaCumplido = await UsuarioRetoCumplido.findOne({
+          where: { usuarioId: usuarioNegocioId, retoId: reto.id },
+        });
+
+        if (!yaCumplido) {
+          await UsuarioRetoCumplido.create({
+            usuarioId: usuarioNegocioId,
+            retoId: reto.id,
+            puntosOtorgados: Number(reto.puntos) || 0,
+          });
+
+          puntosExtraReto = Number(reto.puntos) || 0;
+
+          if (puntosExtraReto > 0) {
+            await uUsuarioNegocio.increment('puntos', {
+              by: puntosExtraReto,
+              where: { id: usuarioNegocioId },
+            });
+          }
+        }
+      }
+    }
+
+    return res.json({
+      mensaje:
+        puntosExtraReto > 0
+          ? '✅ Canje registrado. Reto completado 🎯'
+          : '✅ Canje registrado.',
+      puntosCanje: puntosDelCanje,
+      puntosExtraReto,
+      totalSumado: puntosDelCanje + puntosExtraReto,
+      checkin: nuevoCheckin,
+    });
+  } catch (error) {
+    console.error('Error en /canjear:', error);
+    return res.status(500).json({ error: 'No se pudo canjear.' });
+  }
+});
+
 
 
 
