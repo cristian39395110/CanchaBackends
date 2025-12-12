@@ -1,7 +1,7 @@
 // routes/puntosNegocio
 const express = require('express');
 const router = express.Router();
-const {uNegocio,RubroNegocio,uUsuarioNegocio,uCheckinNegocio} = require('../models/model'); // 👈 el que mostraste
+const {uNegocio,RubroNegocio,uUsuarioNegocio,uCheckinNegocio,uQRCompraNegocio} = require('../models/model'); // 👈 el que mostraste
 
 const {
   autenticarUsuarioNegocio,
