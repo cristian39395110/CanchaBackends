@@ -243,14 +243,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
     }
 
     // si querés limitar 1 negocio por device:
-    if (deviceId) {
-      const negocioDevice = await uUsuarioNegocio.findOne({ where: { deviceId } });
-      if (negocioDevice) {
-        return res.status(400).json({
-          error: 'Ya hay un negocio registrado desde este dispositivo.',
-        });
-      }
-    }
+
 
     // FOTO CLOUDINARY
     let fotoPerfil = null;
