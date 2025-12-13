@@ -322,7 +322,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
   }
 });
 
-module.exports = router;
+
 
 /* ===============================
    ✅ Verificación del correo
