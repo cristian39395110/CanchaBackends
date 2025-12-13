@@ -223,7 +223,7 @@ router.put(
 // POST /api/usuarios-negocio/registro
 router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
   try {
-    const {
+    let {
       nombre,
       telefono,
       email,
@@ -233,6 +233,14 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
       deviceId,
     } = req.body;
 
+    // ✅ normalización básica
+    nombre = String(nombre || '').trim();
+    email = String(email || '').trim().toLowerCase();
+    telefono = telefono ? String(telefono).trim() : null;
+    provincia = provincia ? String(provincia).trim() : null;
+    localidad = localidad ? String(localidad).trim() : null;
+    deviceId = deviceId ? String(deviceId).trim() : null;
+
     if (!nombre || !email || !password) {
       return res.status(400).json({ error: 'Faltan datos obligatorios.' });
     }
@@ -241,9 +249,6 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
     if (existente) {
       return res.status(400).json({ error: 'Ya existe un negocio con ese email.' });
     }
-
-    // si querés limitar 1 negocio por device:
-
 
     // FOTO CLOUDINARY
     let fotoPerfil = null;
@@ -261,7 +266,6 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
       fotoPerfil = result.secure_url;
       cloudinaryId = result.public_id;
     } else {
-      // PODÉS USAR MISMA IMAGEN DEFAULT QUE EN MATCHCLUB O OTRA
       fotoPerfil = 'https://res.cloudinary.com/dvmwo5mly/image/upload/v1753793634/fotoperfil_rlqxqn.png';
     }
 
@@ -275,7 +279,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
       password: hashed,
       provincia,
       localidad,
-      deviceId: deviceId || null,
+      deviceId,          // ✅ guardás el deviceId pero NO bloqueás
       fotoPerfil,
       cloudinaryId,
       verificado: false,
@@ -283,7 +287,6 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
       esAdmin: false,
     });
 
-    // link verificación (podés usar el mismo BACKEND_URL que en MatchClub)
     const base = process.env.BACKEND_URL || 'https://canchabackends-1.onrender.com';
     const link = `${base}/api/loginusuario/verificar/${tokenVerificacion}`;
 
@@ -302,7 +305,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
       console.error('❌ No se pudo enviar correo verificación negocio:', err);
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       mensaje: emailEnviado
         ? 'Negocio creado. Revisá tu correo para confirmar la cuenta.'
         : 'Negocio creado. No pudimos enviar el correo, intentá reenviar desde la app.',
@@ -311,7 +314,7 @@ router.post('/registro', upload.single('fotoPerfil'), async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error al crear negocio:', error);
-    res.status(500).json({ error: 'Error interno al crear negocio.' });
+    return res.status(500).json({ error: 'Error interno al crear negocio.' });
   }
 });
 
