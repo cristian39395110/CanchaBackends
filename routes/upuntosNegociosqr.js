@@ -550,24 +550,31 @@ router.get('/historial', autenticarUsuarioNegocio, async (req, res) => {
 // POST /api/puntosnegociosqr/emitir
 // routes/puntosnegociosqr.js  (fragmento)
 // POST /api/puntosnegociosqr/emitir
-router.post('/emitir', autenticarTokenNegocio, async (req, res) => {
+router.post("/emitir", autenticarTokenNegocio, async (req, res) => {
   try {
     let { negocioId } = req.body;
 
     const ownerId = req.negocio?.id;
-    if (!ownerId) return res.status(401).json({ error: 'No autenticado' });
+    if (!ownerId) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    // 🔒 BLOQUEO PREMIUM (ESTO ERA LO QUE FALTABA)
+    if (!req.negocio?.esPremium || req.negocio?.premiumVencido) {
+      return res.status(403).json({ error: "Requiere Premium" });
+    }
 
     // 1) Si no vino negocioId, lo inferimos por ownerId (como antes)
     if (!negocioId) {
       const negocioDelOwner = await uNegocio.findOne({
         where: { ownerId, activo: true },
-        attributes: ['id', 'puntosPorCompra', 'plan'],
+        attributes: ["id", "puntosPorCompra", "plan", "ownerId"],
       });
 
       if (!negocioDelOwner) {
         return res
           .status(400)
-          .json({ error: 'No se pudo inferir el negocio del usuario' });
+          .json({ error: "No se pudo inferir el negocio del usuario" });
       }
 
       negocioId = negocioDelOwner.id;
@@ -576,53 +583,63 @@ router.post('/emitir', autenticarTokenNegocio, async (req, res) => {
 
     // 2) Buscar negocio (si no lo resolvimos recién)
     const negocio =
-      req._negocioResuelto || (await uNegocio.findByPk(negocioId));
+      req._negocioResuelto ||
+      (await uNegocio.findByPk(negocioId, {
+        attributes: ["id", "puntosPorCompra", "plan", "ownerId"],
+      }));
 
     if (!negocio) {
-      return res.status(404).json({ error: 'Negocio no encontrado' });
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    // 🔐 Seguridad extra: el negocio debe pertenecer al owner
+    if (Number(negocio.ownerId) !== Number(ownerId)) {
+      return res.status(403).json({ error: "Ese negocio no te pertenece" });
     }
 
     // 3) ¿Ya tiene un QR fijo?
     const qrExistente = await uQRCompraNegocio.findOne({
       where: {
         negocioId,
-        modo: 'fijo',
+        modo: "fijo",
       },
     });
 
     if (qrExistente) {
       return res.json({
-        mensaje: '♾️ Ya tenés un QR fijo, se reutiliza.',
+        mensaje: "♾️ Ya tenés un QR fijo, se reutiliza.",
         qr: qrExistente,
       });
     }
 
-    // 4) Calcular puntos iniciales según política (solo para guardar de referencia)
+    // 4) Calcular puntos iniciales según política
     const PLAN_TO_PUNTOS = { basico: 100, premium: 200 };
     let puntos = Number(negocio.puntosPorCompra) || 0;
+
     if (!puntos) {
-      puntos = PLAN_TO_PUNTOS[(negocio.plan || 'basico').toLowerCase()] ?? 100;
+      puntos =
+        PLAN_TO_PUNTOS[(negocio.plan || "basico").toLowerCase()] ?? 100;
     }
 
-    // 5) Crear QR fijo (sin fecha de expiración, sin uso único)
+    // 5) Crear QR fijo (sin vencimiento)
     const codigoQR = generarCodigoQR();
 
     const qrCreado = await uQRCompraNegocio.create({
       negocioId,
       codigoQR,
-      puntosOtorga: puntos,   // referencia, pero en canjear recalculamos
-      fechaExpiracion: null,  // ♾️ sin vencimiento
-      modo: 'fijo',
-      usado: false,           // no se usa nunca como “one-shot”
+      puntosOtorga: puntos,
+      fechaExpiracion: null,
+      modo: "fijo",
+      usado: false,
     });
 
     return res.json({
-      mensaje: '✅ QR fijo generado con éxito.',
+      mensaje: "✅ QR fijo generado con éxito.",
       qr: qrCreado,
     });
   } catch (error) {
-    console.error('Error en /emitir (QR fijo):', error);
-    return res.status(500).json({ error: 'Error al emitir QR' });
+    console.error("Error en /emitir (QR fijo):", error);
+    return res.status(500).json({ error: "Error al emitir QR" });
   }
 });
 

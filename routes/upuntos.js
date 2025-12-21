@@ -162,7 +162,7 @@ function distanciaMetros(lat1, lon1, lat2, lon2) {
 }
 
 router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
-  const usuarioNegocioId = req.user?.id || null;   // ✔ EL USUARIO QUE ESCANEA (REAL)
+  const usuarioNegocioId = req.user?.id || null; // el usuario que escanea (real)
   const { qr, negocioId: negocioIdBody, lat, lng } = req.body;
 
   if (!usuarioNegocioId) return res.status(401).json({ error: 'No autenticado' });
@@ -182,7 +182,7 @@ router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
     const negocioId = qrRow.negocioId; // fuente de verdad
     const modoQR = qrRow.modo || null; // 'compra' | 'dia' | 'fijo' | null
 
-    // 2) Traemos el negocio (para validar dueño y ubicación)
+    // 2) Traer negocio (para validar dueño y ubicación)
     const negocio = await uNegocio.findByPk(negocioId, {
       attributes: ['id', 'ownerId', 'latitud', 'longitud'],
     });
@@ -191,7 +191,7 @@ router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
       return res.status(404).json({ error: 'Negocio no encontrado.' });
     }
 
-    // 2.a) Bloquear al dueño del local: NO puede canjear en su propio negocio
+    // 2.a) Bloquear al dueño del local
     if (negocio.ownerId && Number(negocio.ownerId) === Number(usuarioNegocioId)) {
       return res.status(403).json({
         error: 'No podés sumar puntos escaneando el QR de tu propio negocio.',
@@ -206,8 +206,29 @@ router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
       return res.status(400).json({ error: 'QR vencido.' });
     }
 
-    // 2.c) Validar distancia si tenemos lat/lng
-    if (lat != null && lng != null && negocio.latitud != null && negocio.longitud != null) {
+    // ===========================
+    // ✅ 2.c) VALIDACIÓN GPS OBLIGATORIA + DISTANCIA
+    // ===========================
+    const negocioTieneCoords =
+      negocio.latitud != null &&
+      negocio.longitud != null &&
+      !Number.isNaN(Number(negocio.latitud)) &&
+      !Number.isNaN(Number(negocio.longitud));
+
+    // Si el negocio tiene coords, el cliente DEBE mandar las suyas
+    if (negocioTieneCoords) {
+      const clienteMandoCoords =
+        lat != null &&
+        lng != null &&
+        !Number.isNaN(Number(lat)) &&
+        !Number.isNaN(Number(lng));
+
+      if (!clienteMandoCoords) {
+        return res.status(400).json({
+          error: 'Necesitamos tu ubicación (GPS) para confirmar que estás en el local.',
+        });
+      }
+
       const dist = distanciaMetros(
         Number(lat),
         Number(lng),
@@ -215,13 +236,19 @@ router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
         Number(negocio.longitud)
       );
 
-      const MAX_DISTANCIA = 20;
+      const MAX_DISTANCIA = 80; // ⚠️ poné el mismo número que en el frontend
 
       if (dist > MAX_DISTANCIA) {
         return res.status(400).json({
           error: `Tenés que estar dentro de ${MAX_DISTANCIA}m del negocio para canjear. Distancia detectada: ${Math.round(dist)}m.`,
         });
       }
+    } else {
+      // 🔥 Política recomendada: si el negocio NO tiene coords, no dejamos canjear
+      return res.status(400).json({
+        error:
+          'Este negocio todavía no tiene ubicación configurada. Pedile al dueño que active el GPS del local para poder canjear.',
+      });
     }
 
     // 3) Cooldown 4h por negocio
@@ -322,7 +349,6 @@ router.post('/canjear', autenticarUsuarioNegocio, async (req, res) => {
     return res.status(500).json({ error: 'No se pudo canjear.' });
   }
 });
-
 
 
 
