@@ -7,14 +7,28 @@ const { autenticarTokenNegocio } = require('../middlewares/authNegocio');
 const { autenticarUsuarioNegocio } = require("../middlewares/authUsuarioNegocio");
 const { Op } = require('sequelize');
 
-router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
+// GET /api/negocios/ranking
+router.get("/ranking", autenticarTokenNegocio, async (req, res) => {
   try {
-    const negocioId = req.negocio.id;
+    // ✅ req.negocio.id ES el id del usuario (dueño), o sea ownerId
+    const ownerId = req.negocio.id;
 
-    // Traer TODOS ordenados por puntos
+    // ✅ 1) Buscar MI negocio (solo 1 negocio por dueño)
+    const miNegocio = await uNegocio.findOne({
+      where: { ownerId },
+      attributes: ["id", "nombre", "puntosMes"],
+    });
+
+    if (!miNegocio) {
+      return res.status(404).json({ error: "No tenés un negocio asociado" });
+    }
+
+    const miNegocioId = miNegocio.id;
+
+    // ✅ 2) Traer TODOS los negocios ordenados por puntosMes (ranking global)
     const lista = await uNegocio.findAll({
-      attributes: ['id', 'nombre', 'puntosMes'],
-      order: [['puntosMes', 'DESC']],
+      attributes: ["id", "nombre", "puntosMes"],
+      order: [["puntosMes", "DESC"]],
     });
 
     if (!lista || lista.length === 0) {
@@ -26,23 +40,23 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       });
     }
 
-    // Buscar el negocio del usuario
-    const index = lista.findIndex(n => Number(n.id) === Number(negocioId));
+    // ✅ 3) Buscar mi negocio dentro del ranking global por ID REAL de negocio
+    const index = lista.findIndex((n) => Number(n.id) === Number(miNegocioId));
     if (index === -1) {
-      return res.status(404).json({ error: 'Negocio no encontrado' });
+      return res.status(404).json({ error: "Negocio no encontrado en ranking" });
     }
 
     const mi = lista[index];
 
-    // → Cuántos puntos le faltan para pasar al de arriba
+    // ✅ 4) Cuántos puntos le faltan para pasar al de arriba
     let faltanParaArriba = null;
     if (index > 0) {
       const anterior = lista[index - 1];
-      const diff = Number(anterior.puntosMes) - Number(mi.puntosMes);
+      const diff = Number(anterior.puntosMes || 0) - Number(mi.puntosMes || 0);
       faltanParaArriba = diff > 0 ? diff : 0;
     }
 
-    // → Top 3
+    // ✅ 5) Top 3
     const top3 = lista.slice(0, 3).map((n, i) => ({
       id: n.id,
       nombre: n.nombre,
@@ -50,15 +64,16 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       posicion: i + 1,
     }));
 
-    // → Cuántos puntos faltan para entrar al top3
+    // ✅ 6) Cuántos puntos faltan para entrar al top 3
     let faltanParaTop = null;
     if (top3.length === 3) {
       const tercero = top3[2];
-      const diff = Number(tercero.puntosMes) - Number(mi.puntosMes);
+      const diff = Number(tercero.puntosMes || 0) - Number(mi.puntosMes || 0);
       faltanParaTop = diff > 0 ? diff : 0;
     }
 
-    res.json({
+    // ✅ 7) Respuesta final
+    return res.json({
       negocioPropio: {
         id: mi.id,
         nombre: mi.nombre,
@@ -69,13 +84,11 @@ router.get('/ranking', autenticarTokenNegocio, async (req, res) => {
       faltanParaTop,
       faltanParaArriba,
     });
-
   } catch (err) {
-    console.error("Error en /api/negocio/ranking:", err);
-    res.status(500).json({ error: "Error interno" });
+    console.error("Error en /api/negocios/ranking:", err);
+    return res.status(500).json({ error: "Error interno" });
   }
 });
-
 
 router.get("/ranking-propio", autenticarUsuarioNegocio, async (req, res) => {
   try {
@@ -183,23 +196,27 @@ router.get("/ranking-propio", autenticarUsuarioNegocio, async (req, res) => {
 });
 
 // GET /api/negocios/mis-negocios
+// GET /api/negocios/mis-negocios
 router.get("/mis-negocios", autenticarTokenNegocio, async (req, res) => {
   try {
-    const usuarioNegocioId = req.negocio.id;
+    // ✅ req.negocio.id = ID del usuario (dueño) => ownerId
+    const ownerId = req.negocio.id;
 
-    const negocios = await uNegocio.findAll({
-      where: { ownerId: usuarioNegocioId },
+    // ✅ Si en tu sistema es 1 negocio por usuario, igual devolvemos array
+    const negocio = await uNegocio.findOne({
+      where: { ownerId },
     });
 
     return res.json({
       ok: true,
-      negocios, // 👈 importante que se llame negocios o lista
+      negocios: negocio ? [negocio] : [], // 👈 mantiene el formato del frontend
     });
   } catch (err) {
     console.error("❌ GET /api/negocios/mis-negocios:", err);
-    return res
-      .status(500)
-      .json({ ok: false, error: "Error al obtener negocios" });
+    return res.status(500).json({
+      ok: false,
+      error: "Error al obtener negocios",
+    });
   }
 });
 
