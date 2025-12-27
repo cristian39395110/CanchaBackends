@@ -42,6 +42,31 @@ router.get("/mio", autenticarTokenNegocio, async (req, res) => {
   }
 });
 
+// ✅ GET /api/negocios/mis-negocios
+// Compatibilidad con el frontend (PanelNegocioPage)
+router.get("/mis-negocios", autenticarTokenNegocio, async (req, res) => {
+  try {
+    const usuarioNegocio = req.negocio;
+
+    if (!usuarioNegocio) {
+      return res.status(401).json({ ok: false, error: "No autenticado" });
+    }
+
+    // Si tu sistema maneja UN negocio por dueño:
+    const negocio = await uNegocio.findOne({ where: { ownerId: usuarioNegocio.id } });
+
+    // Devolvemos en formato "lista" como espera el frontend
+    return res.json({
+      ok: true,
+      negocios: negocio ? [negocio] : [],
+    });
+  } catch (err) {
+    console.error("Error en GET /mis-negocios:", err);
+    return res.status(500).json({ ok: false, error: "Error al obtener negocios" });
+  }
+});
+
+
 /**
  * PUT /api/negocios/mio
  * Actualiza datos + foto del negocio del dueño logueado
