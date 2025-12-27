@@ -1,4 +1,4 @@
-// routes/usuariosNegocio.js (o como lo llamaste)
+// routes/loginusuario.js (o como lo llamaste)
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');

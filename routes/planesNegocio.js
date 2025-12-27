@@ -7,7 +7,7 @@ const { PlanNegocio, uNegocio, uUsuarioNegocio } = require("../models/model");
 
 // SDK nuevo de MercadoPago
 const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
-const { autenticarTokenNegocio } = require("../middlewares/authNegocio");
+
 
 const {autenticarUsuarioNegocio } = require("../middlewares/authUsuarioNegocio");
 
@@ -22,11 +22,13 @@ const paymentClient = new Payment(mpClient);
 
 
 
-router.get("/mi-plan", autenticarTokenNegocio, async (req, res) => {
+router.get("/mi-plan", autenticarUsuarioNegocio, async (req, res) => {
   try {
     const usuarioNegocioId = req.negocio.id;
 
     const usuario = await uUsuarioNegocio.findByPk(usuarioNegocioId);
+    if (!usuario) return res.status(404).json({ ok:false, error:"Usuario no encontrado" });
+
 
     // 1) Buscamos negocio del dueño
     const negocio = await uNegocio.findOne({
@@ -36,6 +38,7 @@ router.get("/mi-plan", autenticarTokenNegocio, async (req, res) => {
     // función helper para pasar fecha a string ISO (o null)
     const getVenceEl = () => {
       if (!usuario?.fechaFinPremium) return null;
+       
       return usuario.fechaFinPremium; // si ya es Date en Sequelize, se serializa solo
     };
 
@@ -114,11 +117,11 @@ router.post("/crear-orden", autenticarUsuarioNegocio, async (req, res) => {
         },
       ],
       back_urls: {
-        success: `${FRONTEND_URL}/negocio/alta?planId=${plan.id}`,
-        failure: `${FRONTEND_URL}/planes-negocio?error=1`,
-        pending: `${FRONTEND_URL}/planes-negocio?pending=1`,
+         success: `${FRONTEND_URL}/planes-negocio?mp=success`,
+  failure: `${FRONTEND_URL}/planes-negocio?mp=failure`,
+  pending: `${FRONTEND_URL}/planes-negocio?mp=pending`,
       },
-      auto_return: "approved",
+    
 
       // 👇 A ESTA URL te va a pegar MercadoPago cuando cambie el estado del pago
       notification_url: `${BACKEND_URL}/api/planes-negocio/webhook`,
@@ -141,13 +144,74 @@ router.post("/crear-orden", autenticarUsuarioNegocio, async (req, res) => {
   }
 });
 
+router.post("/confirmar", autenticarUsuarioNegocio, async (req, res) => {
+  try {
+    const { paymentId } = req.body;
+    if (!paymentId) return res.status(400).json({ ok: false, error: "Falta paymentId" });
+
+    const pago = await paymentClient.get({ id: String(paymentId) });
+    const status = pago?.status ?? pago?.body?.status;
+    const externalReference =
+      pago?.external_reference ?? pago?.body?.external_reference;
+
+    if (!externalReference || !externalReference.startsWith("negocio-plan-")) {
+      return res.status(400).json({ ok: false, error: "external_reference inválido" });
+    }
+
+    // negocio-plan-<usuarioNegocioId>-<planId>
+    const parts = externalReference.split("-");
+    const usuarioNegocioId = Number(parts[2]);
+    const planId = Number(parts[3]);
+
+    // seguridad: el que confirma debe ser el mismo dueño logueado
+    if (req.negocio.id !== usuarioNegocioId) {
+      return res.status(403).json({ ok: false, error: "No autorizado" });
+    }
+
+    // Si NO está aprobado, NO activar nada
+    if (status !== "approved") {
+      return res.json({ ok: true, aprobado: false, status });
+    }
+
+    // Activar (misma lógica que webhook)
+    let meses = 1;
+    const plan = await PlanNegocio.findByPk(planId);
+    if (plan?.duracionMeses) meses = Number(plan.duracionMeses) || 1;
+
+    const usuarioNegocio = await uUsuarioNegocio.findByPk(usuarioNegocioId);
+    const ahora = new Date();
+
+    let inicio = ahora;
+    if (usuarioNegocio?.fechaFinPremium && new Date(usuarioNegocio.fechaFinPremium) > ahora) {
+      inicio = new Date(usuarioNegocio.fechaFinPremium);
+    }
+
+    const fechaInicioPremium = inicio;
+    const fechaFinPremium = new Date(inicio);
+    fechaFinPremium.setMonth(fechaFinPremium.getMonth() + meses);
+
+    await uUsuarioNegocio.update(
+      { esPremium: true, fechaInicioPremium, fechaFinPremium },
+      { where: { id: usuarioNegocioId } }
+    );
+
+    await uNegocio.update({ planId }, { where: { ownerId: usuarioNegocioId } });
+
+    return res.json({ ok: true, aprobado: true });
+  } catch (err) {
+    console.error("❌ confirmar:", err);
+    return res.status(500).json({ ok: false, error: "Error confirmando pago" });
+  }
+});
+
+
 /**
  * POST /api/planes-negocio/webhook
  * Webhook que recibe las notificaciones de MercadoPago.
  * IMPORTANTE: configurá esta URL en la preferencia (notification_url)
  * y/o en el panel de credenciales de MercadoPago.
  */
-router.post("/webhook", async (req, res) => {
+router.all("/webhook", async (req, res) => {
   try {
     console.log("🔔 Webhook MP recibido:", {
       query: req.query,
