@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { uNegocio, RubroNegocio,  uUsuarioNegocio,   uCheckinNegocio,PlanNegocio   } = require("../models/model"); 
+const { uNegocio, RubroNegocio,  uNegocio,   uCheckinNegocio,PlanNegocio   } = require("../models/model"); 
 const { autenticarTokenNegocio } = require("../middlewares/authNegocio");
 
 const multer = require("multer");
@@ -10,6 +10,178 @@ const streamifier = require("streamifier");
 const cloudinary = require("../config/cloudinary"); // ajustá el path
 
 const upload = multer({ storage: multer.memoryStorage() });
+const { Op, fn, col, literal } = require("sequelize");
+
+
+router.get('/destacado-crecimiento', async (req, res) => {
+  try {
+    const hoy = new Date();
+
+    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const inicioMesSiguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+
+    const inicioMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    const finMesAnterior = inicioMesActual;
+
+    // 🔹 puntos del mes actual
+    const actual = await uCheckinNegocio.findAll({
+      attributes: [
+        'negocioId',
+        [fn('SUM', col('puntosGanados')), 'total'],
+      ],
+      where: {
+        fecha: {
+          [Op.gte]: inicioMesActual,
+          [Op.lt]: inicioMesSiguiente,
+        },
+      },
+      group: ['negocioId'],
+      raw: true,
+    });
+
+    // 🔹 puntos del mes anterior
+    const anterior = await uCheckinNegocio.findAll({
+      attributes: [
+        'negocioId',
+        [fn('SUM', col('puntosGanados')), 'total'],
+      ],
+      where: {
+        fecha: {
+          [Op.gte]: inicioMesAnterior,
+          [Op.lt]: finMesAnterior,
+        },
+      },
+      group: ['negocioId'],
+      raw: true,
+    });
+
+    const mapActual = new Map();
+    actual.forEach(a =>
+      mapActual.set(a.negocioId, Number(a.total || 0))
+    );
+
+    const candidatos = [];
+
+    anterior.forEach(a => {
+      const prev = Number(a.total || 0);
+      const curr = mapActual.get(a.negocioId) || 0;
+
+      if (prev > 0) {
+        const crecimiento = (curr - prev) / prev;
+        candidatos.push({
+          negocioId: a.negocioId,
+          crecimiento,
+          curr,
+        });
+      }
+    });
+
+    let ganador = null;
+
+    if (candidatos.length > 0) {
+      candidatos.sort((a, b) =>
+        b.crecimiento !== a.crecimiento
+          ? b.crecimiento - a.crecimiento
+          : b.curr - a.curr
+      );
+      ganador = candidatos[0];
+    } else {
+      // 🟡 todos nuevos → el que más puntos hizo este mes
+      const fallback = [...mapActual.entries()]
+        .map(([negocioId, curr]) => ({ negocioId, curr }))
+        .sort((a, b) => b.curr - a.curr)[0];
+
+      if (fallback) ganador = fallback;
+    }
+
+    if (!ganador) return res.json(null);
+
+    const negocio = await uNegocio.findByPk(ganador.negocioId, {
+      attributes: [
+        'id',
+        'nombre',
+        'descripcion',
+        'imagen',
+        'latitud',
+        'longitud',
+        'telefono',
+        'whatsapp',
+        'urlWeb',
+      ],
+    });
+
+    if (!negocio) return res.json(null);
+
+    return res.json({
+      id: negocio.id,
+      nombre: negocio.nombre,
+      descripcion: negocio.descripcion,
+      imagen: negocio.imagen,
+      lat: negocio.latitud,
+      lng: negocio.longitud,
+      telefono: negocio.telefono,
+      whatsapp: negocio.whatsapp,
+      urlWeb: negocio.urlWeb,
+      crecimiento: ganador.crecimiento ?? null,
+    });
+
+  } catch (err) {
+    console.error('❌ destacado-crecimiento:', err);
+    res.status(500).json({ error: 'Error al calcular destacado' });
+  }
+});
+
+
+
+router.get("/destacado-mes", async (req, res) => {
+  try {
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0, 0);
+    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1, 0, 0, 0, 0);
+
+    // Top negocio por puntos en checkins del mes
+    const top = await uCheckinNegocio.findAll({
+      attributes: [
+        "negocioId",
+        [fn("SUM", col("puntosGanados")), "totalPuntos"],
+        [fn("COUNT", col("id")), "totalCheckins"],
+      ],
+      where: {
+        fecha: { [Op.gte]: inicioMes, [Op.lt]: finMes },
+      },
+      group: ["negocioId"],
+      order: [[literal("totalPuntos"), "DESC"]],
+      limit: 1,
+      raw: true,
+    });
+
+    if (!top || !top.length) return res.json(null);
+
+    const negocioId = Number(top[0].negocioId);
+    const totalPuntos = Number(top[0].totalPuntos || 0);
+    const totalCheckins = Number(top[0].totalCheckins || 0);
+
+    const negocio = await uNegocio.findByPk(negocioId, {
+      attributes: ["id", "nombre", "fotoPerfil", "latitud", "longitud", "localidad", "provincia"],
+    });
+
+    if (!negocio) return res.json(null);
+
+    return res.json({
+      id: negocio.id,
+      nombre: negocio.nombre,
+      imagen: negocio.fotoPerfil || null,
+      descripcion: `⭐ Negocio destacado del mes: ${totalPuntos} pts (${totalCheckins} checkins)`,
+      lat: negocio.latitud ?? null,
+      lng: negocio.longitud ?? null,
+      localidad: negocio.localidad ?? null,
+      provincia: negocio.provincia ?? null,
+    });
+  } catch (e) {
+    console.error("❌ GET /api/negocios/destacado-mes", e);
+    return res.status(500).json({ error: "No se pudo obtener el destacado del mes" });
+  }
+});
 
 /**
  * GET /api/negocios/mio
