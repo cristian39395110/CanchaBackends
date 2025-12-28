@@ -1,18 +1,15 @@
 // models/PartnerPublicidad.js
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
 const PartnerPublicidad = sequelize.define(
-  'PartnerPublicidad',
+  "PartnerPublicidad",
   {
-    // 🔗 A qué usuario-negocio pertenece la campaña
-    // (puede ser FK a uUsuariosNegocio)
     negocioId: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
 
-    // Datos visuales de la campaña
     titulo: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -22,7 +19,7 @@ const PartnerPublicidad = sequelize.define(
       allowNull: true,
     },
     imagen: {
-      type: DataTypes.STRING, // URL Cloudinary
+      type: DataTypes.STRING,
       allowNull: true,
     },
     urlWeb: {
@@ -38,7 +35,6 @@ const PartnerPublicidad = sequelize.define(
       allowNull: true,
     },
 
-    // Ubicación opcional
     lat: {
       type: DataTypes.DECIMAL(10, 7),
       allowNull: true,
@@ -48,28 +44,29 @@ const PartnerPublicidad = sequelize.define(
       allowNull: true,
     },
 
-    // Cosas de UI
     badge: {
       type: DataTypes.STRING,
-      allowNull: true, // ej: "Partner", "Destacado", etc.
+      allowNull: true,
     },
     esDestacadoMes: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+
+    // ✅ IMPORTANTE: debe empezar apagado
     activo: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true,
-    },
-    prioridad: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0, // para ordenar el carrusel
+      defaultValue: false,
     },
 
-    // 🔥 NUEVO: duración de la campaña
+    prioridad: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+
     duracionSemanas: {
       type: DataTypes.INTEGER,
-      allowNull: false, // ej: 3, 6, 8
+      allowNull: false,
     },
 
     fechaInicio: {
@@ -82,20 +79,28 @@ const PartnerPublicidad = sequelize.define(
       allowNull: false,
     },
 
-    // 💰 NUEVO: cuánto se cobró por esta campaña en particular
     montoCobrado: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
 
-    // 💳 NUEVO: estado del pago (MercadoPago)
     estadoPago: {
-      type: DataTypes.ENUM('pendiente', 'aprobado', 'rechazado'),
-      defaultValue: 'pendiente',
+      type: DataTypes.ENUM("pendiente", "aprobado", "rechazado"),
+      defaultValue: "pendiente",
+    },
+
+    // ✅ trazabilidad
+    paymentId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    externalReference: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {
-    tableName: 'partner_publicidades',
+    tableName: "partner_publicidades",
   }
 );
 
