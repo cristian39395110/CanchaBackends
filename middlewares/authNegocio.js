@@ -4,41 +4,31 @@ const { uUsuarioNegocio } = require("../models/model");
 
 async function autenticarTokenNegocio(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ error: "Falta token" });
-  }
+  if (!token) return res.status(401).json({ error: "Falta token" });
 
   const SECRET_KEY = process.env.SECRET_KEY || "clave-ultra-secreta";
 
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
 
-    if (decoded.rol !== "negocio") {
-      return res.status(403).json({ error: "Rol inválido" });
-    }
-
-    // 1) Buscar el usuario real en la base
+    // ✅ Solo necesito el id, NO me interesa el rol del token
     const usuario = await uUsuarioNegocio.findByPk(decoded.id);
+    if (!usuario) return res.status(401).json({ error: "Usuario no encontrado" });
 
-    if (!usuario) {
-      return res.status(401).json({ error: "Negocio no encontrado" });
-    }
-
-    // 2) Calcular estado de premium
+    // ✅ Premium real desde BD
     let esPremiumReal = !!usuario.esPremium;
+
+    // (tu lógica de vencimiento igual)
     let diasRestantes = null;
     let premiumVencido = false;
 
     if (usuario.fechaFinPremium) {
       const hoy = new Date();
       const fin = new Date(usuario.fechaFinPremium);
-
       const diffMs = fin.getTime() - hoy.getTime();
-      const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24)); // redondeo hacia arriba
+      const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
       if (diffDias < 0) {
-        // Premium vencido → bajar bandera en la base si seguía true
         if (usuario.esPremium) {
           usuario.esPremium = false;
           await usuario.save();
@@ -51,7 +41,11 @@ async function autenticarTokenNegocio(req, res, next) {
       }
     }
 
-    // 3) Meter en req.negocio el estado real
+    // ✅ ACA BLOQUEÁS: si no es premium real, afuera
+    if (!esPremiumReal) {
+      return res.status(403).json({ ok: false, error: "Premium requerido" });
+    }
+
     req.negocio = {
       id: usuario.id,
       esAdmin: usuario.esAdmin,
@@ -69,5 +63,6 @@ async function autenticarTokenNegocio(req, res, next) {
     return res.status(401).json({ error: "Token inválido o expirado" });
   }
 }
+
 
 module.exports = { autenticarTokenNegocio };
