@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { uNegocio, RubroNegocio,  uNegocio,   uCheckinNegocio,PlanNegocio   } = require("../models/model"); 
+const { uNegocio, RubroNegocio,   uCheckinNegocio,PlanNegocio   } = require("../models/model"); 
 const { autenticarTokenNegocio } = require("../middlewares/authNegocio");
 
 const multer = require("multer");
