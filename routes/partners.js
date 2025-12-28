@@ -7,31 +7,41 @@ const { PartnerPublicidad } = require('../models/model');
 // const { soloAdminNegocio } = require('../middlewares/soloAdminNegocio');
 
 // GET /api/partners  → lista de publicidades activas para el carrusel
-router.get('/', async (req, res) => {
+const { Op } = require("sequelize");
+
+router.get("/", async (req, res) => {
   try {
+    const hoy = new Date();
+
     const partners = await PartnerPublicidad.findAll({
-      where: { activo: true },
-      order: [['prioridad', 'DESC'], ['createdAt', 'DESC']],
+      where: {
+        activo: true,
+        estadoPago: "aprobado",
+        fechaInicio: { [Op.lte]: hoy },
+        fechaFin: { [Op.gte]: hoy },
+      },
+      order: [["prioridad", "DESC"], ["createdAt", "DESC"]],
       attributes: [
-        'id',
-        'titulo',
-        'descripcion',
-        'imagen',
-        'urlWeb',
-        'telefono',
-        'whatsapp',
-        'lat',
-        'lng',
-        'badge',
+        "id",
+        "titulo",
+        "descripcion",
+        "imagen",
+        "urlWeb",
+        "telefono",
+        "whatsapp",
+        "lat",
+        "lng",
+        "badge",
       ],
     });
 
     res.json(partners);
   } catch (err) {
-    console.error('❌ GET /api/partners', err);
-    res.status(500).json({ error: 'No se pudieron obtener las publicidades' });
+    console.error("❌ GET /api/partners", err);
+    res.status(500).json({ error: "No se pudieron obtener las publicidades" });
   }
 });
+
 
 // GET /api/partners/destacado  → uno solo "del mes"
 router.get('/destacado', async (req, res) => {

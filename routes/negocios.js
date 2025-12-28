@@ -96,34 +96,34 @@ router.get('/destacado-crecimiento', async (req, res) => {
 
     if (!ganador) return res.json(null);
 
-    const negocio = await uNegocio.findByPk(ganador.negocioId, {
-      attributes: [
-        'id',
-        'nombre',
-        'descripcion',
-        'imagen',
-        'latitud',
-        'longitud',
-        'telefono',
-        'whatsapp',
-        'urlWeb',
-      ],
-    });
+ const negocio = await uNegocio.findByPk(ganador.negocioId, {
+  attributes: [
+    "id",
+    "nombre",
+    "foto",
+    "latitud",
+    "longitud",
+    "telefono",
+    "whatsapp",
+  ],
+});
+
+
 
     if (!negocio) return res.json(null);
 
-    return res.json({
-      id: negocio.id,
-      nombre: negocio.nombre,
-      descripcion: negocio.descripcion,
-      imagen: negocio.imagen,
-      lat: negocio.latitud,
-      lng: negocio.longitud,
-      telefono: negocio.telefono,
-      whatsapp: negocio.whatsapp,
-      urlWeb: negocio.urlWeb,
-      crecimiento: ganador.crecimiento ?? null,
-    });
+  return res.json({
+  id: negocio.id,
+  nombre: negocio.nombre,
+  imagen: negocio.foto || null,
+  lat: negocio.latitud ?? null,
+  lng: negocio.longitud ?? null,
+  telefono: negocio.telefono ?? null,
+  whatsapp: negocio.whatsapp ?? null,
+  crecimiento: ganador.crecimiento ?? null,
+});
+
+
 
   } catch (err) {
     console.error('❌ destacado-crecimiento:', err);
