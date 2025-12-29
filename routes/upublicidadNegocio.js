@@ -67,12 +67,16 @@ router.post(
   async (req, res) => {
     try {
       const usuarioId = getUsuarioIdFromReq(req);
-      if (!usuarioId) return res.status(401).json({ ok: false, error: "No autenticado" });
+      if (!usuarioId) {
+        return res.status(401).json({ ok: false, error: "No autenticado" });
+      }
 
       const { titulo, descripcion, urlWeb, telefono, whatsapp, lat, lng, semanas } = req.body;
 
       if (!titulo || !semanas) {
-        return res.status(400).json({ ok: false, error: "Faltan datos obligatorios (titulo, semanas)." });
+        return res
+          .status(400)
+          .json({ ok: false, error: "Faltan datos obligatorios (titulo, semanas)." });
       }
 
       const semanasNum = Number(semanas);
@@ -81,10 +85,18 @@ router.post(
       }
 
       const tarifa = await TarifaPublicidad.findOne({ where: { activo: true } });
-      if (!tarifa) return res.status(500).json({ ok: false, error: "No hay tarifa activa configurada." });
+      if (!tarifa) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "No hay tarifa activa configurada." });
+      }
 
       const precioPorSemana = Number(tarifa.precioPorSemana);
       const monto = semanasNum * precioPorSemana;
+
+      // ✅ URLs igual que planesNegocio.js (consistente)
+      const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+      const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3000";
 
       // fechas
       const fechaInicio = new Date();
@@ -101,10 +113,12 @@ router.post(
           );
           streamifier.createReadStream(req.file.buffer).pipe(stream);
         });
+
+        // @ts-ignore (si estás en JS puro, ignorá esto)
         imagenUrl = resultado.secure_url;
       }
 
-      // ✅ guardo en BD como pendiente (ESPAÑOL)
+      // ✅ guardo en BD como pendiente
       const nuevaPublicidad = await PartnerPublicidad.create({
         negocioId: usuarioId,
         titulo,
@@ -126,7 +140,7 @@ router.post(
       // external_reference robusto
       const externalReference = `publicidad-${nuevaPublicidad.id}-${usuarioId}`;
 
-      // ✅ guardarlo (si ya agregaste columnas)
+      // si existe la columna, perfecto; si no existe, esto te va a tirar error (ojo)
       await nuevaPublicidad.update({ externalReference });
 
       const mpResponse = await preferenceClient.create({
@@ -139,12 +153,17 @@ router.post(
               unit_price: monto,
             },
           ],
-          notification_url: `${process.env.API_URL}/api/publicidad-negocio/webhook`,
+
+          // ✅ webhook a tu backend
+          notification_url: `${BACKEND_URL}/api/publicidad-negocio/webhook`,
+
+          // ✅ retorno al front
           back_urls: {
-            success: `${process.env.FRONT_URL}/publicidad/success?id=${nuevaPublicidad.id}`,
-            failure: `${process.env.FRONT_URL}/publicidad/failure?id=${nuevaPublicidad.id}`,
-            pending: `${process.env.FRONT_URL}/publicidad/pending?id=${nuevaPublicidad.id}`,
+            success: `${FRONTEND_URL}/publicidad/success?id=${nuevaPublicidad.id}`,
+            failure: `${FRONTEND_URL}/publicidad/failure?id=${nuevaPublicidad.id}`,
+            pending: `${FRONTEND_URL}/publicidad/pending?id=${nuevaPublicidad.id}`,
           },
+
           auto_return: "approved",
           external_reference: externalReference,
         },
@@ -152,13 +171,19 @@ router.post(
 
       const pagoUrl = mpResponse.init_point || mpResponse.sandbox_init_point;
 
-      return res.json({ ok: true, pagoUrl, idPublicidad: nuevaPublicidad.id, monto });
+      return res.json({
+        ok: true,
+        pagoUrl,
+        idPublicidad: nuevaPublicidad.id,
+        monto,
+      });
     } catch (error) {
       console.error("❌ Error creando publicidad:", error);
       return res.status(500).json({ ok: false, error: "Error interno del servidor" });
     }
   }
 );
+
 
 // ======================================================
 // ✅ CONFIRMAR PAGO (NO DEPENDE DEL WEBHOOK)
